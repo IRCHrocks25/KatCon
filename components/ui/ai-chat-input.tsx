@@ -6,7 +6,7 @@ import { useState, useEffect, useRef } from "react";
 
 import { Mic, Send } from "lucide-react";
 
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, Variants } from "motion/react";
 
 const PLACEHOLDERS = [
   "Make me a reminder at 9pm",
@@ -77,7 +77,7 @@ const AIChatInput = ({ onSend, hasMessages = false }: AIChatInputProps) => {
 
       boxShadow: "0 2px 8px 0 rgba(0,0,0,0.08)",
 
-      transition: { type: "spring", stiffness: 120, damping: 18 },
+      transition: { type: "spring" as const, stiffness: 120, damping: 18 },
     },
 
     expanded: {
@@ -85,7 +85,7 @@ const AIChatInput = ({ onSend, hasMessages = false }: AIChatInputProps) => {
 
       boxShadow: "0 8px 32px 0 rgba(0,0,0,0.16)",
 
-      transition: { type: "spring", stiffness: 120, damping: 18 },
+      transition: { type: "spring" as const, stiffness: 120, damping: 18 },
     },
   };
 
@@ -118,7 +118,7 @@ const AIChatInput = ({ onSend, hasMessages = false }: AIChatInputProps) => {
 
         filter: { duration: 0.4 },
 
-        y: { type: "spring", stiffness: 80, damping: 20 },
+        y: { type: "spring" as const, stiffness: 80, damping: 20 },
       },
     },
 
@@ -134,7 +134,7 @@ const AIChatInput = ({ onSend, hasMessages = false }: AIChatInputProps) => {
 
         filter: { duration: 0.3 },
 
-        y: { type: "spring", stiffness: 80, damping: 20 },
+        y: { type: "spring" as const, stiffness: 80, damping: 20 },
       },
     },
   };
@@ -144,7 +144,7 @@ const AIChatInput = ({ onSend, hasMessages = false }: AIChatInputProps) => {
       <motion.div
         ref={wrapperRef}
         className="w-full max-w-3xl"
-        variants={containerVariants}
+        variants={containerVariants as Variants}
         animate="collapsed"
         initial="collapsed"
         style={{
