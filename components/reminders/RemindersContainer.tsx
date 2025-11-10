@@ -1,60 +1,118 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import type React from "react";
 import { motion } from "motion/react";
 import { Bell, Plus, X, Clock, Calendar } from "lucide-react";
 import { toast } from "sonner";
+import {
+  getReminders,
+  createReminder,
+  updateReminderStatus,
+  deleteReminder,
+  type Reminder,
+} from "@/lib/supabase/reminders";
 
-interface Reminder {
-  id: string;
-  title: string;
-  description?: string;
-  dueDate?: Date;
-  completed: boolean;
+export type { Reminder };
+
+interface RemindersContainerProps {
+  reminders: Reminder[];
+  setReminders: React.Dispatch<React.SetStateAction<Reminder[]>>;
 }
 
-export function RemindersContainer() {
-  const [reminders, setReminders] = useState<Reminder[]>([]);
+export function RemindersContainer({ reminders, setReminders }: RemindersContainerProps) {
   const [isAdding, setIsAdding] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [newReminder, setNewReminder] = useState({
     title: "",
     description: "",
     dueDate: "",
   });
 
-  const handleAddReminder = () => {
+  // Fetch reminders on component mount
+  useEffect(() => {
+    const fetchReminders = async () => {
+      try {
+        setIsLoading(true);
+        const fetchedReminders = await getReminders();
+        setReminders(fetchedReminders);
+      } catch (error) {
+        console.error("Error fetching reminders:", error);
+        toast.error("Failed to load reminders", {
+          description: error instanceof Error ? error.message : "Unknown error",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchReminders();
+  }, [setReminders]);
+
+  const handleAddReminder = async () => {
     if (!newReminder.title.trim()) {
       toast.error("Reminder title is required");
       return;
     }
 
-    const reminder: Reminder = {
-      id: Date.now().toString(),
-      title: newReminder.title,
-      description: newReminder.description || undefined,
-      dueDate: newReminder.dueDate ? new Date(newReminder.dueDate) : undefined,
-      completed: false,
-    };
+    try {
+      const reminder = await createReminder({
+        title: newReminder.title,
+        description: newReminder.description || undefined,
+        dueDate: newReminder.dueDate ? new Date(newReminder.dueDate) : undefined,
+      });
 
-    setReminders((prev) => [...prev, reminder]);
-    setNewReminder({ title: "", description: "", dueDate: "" });
-    setIsAdding(false);
-    toast.success("Reminder added");
+      setReminders((prev) => [...prev, reminder]);
+      setNewReminder({ title: "", description: "", dueDate: "" });
+      setIsAdding(false);
+      toast.success("Reminder added");
+    } catch (error) {
+      console.error("Error creating reminder:", error);
+      toast.error("Failed to add reminder", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
   };
 
-  const handleToggleComplete = (id: string) => {
-    setReminders((prev) =>
-      prev.map((reminder) =>
-        reminder.id === id
-          ? { ...reminder, completed: !reminder.completed }
-          : reminder
-      )
-    );
+  const handleToggleComplete = async (id: string) => {
+    const reminder = reminders.find((r) => r.id === id);
+    if (!reminder) return;
+
+    const newStatus = reminder.status === "pending" ? "done" : "pending";
+
+    try {
+      await updateReminderStatus(id, newStatus);
+      
+      // If status is now "done", remove from list (since we don't fetch done reminders)
+      if (newStatus === "done") {
+        setReminders((prev) => prev.filter((reminder) => reminder.id !== id));
+      } else {
+        // If status is now "pending", update in list
+        setReminders((prev) =>
+          prev.map((reminder) =>
+            reminder.id === id ? { ...reminder, status: newStatus } : reminder
+          )
+        );
+      }
+    } catch (error) {
+      console.error("Error updating reminder status:", error);
+      toast.error("Failed to update reminder", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
   };
 
-  const handleDeleteReminder = (id: string) => {
-    setReminders((prev) => prev.filter((reminder) => reminder.id !== id));
-    toast.success("Reminder deleted");
+  const handleDeleteReminder = async (id: string) => {
+    try {
+      await deleteReminder(id);
+      setReminders((prev) => prev.filter((reminder) => reminder.id !== id));
+      toast.success("Reminder deleted");
+    } catch (error) {
+      console.error("Error deleting reminder:", error);
+      toast.error("Failed to delete reminder", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
   };
 
   return (
@@ -90,7 +148,6 @@ export function RemindersContainer() {
             }
             className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
             onKeyDown={(e) => {
-              if (e.key === "Enter") handleAddReminder();
               if (e.key === "Escape") {
                 setIsAdding(false);
                 setNewReminder({ title: "", description: "", dueDate: "" });
@@ -98,23 +155,29 @@ export function RemindersContainer() {
             }}
             autoFocus
           />
-          <input
-            type="text"
+          <textarea
             placeholder="Description (optional)"
             value={newReminder.description}
             onChange={(e) =>
               setNewReminder({ ...newReminder, description: e.target.value })
             }
-            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+            rows={3}
+            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm resize-none"
           />
-          <input
-            type="datetime-local"
-            value={newReminder.dueDate}
-            onChange={(e) =>
-              setNewReminder({ ...newReminder, dueDate: e.target.value })
-            }
-            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
-          />
+          <div className="relative">
+            <input
+              type="datetime-local"
+              value={newReminder.dueDate}
+              onChange={(e) =>
+                setNewReminder({ ...newReminder, dueDate: e.target.value })
+              }
+              className="w-full px-3 py-2 pr-10 bg-gray-800/50 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+            />
+            <Calendar
+              size={18}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+            />
+          </div>
           <div className="flex gap-2">
             <button
               onClick={handleAddReminder}
@@ -127,7 +190,7 @@ export function RemindersContainer() {
                 setIsAdding(false);
                 setNewReminder({ title: "", description: "", dueDate: "" });
               }}
-              className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition"
+              className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm transition"
             >
               Cancel
             </button>
@@ -137,7 +200,12 @@ export function RemindersContainer() {
 
       {/* Reminders List */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-2">
-        {reminders.length === 0 ? (
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center h-full text-gray-500">
+            <div className="w-8 h-8 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mb-4" />
+            <p className="text-sm">Loading reminders...</p>
+          </div>
+        ) : reminders.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-500">
             <Bell size={48} className="mb-4 opacity-50" />
             <p className="text-sm">No reminders yet</p>
@@ -149,22 +217,14 @@ export function RemindersContainer() {
               key={reminder.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className={`p-3 rounded-lg border ${
-                reminder.completed
-                  ? "bg-gray-800/30 border-gray-700/50 opacity-60"
-                  : "bg-gray-800/50 border-gray-700/50"
-              }`}
+              className="p-3 rounded-lg border bg-gray-800/50 border-gray-700/50"
             >
               <div className="flex items-start gap-2">
                 <button
                   onClick={() => handleToggleComplete(reminder.id)}
-                  className={`mt-0.5 w-4 h-4 rounded border-2 flex items-center justify-center transition ${
-                    reminder.completed
-                      ? "bg-purple-600 border-purple-600"
-                      : "border-gray-600 hover:border-purple-500"
-                  }`}
+                  className="mt-0.5 w-4 h-4 rounded border-2 flex items-center justify-center transition border-gray-600 hover:border-purple-500"
                 >
-                  {reminder.completed && (
+                  {reminder.status === "done" && (
                     <svg
                       className="w-3 h-3 text-white"
                       fill="none"
@@ -179,23 +239,11 @@ export function RemindersContainer() {
                   )}
                 </button>
                 <div className="flex-1 min-w-0">
-                  <h3
-                    className={`text-sm font-medium ${
-                      reminder.completed
-                        ? "text-gray-500 line-through"
-                        : "text-white"
-                    }`}
-                  >
+                  <h3 className="text-sm font-medium text-white">
                     {reminder.title}
                   </h3>
                   {reminder.description && (
-                    <p
-                      className={`text-xs mt-1 ${
-                        reminder.completed
-                          ? "text-gray-600"
-                          : "text-gray-400"
-                      }`}
-                    >
+                    <p className="text-xs mt-1 text-gray-400">
                       {reminder.description}
                     </p>
                   )}

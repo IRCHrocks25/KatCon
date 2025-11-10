@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, startTransition } from "react";
 
 import { Mic, Send } from "lucide-react";
 
@@ -29,14 +29,40 @@ const PLACEHOLDERS = [
 interface AIChatInputProps {
   onSend?: (message: string) => void;
   hasMessages?: boolean;
+  setValue?: string | null;
 }
 
-const AIChatInput = ({ onSend, hasMessages = false }: AIChatInputProps) => {
+const AIChatInput = ({
+  onSend,
+  hasMessages = false,
+  setValue,
+}: AIChatInputProps) => {
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
 
   const [showPlaceholder, setShowPlaceholder] = useState(true);
 
-  const [inputValue, setInputValue] = useState("");
+  // Use internal state, but sync it when setValue prop changes
+  const [internalValue, setInternalValue] = useState("");
+  const previousSetValueRef = useRef<string | null | undefined>(undefined);
+
+  // Update internal value when setValue prop changes to a new non-null value
+  useEffect(() => {
+    if (
+      setValue !== undefined &&
+      setValue !== null &&
+      setValue !== previousSetValueRef.current
+    ) {
+      previousSetValueRef.current = setValue;
+      startTransition(() => {
+        setInternalValue(setValue);
+      });
+    } else if (setValue === null) {
+      previousSetValueRef.current = null;
+    }
+  }, [setValue]);
+
+  const inputValue = internalValue;
+  const setInputValue = setInternalValue;
 
   const wrapperRef = useRef<HTMLDivElement>(null);
 

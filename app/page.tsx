@@ -7,17 +7,21 @@ import {
   Calendar,
   Users,
   Clock,
-  ListTodo,
   MessageSquare,
   AlertCircle,
   LogOut,
+  Bell,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { MessageLoading } from "@/components/ui/message-loading";
 import { useAuth } from "@/contexts/AuthContext";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { toast } from "sonner";
-import { RemindersContainer } from "@/components/reminders/RemindersContainer";
+import {
+  RemindersContainer,
+  type Reminder,
+} from "@/components/reminders/RemindersContainer";
+import { createReminder } from "@/lib/supabase/reminders";
 
 interface Message {
   id: string;
@@ -30,6 +34,8 @@ export default function Home() {
   const { user, loading: authLoading, logout } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [chatInputValue, setChatInputValue] = useState<string | null>(null);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(() => {
     if (globalThis.window) {
       return globalThis.window.localStorage.getItem("chatSessionId");
@@ -92,8 +98,45 @@ export default function Home() {
 
       if (response.ok) {
         const data = await response.json();
-        // Add bot response message
-        if (data.output) {
+
+        // Check if response is a reminder format (output.task, output.datetime, output.notes)
+        if (
+          data.output &&
+          typeof data.output === "object" &&
+          data.output.task &&
+          data.output.datetime
+        ) {
+          // This is a reminder response, save it to Supabase
+          try {
+            const reminder = await createReminder({
+              title: data.output.task,
+              description: data.output.notes || undefined,
+              dueDate: new Date(data.output.datetime),
+            });
+
+            setReminders((prev) => [...prev, reminder]);
+
+            // Show "Reminder set!" as a bot message in chat
+            const botMessage: Message = {
+              id: `bot-${Date.now()}`,
+              text: "Reminder set!",
+              timestamp: new Date(),
+              type: "bot",
+            };
+            setMessages((prev) => [...prev, botMessage]);
+
+            toast.success("Reminder added", {
+              description: `"${data.output.task}" has been added to your reminders.`,
+            });
+          } catch (error) {
+            console.error("Error creating reminder from webhook:", error);
+            toast.error("Failed to save reminder", {
+              description:
+                error instanceof Error ? error.message : "Unknown error",
+            });
+          }
+        } else if (data.output && typeof data.output === "string") {
+          // Regular bot response message (output is a string)
           const botMessage: Message = {
             id: `bot-${Date.now()}`,
             text: data.output,
@@ -129,39 +172,46 @@ export default function Home() {
   };
   const quickActions = [
     {
-      icon: ListTodo,
-      label: "My Tasks",
+      icon: Bell,
+      label: "Reminder",
       color: "from-blue-500/20 to-cyan-500/20",
+      message: "Make me a reminder",
     },
     {
       icon: CheckSquare,
       label: "Ongoing Tasks",
       color: "from-purple-500/20 to-pink-500/20",
+      message: "Show me my ongoing tasks",
     },
     {
       icon: Calendar,
       label: "Upcoming Deadlines",
       color: "from-orange-500/20 to-yellow-500/20",
+      message: "Show me upcoming deadlines",
     },
     {
       icon: Users,
       label: "Team Status",
       color: "from-pink-500/20 to-purple-500/20",
+      message: "Show me team status",
     },
     {
       icon: Clock,
       label: "Check Schedule",
       color: "from-blue-500/20 to-purple-500/20",
+      message: "Check my schedule",
     },
     {
       icon: AlertCircle,
       label: "Urgent Items",
       color: "from-orange-500/20 to-pink-500/20",
+      message: "Show me urgent items",
     },
     {
       icon: MessageSquare,
       label: "Team Updates",
       color: "from-purple-500/20 to-blue-500/20",
+      message: "Show me team updates",
     },
   ];
 
@@ -197,7 +247,7 @@ export default function Home() {
 
       {/* Reminders Section - 1/3 width (Left) */}
       <div className="relative z-10 w-1/3 h-screen">
-        <RemindersContainer />
+        <RemindersContainer reminders={reminders} setReminders={setReminders} />
       </div>
 
       {/* Chat Section - 2/3 width (Right) */}
@@ -293,6 +343,7 @@ export default function Home() {
             <AIChatInput
               onSend={handleSendMessage}
               hasMessages={messages.length > 0}
+              setValue={chatInputValue}
             />
           </div>
 
@@ -303,7 +354,12 @@ export default function Home() {
               return (
                 <button
                   key={index}
-                  className={`group relative flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-900/50 backdrop-blur-sm border border-gray-800/50 text-gray-300 hover:text-white hover:border-gray-700 transition-all duration-200 hover:scale-105 ${action.color} hover:bg-gradient-to-r`}
+                  onClick={() => {
+                    setChatInputValue(action.message);
+                    // Reset after a brief moment to allow the input to update
+                    setTimeout(() => setChatInputValue(null), 0);
+                  }}
+                  className={`group relative flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-900/50 backdrop-blur-sm border border-gray-800/50 text-gray-300 hover:text-white hover:border-gray-700 transition-all duration-200 hover:scale-105 ${action.color} hover:bg-gradient-to-r cursor-pointer`}
                 >
                   <Icon
                     size={16}
