@@ -56,3 +56,45 @@ body {
   scrollbar-width: thin;
   scrollbar-color: #000000 #c0c0c0;
 }
+
+/* Date picker styling - make popup white/light */
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
+
+input[type="datetime-local"]::-webkit-datetime-edit {
+  color: white;
+}
+
+input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
+  color: white;
+}
+
+input[type="datetime-local"]::-webkit-datetime-edit-text {
+  color: white;
+}
+
+input[type="datetime-local"]::-webkit-datetime-edit-month-field {
+  color: white;
+}
+
+input[type="datetime-local"]::-webkit-datetime-edit-day-field {
+  color: white;
+}
+
+input[type="datetime-local"]::-webkit-datetime-edit-year-field {
+  color: white;
+}
+
+input[type="datetime-local"]::-webkit-datetime-edit-hour-field {
+  color: white;
+}
+
+input[type="datetime-local"]::-webkit-datetime-edit-minute-field {
+  color: white;
+}
+
+input[type="datetime-local"]::-webkit-datetime-edit-ampm-field {
+  color: white;
+}

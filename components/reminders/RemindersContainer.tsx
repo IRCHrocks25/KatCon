@@ -3,11 +3,12 @@
 import { useState, useEffect } from "react";
 import type React from "react";
 import { motion } from "motion/react";
-import { Bell, Plus, X, Clock, Calendar } from "lucide-react";
+import { Bell, Plus, X, Clock, Calendar, Edit } from "lucide-react";
 import { toast } from "sonner";
 import {
   getReminders,
   createReminder,
+  updateReminder,
   updateReminderStatus,
   deleteReminder,
   type Reminder,
@@ -20,33 +21,50 @@ interface RemindersContainerProps {
   setReminders: React.Dispatch<React.SetStateAction<Reminder[]>>;
 }
 
-export function RemindersContainer({ reminders, setReminders }: RemindersContainerProps) {
+export function RemindersContainer({
+  reminders,
+  setReminders,
+}: RemindersContainerProps) {
   const [isAdding, setIsAdding] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [newReminder, setNewReminder] = useState({
     title: "",
     description: "",
     dueDate: "",
   });
 
-  // Fetch reminders on component mount
+  // Fetch reminders on component mount (non-blocking)
   useEffect(() => {
     const fetchReminders = async () => {
       try {
         setIsLoading(true);
+
         const fetchedReminders = await getReminders();
         setReminders(fetchedReminders);
       } catch (error) {
         console.error("Error fetching reminders:", error);
-        toast.error("Failed to load reminders", {
-          description: error instanceof Error ? error.message : "Unknown error",
-        });
+        // Don't show error toast on initial load to avoid blocking UI
+        // Only show error if it's a critical issue
+        if (
+          error instanceof Error &&
+          error.message !== "User not authenticated"
+        ) {
+          toast.error("Failed to load reminders", {
+            description: error.message,
+          });
+        }
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchReminders();
+    // Small delay to ensure page renders first
+    const timeoutId = setTimeout(() => {
+      fetchReminders();
+    }, 100);
+
+    return () => clearTimeout(timeoutId);
   }, [setReminders]);
 
   const handleAddReminder = async () => {
@@ -56,22 +74,64 @@ export function RemindersContainer({ reminders, setReminders }: RemindersContain
     }
 
     try {
-      const reminder = await createReminder({
-        title: newReminder.title,
-        description: newReminder.description || undefined,
-        dueDate: newReminder.dueDate ? new Date(newReminder.dueDate) : undefined,
-      });
+      if (editingId) {
+        // Update existing reminder
+        const updatedReminder = await updateReminder(editingId, {
+          title: newReminder.title,
+          description: newReminder.description || undefined,
+          dueDate: newReminder.dueDate
+            ? new Date(newReminder.dueDate)
+            : undefined,
+        });
 
-      setReminders((prev) => [...prev, reminder]);
+        setReminders((prev) =>
+          prev.map((r) => (r.id === editingId ? updatedReminder : r))
+        );
+        toast.success("Reminder updated");
+        setEditingId(null);
+      } else {
+        // Create new reminder
+        const reminder = await createReminder({
+          title: newReminder.title,
+          description: newReminder.description || undefined,
+          dueDate: newReminder.dueDate
+            ? new Date(newReminder.dueDate)
+            : undefined,
+        });
+
+        setReminders((prev) => [...prev, reminder]);
+        toast.success("Reminder added");
+      }
+
       setNewReminder({ title: "", description: "", dueDate: "" });
       setIsAdding(false);
-      toast.success("Reminder added");
     } catch (error) {
-      console.error("Error creating reminder:", error);
-      toast.error("Failed to add reminder", {
-        description: error instanceof Error ? error.message : "Unknown error",
-      });
+      console.error("Error saving reminder:", error);
+      toast.error(
+        editingId ? "Failed to update reminder" : "Failed to add reminder",
+        {
+          description: error instanceof Error ? error.message : "Unknown error",
+        }
+      );
     }
+  };
+
+  const handleEditReminder = (reminder: Reminder) => {
+    setEditingId(reminder.id);
+    setNewReminder({
+      title: reminder.title,
+      description: reminder.description || "",
+      dueDate: reminder.dueDate
+        ? new Date(reminder.dueDate).toISOString().slice(0, 16)
+        : "",
+    });
+    setIsAdding(true);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setNewReminder({ title: "", description: "", dueDate: "" });
+    setIsAdding(false);
   };
 
   const handleToggleComplete = async (id: string) => {
@@ -81,13 +141,15 @@ export function RemindersContainer({ reminders, setReminders }: RemindersContain
     const newStatus = reminder.status === "pending" ? "done" : "pending";
 
     try {
-      await updateReminderStatus(id, newStatus);
-      
-      // If status is now "done", remove from list (since we don't fetch done reminders)
-      if (newStatus === "done") {
-        setReminders((prev) => prev.filter((reminder) => reminder.id !== id));
+      const updatedReminder = await updateReminderStatus(id, newStatus);
+
+      // Update the reminder in the list (keep it visible with strikethrough)
+      if (updatedReminder) {
+        setReminders((prev) =>
+          prev.map((r) => (r.id === id ? updatedReminder : r))
+        );
       } else {
-        // If status is now "pending", update in list
+        // Fallback: update locally if we can't get the updated reminder
         setReminders((prev) =>
           prev.map((reminder) =>
             reminder.id === id ? { ...reminder, status: newStatus } : reminder
@@ -109,8 +171,14 @@ export function RemindersContainer({ reminders, setReminders }: RemindersContain
       toast.success("Reminder deleted");
     } catch (error) {
       console.error("Error deleting reminder:", error);
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : typeof error === "object" && error !== null && "message" in error
+          ? String(error.message)
+          : "Unknown error occurred";
       toast.error("Failed to delete reminder", {
-        description: error instanceof Error ? error.message : "Unknown error",
+        description: errorMessage,
       });
     }
   };
@@ -124,7 +192,13 @@ export function RemindersContainer({ reminders, setReminders }: RemindersContain
           <h2 className="text-lg font-semibold text-white">Reminders</h2>
         </div>
         <button
-          onClick={() => setIsAdding(!isAdding)}
+          onClick={() => {
+            if (isAdding) {
+              handleCancelEdit();
+            } else {
+              setIsAdding(true);
+            }
+          }}
           className="p-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 transition"
         >
           <Plus size={18} />
@@ -172,6 +246,9 @@ export function RemindersContainer({ reminders, setReminders }: RemindersContain
                 setNewReminder({ ...newReminder, dueDate: e.target.value })
               }
               className="w-full px-3 py-2 pr-10 bg-gray-800/50 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+              style={{
+                colorScheme: "dark",
+              }}
             />
             <Calendar
               size={18}
@@ -183,13 +260,10 @@ export function RemindersContainer({ reminders, setReminders }: RemindersContain
               onClick={handleAddReminder}
               className="flex-1 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition"
             >
-              Add
+              {editingId ? "Save Changes" : "Add"}
             </button>
             <button
-              onClick={() => {
-                setIsAdding(false);
-                setNewReminder({ title: "", description: "", dueDate: "" });
-              }}
+              onClick={handleCancelEdit}
               className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm transition"
             >
               Cancel
@@ -200,7 +274,7 @@ export function RemindersContainer({ reminders, setReminders }: RemindersContain
 
       {/* Reminders List */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-2">
-        {isLoading ? (
+        {isLoading && reminders.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-500">
             <div className="w-8 h-8 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mb-4" />
             <p className="text-sm">Loading reminders...</p>
@@ -217,12 +291,20 @@ export function RemindersContainer({ reminders, setReminders }: RemindersContain
               key={reminder.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="p-3 rounded-lg border bg-gray-800/50 border-gray-700/50"
+              className={`p-3 rounded-lg border ${
+                reminder.status === "done"
+                  ? "bg-gray-800/30 border-gray-700/50 opacity-60"
+                  : "bg-gray-800/50 border-gray-700/50"
+              }`}
             >
               <div className="flex items-start gap-2">
                 <button
                   onClick={() => handleToggleComplete(reminder.id)}
-                  className="mt-0.5 w-4 h-4 rounded border-2 flex items-center justify-center transition border-gray-600 hover:border-purple-500"
+                  className={`mt-0.5 w-4 h-4 rounded border-2 flex items-center justify-center transition ${
+                    reminder.status === "done"
+                      ? "bg-purple-600 border-purple-600"
+                      : "border-gray-600 hover:border-purple-500"
+                  }`}
                 >
                   {reminder.status === "done" && (
                     <svg
@@ -239,11 +321,23 @@ export function RemindersContainer({ reminders, setReminders }: RemindersContain
                   )}
                 </button>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-medium text-white">
+                  <h3
+                    className={`text-sm font-medium ${
+                      reminder.status === "done"
+                        ? "text-gray-500 line-through"
+                        : "text-white"
+                    }`}
+                  >
                     {reminder.title}
                   </h3>
                   {reminder.description && (
-                    <p className="text-xs mt-1 text-gray-400">
+                    <p
+                      className={`text-xs mt-1 ${
+                        reminder.status === "done"
+                          ? "text-gray-600 line-through"
+                          : "text-gray-400"
+                      }`}
+                    >
                       {reminder.description}
                     </p>
                   )}
@@ -261,12 +355,22 @@ export function RemindersContainer({ reminders, setReminders }: RemindersContain
                     </div>
                   )}
                 </div>
-                <button
-                  onClick={() => handleDeleteReminder(reminder.id)}
-                  className="p-1 hover:bg-gray-700/50 rounded transition"
-                >
-                  <X size={14} className="text-gray-400" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => handleEditReminder(reminder)}
+                    className="p-1 hover:bg-gray-700/50 rounded transition"
+                    title="Edit reminder"
+                  >
+                    <Edit size={14} className="text-gray-400" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteReminder(reminder.id)}
+                    className="p-1 hover:bg-gray-700/50 rounded transition"
+                    title="Delete reminder"
+                  >
+                    <X size={14} className="text-gray-400" />
+                  </button>
+                </div>
               </div>
             </motion.div>
           ))
@@ -275,4 +379,3 @@ export function RemindersContainer({ reminders, setReminders }: RemindersContain
     </div>
   );
 }
-

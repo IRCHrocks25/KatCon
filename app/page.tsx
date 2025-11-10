@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AIChatInput } from "@/components/ui/ai-chat-input";
 import {
   CheckSquare,
@@ -58,6 +58,30 @@ export default function Home() {
 
     return newSessionId;
   };
+
+  // Clear messages, reminders, and sessionId when user changes
+  useEffect(() => {
+    if (user) {
+      // User logged in - clear previous data and create new session
+      setMessages([]);
+      setReminders([]);
+      setChatInputValue(null);
+      const newSessionId = crypto.randomUUID();
+      setSessionId(newSessionId);
+      if (globalThis.window) {
+        globalThis.window.localStorage.setItem("chatSessionId", newSessionId);
+      }
+    } else {
+      // User logged out - clear everything
+      setMessages([]);
+      setReminders([]);
+      setChatInputValue(null);
+      setSessionId(null);
+      if (globalThis.window) {
+        globalThis.window.localStorage.removeItem("chatSessionId");
+      }
+    }
+  }, [user]); // Watch user to detect user changes
 
   const handleSendMessage = async (text: string) => {
     if (!text.trim()) {
@@ -264,6 +288,9 @@ export default function Home() {
             </p>
             <p className="text-xs text-gray-500 mt-1">
               Logged in as: {user.email}
+              {user.accountType && (
+                <span className="ml-2 text-gray-400">({user.accountType})</span>
+              )}
             </p>
           </div>
 

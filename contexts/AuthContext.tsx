@@ -50,6 +50,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await signOut();
       setUser(null);
+      
+      // Clear chat session from localStorage
+      if (globalThis.window) {
+        globalThis.window.localStorage.removeItem("chatSessionId");
+      }
+      
       toast.success("Logged out successfully");
     } catch (error) {
       toast.error("Failed to logout", {
