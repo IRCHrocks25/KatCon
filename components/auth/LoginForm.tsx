@@ -5,11 +5,13 @@ import { motion, AnimatePresence } from "motion/react";
 import { useAuth } from "@/contexts/AuthContext";
 import { LogIn, UserPlus, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { AccountType } from "@/lib/supabase/auth";
 
 export function LoginForm() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [accountType, setAccountType] = useState<AccountType>("CRM TEAM");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const { signIn, signUp } = useAuth();
@@ -21,13 +23,14 @@ export function LoginForm() {
 
     try {
       if (isSignUp) {
-        await signUp(email, password);
+        await signUp(email, password, accountType);
         toast.success("Account created successfully!", {
           description: "You can now sign in with your credentials.",
         });
         // Clear fields after successful signup
         setEmail("");
         setPassword("");
+        setAccountType("CRM TEAM");
       } else {
         await signIn(email, password);
         toast.success("Welcome back!", {
@@ -129,10 +132,35 @@ export function LoginForm() {
                 />
               </motion.div>
 
+              {isSignUp && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2, delay: 0.125 }}
+                >
+                  <label htmlFor="accountType" className="block text-sm font-medium text-gray-300 mb-2">
+                    Account Type <span className="text-red-400">*</span>
+                  </label>
+                  <select
+                    id="accountType"
+                    value={accountType}
+                    onChange={(e) => setAccountType(e.target.value as AccountType)}
+                    required
+                    className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
+                    disabled={loading}
+                  >
+                    <option value="CRM TEAM">CRM TEAM</option>
+                    <option value="BRANDING TEAM">BRANDING TEAM</option>
+                    <option value="DIVISION TEAM">DIVISION TEAM</option>
+                  </select>
+                </motion.div>
+              )}
+
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2, delay: 0.15 }}
+                transition={{ duration: 0.2, delay: isSignUp ? 0.15 : 0.125 }}
               >
                 <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
                   Password
@@ -206,6 +234,7 @@ export function LoginForm() {
               onClick={() => {
                 setIsSignUp(!isSignUp);
                 setError("");
+                setAccountType("CRM TEAM");
               }}
               className="text-sm text-gray-400 hover:text-white transition"
             >

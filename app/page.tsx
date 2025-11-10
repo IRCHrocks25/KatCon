@@ -86,6 +86,7 @@ export default function Home() {
           message: text.trim(),
           timestamp: newMessage.timestamp.toISOString(),
           sessionId: currentSessionId,
+          userEmail: user?.email || null,
         }),
       });
 

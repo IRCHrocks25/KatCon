@@ -15,6 +15,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Prepare webhook payload (includes userEmail from request body)
+    const webhookPayload = {
+      message: body.message,
+      timestamp: body.timestamp,
+      sessionId: body.sessionId,
+      ...(body.userEmail && { userEmail: body.userEmail }),
+    };
+
     // Set timeout for the fetch request (30 seconds)
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000);
@@ -27,7 +35,7 @@ export async function POST(request: NextRequest) {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(body),
+          body: JSON.stringify(webhookPayload),
           signal: controller.signal,
         }
       );

@@ -1,13 +1,13 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { AuthUser, getCurrentUser, onAuthStateChange, signIn, signOut, signUp } from "@/lib/supabase/auth";
+import { AccountType, AuthUser, getCurrentUser, onAuthStateChange, signIn, signOut, signUp } from "@/lib/supabase/auth";
 import { toast } from "sonner";
 
 interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
-  signUp: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, accountType: AccountType) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -36,8 +36,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const handleSignUp = async (email: string, password: string) => {
-    await signUp(email, password);
+  const handleSignUp = async (email: string, password: string, accountType: AccountType) => {
+    await signUp(email, password, accountType);
     // User will be set via auth state change listener
   };
 
