@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AIChatInput } from "@/components/ui/ai-chat-input";
 import {
   CheckSquare,
@@ -59,27 +59,39 @@ export default function Home() {
     return newSessionId;
   };
 
-  // Clear messages, reminders, and sessionId when user changes
+  // Track previous user ID to detect actual user changes (not just object reference changes)
+  const previousUserIdRef = useRef<string | null>(null);
+
+  // Clear messages, reminders, and sessionId when user actually changes (different user ID)
   useEffect(() => {
-    if (user) {
-      // User logged in - clear previous data and create new session
-      setMessages([]);
-      setReminders([]);
-      setChatInputValue(null);
-      const newSessionId = crypto.randomUUID();
-      setSessionId(newSessionId);
-      if (globalThis.window) {
-        globalThis.window.localStorage.setItem("chatSessionId", newSessionId);
+    const currentUserId = user?.id || null;
+    const previousUserId = previousUserIdRef.current;
+
+    // Only clear data if the user ID actually changed (different user or logged out)
+    if (currentUserId !== previousUserId) {
+      if (user) {
+        // New user logged in - clear previous data and create new session
+        setMessages([]);
+        setReminders([]);
+        setChatInputValue(null);
+        const newSessionId = crypto.randomUUID();
+        setSessionId(newSessionId);
+        if (globalThis.window) {
+          globalThis.window.localStorage.setItem("chatSessionId", newSessionId);
+        }
+      } else {
+        // User logged out - clear everything
+        setMessages([]);
+        setReminders([]);
+        setChatInputValue(null);
+        setSessionId(null);
+        if (globalThis.window) {
+          globalThis.window.localStorage.removeItem("chatSessionId");
+        }
       }
-    } else {
-      // User logged out - clear everything
-      setMessages([]);
-      setReminders([]);
-      setChatInputValue(null);
-      setSessionId(null);
-      if (globalThis.window) {
-        globalThis.window.localStorage.removeItem("chatSessionId");
-      }
+
+      // Update the ref to track the current user ID
+      previousUserIdRef.current = currentUserId;
     }
   }, [user]); // Watch user to detect user changes
 

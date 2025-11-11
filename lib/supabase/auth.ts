@@ -112,12 +112,32 @@ export function onAuthStateChange(callback: (user: AuthUser | null) => void) {
       }
 
       if (session?.user) {
-        // Fetch profile synchronously before calling callback
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("account_type")
-          .eq("id", session.user.id)
-          .single();
+        // Fetch profile with timeout to prevent hanging
+        let profile: { account_type: string } | null = null;
+        try {
+          const profilePromise = supabase
+            .from("profiles")
+            .select("account_type")
+            .eq("id", session.user.id)
+            .single();
+
+          const timeoutPromise = new Promise<{ data: null; error: null }>(
+            (resolve) => {
+              setTimeout(() => resolve({ data: null, error: null }), 3000); // 3 second timeout
+            }
+          );
+
+          const result = await Promise.race([profilePromise, timeoutPromise]);
+
+          if (result && result.data && !result.error) {
+            profile = result.data;
+          } else if (isDev && result && result.error) {
+            console.warn("[AUTH] Profile fetch error:", result.error);
+          }
+        } catch (error) {
+          if (isDev) console.warn("[AUTH] Profile fetch failed:", error);
+          // Continue without profile - accountType will be undefined
+        }
 
         const user: AuthUser = {
           id: session.user.id,
@@ -125,10 +145,19 @@ export function onAuthStateChange(callback: (user: AuthUser | null) => void) {
           accountType: profile?.account_type as AccountType | undefined,
         };
 
+        if (isDev) {
+          console.log("[AUTH] Calling callback with user:", {
+            id: user.id,
+            email: user.email,
+          });
+        }
         callback(user);
       } else {
         // No session - clear cache and notify callback
         clearEmailCache();
+        if (isDev) {
+          console.log("[AUTH] No session, calling callback with null");
+        }
         callback(null);
       }
     } catch (error) {

@@ -20,16 +20,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const previousUserRef = React.useRef<AuthUser | null>(null);
   const isInitialLoadRef = React.useRef(true);
   const userRef = React.useRef<AuthUser | null>(null);
+  const loadingRef = React.useRef(true);
 
-  // Keep userRef in sync with user state
+  // Keep refs in sync with state
   React.useEffect(() => {
     userRef.current = user;
   }, [user]);
 
+  React.useEffect(() => {
+    loadingRef.current = loading;
+  }, [loading]);
+
   useEffect(() => {
+    // Safety timeout to ensure loading doesn't hang forever
+    const safetyTimeout = setTimeout(() => {
+      if (loadingRef.current) {
+        console.warn("[AUTH CONTEXT] Loading timeout - forcing loading to false");
+        setLoading(false);
+      }
+    }, 5000); // 5 second safety timeout
+
     const { subscription } = onAuthStateChange((newUser) => {
       const previousUser = previousUserRef.current;
       const currentUser = userRef.current;
+      
+      // Clear safety timeout since callback was called
+      clearTimeout(safetyTimeout);
       
       // Check if this is an unexpected sign-out (user was logged in, now logged out)
       // But not on initial load and not if user was already null
@@ -55,6 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => {
+      clearTimeout(safetyTimeout);
       subscription.unsubscribe();
     };
   }, []);
