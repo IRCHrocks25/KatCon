@@ -1,4 +1,5 @@
 import { supabase } from "./client";
+import { getUserEmail, clearEmailCache } from "./session";
 
 export type AccountType = "CRM TEAM" | "BRANDING TEAM" | "DIVISION TEAM";
 
@@ -8,19 +9,23 @@ export interface AuthUser {
   accountType?: AccountType;
 }
 
+const isDev = process.env.NODE_ENV === "development";
+
 // Sign up with email and password
 export async function signUp(
   email: string,
   password: string,
   accountType: AccountType
 ) {
-  // Create auth user
   const { data, error } = await supabase.auth.signUp({
     email: email,
     password: password,
   });
 
-  if (error) throw error;
+  if (error) {
+    if (isDev) console.error("[AUTH] signUp error:", error);
+    throw error;
+  }
 
   // If user was created, create profile with account type
   if (data.user) {
@@ -30,8 +35,7 @@ export async function signUp(
     });
 
     if (profileError) {
-      // If profile creation fails, we should handle it
-      // For now, we'll throw the error
+      if (isDev) console.error("[AUTH] signUp profile error:", profileError);
       throw profileError;
     }
   }
@@ -46,36 +50,22 @@ export async function signIn(email: string, password: string) {
     password: password,
   });
 
-  if (error) throw error;
+  if (error) {
+    if (isDev) console.error("[AUTH] signIn error:", error);
+    throw error;
+  }
+
   return data;
 }
 
 // Sign out
 export async function signOut() {
   const { error } = await supabase.auth.signOut();
-  if (error) throw error;
-}
-
-// Get current user
-export async function getCurrentUser(): Promise<AuthUser | null> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return null;
-
-  // Fetch profile to get account type
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("account_type")
-    .eq("id", user.id)
-    .single();
-
-  return {
-    id: user.id,
-    email: user.email || "",
-    accountType: profile?.account_type as AccountType | undefined,
-  };
+  clearEmailCache(); // Clear cached email on logout
+  if (error) {
+    if (isDev) console.error("[AUTH] signOut error:", error);
+    throw error;
+  }
 }
 
 // Get current session
@@ -86,27 +76,74 @@ export async function getSession() {
   return session;
 }
 
+// Get user email helper (uses session, fast)
+export async function getUserEmailFromSession(): Promise<string | null> {
+  return getUserEmail();
+}
+
 // Listen to auth state changes
+// Fetches profile synchronously before calling callback to ensure complete user data
+// Handles TOKEN_REFRESHED, SIGNED_OUT, and SIGNED_IN events
 export function onAuthStateChange(callback: (user: AuthUser | null) => void) {
   const {
     data: { subscription },
   } = supabase.auth.onAuthStateChange(async (event, session) => {
-    if (session?.user) {
-      // Fetch profile to get account type
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("account_type")
-        .eq("id", session.user.id)
-        .single();
+    if (isDev) {
+      console.log("[AUTH] onAuthStateChange event:", event, {
+        hasSession: !!session,
+        hasUser: !!session?.user,
+      });
+    }
 
-      const user: AuthUser = {
-        id: session.user.id,
-        email: session.user.email || "",
-        accountType: profile?.account_type as AccountType | undefined,
-      };
-      callback(user);
-    } else {
-      callback(null);
+    try {
+      // Handle SIGNED_OUT event - clear cache and notify callback
+      if (event === "SIGNED_OUT") {
+        clearEmailCache();
+        if (isDev) console.log("[AUTH] User signed out, cleared email cache");
+        callback(null);
+        return;
+      }
+
+      // Handle TOKEN_REFRESHED event - clear cache to force refresh
+      if (event === "TOKEN_REFRESHED") {
+        clearEmailCache();
+        if (isDev) console.log("[AUTH] Token refreshed, cleared email cache");
+        // Continue to process session below
+      }
+
+      if (session?.user) {
+        // Fetch profile synchronously before calling callback
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("account_type")
+          .eq("id", session.user.id)
+          .single();
+
+        const user: AuthUser = {
+          id: session.user.id,
+          email: session.user.email || "",
+          accountType: profile?.account_type as AccountType | undefined,
+        };
+
+        callback(user);
+      } else {
+        // No session - clear cache and notify callback
+        clearEmailCache();
+        callback(null);
+      }
+    } catch (error) {
+      if (isDev) console.error("[AUTH] onAuthStateChange error:", error);
+      // Always call callback to prevent infinite loading
+      if (session?.user) {
+        callback({
+          id: session.user.id,
+          email: session.user.email || "",
+          accountType: undefined,
+        });
+      } else {
+        clearEmailCache();
+        callback(null);
+      }
     }
   });
 

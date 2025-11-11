@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { AccountType, AuthUser, getCurrentUser, onAuthStateChange, signIn, signOut, signUp } from "@/lib/supabase/auth";
+import { AccountType, AuthUser, onAuthStateChange, signIn, signOut, signUp } from "@/lib/supabase/auth";
 import { toast } from "sonner";
 
 interface AuthContextType {
@@ -17,17 +17,40 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const previousUserRef = React.useRef<AuthUser | null>(null);
+  const isInitialLoadRef = React.useRef(true);
+  const userRef = React.useRef<AuthUser | null>(null);
+
+  // Keep userRef in sync with user state
+  React.useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
   useEffect(() => {
-    // Get initial user
-    getCurrentUser().then((user) => {
-      setUser(user);
-      setLoading(false);
-    });
+    const { subscription } = onAuthStateChange((newUser) => {
+      const previousUser = previousUserRef.current;
+      const currentUser = userRef.current;
+      
+      // Check if this is an unexpected sign-out (user was logged in, now logged out)
+      // But not on initial load and not if user was already null
+      if (
+        !isInitialLoadRef.current &&
+        previousUser !== null &&
+        newUser === null &&
+        currentUser !== null
+      ) {
+        // Session expired unexpectedly
+        toast.error("Session expired", {
+          description: "Your session has expired. Please sign in again.",
+          duration: 5000,
+        });
+      }
 
-    // Listen for auth changes
-    const { subscription } = onAuthStateChange((user) => {
-      setUser(user);
+      // Update refs
+      previousUserRef.current = newUser;
+      isInitialLoadRef.current = false;
+      
+      setUser(newUser);
       setLoading(false);
     });
 
@@ -49,13 +72,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const handleLogout = async () => {
     try {
       await signOut();
-      setUser(null);
-      
       // Clear chat session from localStorage
-      if (globalThis.window) {
-        globalThis.window.localStorage.removeItem("chatSessionId");
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem("chatSessionId");
       }
-      
       toast.success("Logged out successfully");
     } catch (error) {
       toast.error("Failed to logout", {

@@ -123,19 +123,57 @@ export default function Home() {
       if (response.ok) {
         const data = await response.json();
 
-        // Check if response is a reminder format (output.task, output.datetime, output.notes)
-        if (
+        // Check if response is a reminder format
+        // New format: { task, datetime, assignees, notes }
+        // Legacy format: { output: { task, datetime, notes } }
+        let reminderData: {
+          task: string;
+          datetime: string;
+          assignees?: string[];
+          notes?: string;
+        } | null = null;
+
+        if (data.task && data.datetime) {
+          // New format - direct properties
+          reminderData = {
+            task: data.task,
+            datetime: data.datetime,
+            assignees: data.assignees,
+            notes: data.notes,
+          };
+        } else if (
           data.output &&
           typeof data.output === "object" &&
           data.output.task &&
           data.output.datetime
         ) {
+          // Legacy format - nested in output
+          reminderData = {
+            task: data.output.task,
+            datetime: data.output.datetime,
+            assignees: data.output.assignees,
+            notes: data.output.notes,
+          };
+        }
+
+        if (reminderData) {
           // This is a reminder response, save it to Supabase
           try {
+            // Parse assignees array - ensure it's an array and filter out invalid emails
+            const assignees = Array.isArray(reminderData.assignees)
+              ? reminderData.assignees.filter(
+                  (email: string) => email && typeof email === "string"
+                )
+              : [];
+
+            // If no assignees specified, default to current user
+            const assignedTo = assignees.length > 0 ? assignees : undefined;
+
             const reminder = await createReminder({
-              title: data.output.task,
-              description: data.output.notes || undefined,
-              dueDate: new Date(data.output.datetime),
+              title: reminderData.task,
+              description: reminderData.notes || undefined,
+              dueDate: new Date(reminderData.datetime),
+              assignedTo: assignedTo,
             });
 
             setReminders((prev) => [...prev, reminder]);
@@ -149,14 +187,37 @@ export default function Home() {
             };
             setMessages((prev) => [...prev, botMessage]);
 
+            // Create success message with assignee info
+            let assigneeText: string;
+            if (assignedTo && assignedTo.length > 0) {
+              assigneeText =
+                assignedTo.length === 1
+                  ? `assigned to ${assignedTo[0]}`
+                  : `assigned to ${assignedTo.length} people`;
+            } else {
+              assigneeText = "added to your reminders";
+            }
+
             toast.success("Reminder added", {
-              description: `"${data.output.task}" has been added to your reminders.`,
+              description: `"${reminderData.task}" has been ${assigneeText}.`,
             });
           } catch (error) {
             console.error("Error creating reminder from webhook:", error);
+            const errorMessage =
+              error instanceof Error ? error.message : "Unknown error";
+
+            // Show error as bot message in chat
+            const errorBotMessage: Message = {
+              id: `bot-error-${Date.now()}`,
+              text: errorMessage,
+              timestamp: new Date(),
+              type: "bot",
+            };
+            setMessages((prev) => [...prev, errorBotMessage]);
+
+            // Also show toast
             toast.error("Failed to save reminder", {
-              description:
-                error instanceof Error ? error.message : "Unknown error",
+              description: errorMessage,
             });
           }
         } else if (data.output && typeof data.output === "string") {

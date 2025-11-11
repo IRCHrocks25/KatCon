@@ -68,24 +68,80 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update the reminder status
-    // Using service role would bypass RLS, but we'll use the user's session
-    // and handle RLS through the database function
-    const { error } = await supabase
+    // Check if user is creator or assigned to this reminder
+    const { data: reminder, error: reminderError } = await supabase
       .from("reminders")
-      .update({ status })
+      .select("id, user_id")
       .eq("id", id)
-      .eq("user_id", user.email);
+      .single();
 
-    if (error) {
-      console.error("Error updating reminder status:", error);
+    if (reminderError || !reminder) {
       return NextResponse.json(
         {
-          error: "Failed to update reminder status",
-          details: error.message,
+          error: "Reminder not found",
+          details: "The reminder does not exist",
         },
-        { status: 500 }
+        { status: 404 }
       );
+    }
+
+    const isCreator = reminder.user_id === user.email;
+
+    // Check if user is assigned to this reminder
+    const { data: assignment } = await supabase
+      .from("reminder_assignments")
+      .select("id, status")
+      .eq("reminder_id", id)
+      .eq("user_email", user.email)
+      .single();
+
+    const isAssigned = !!assignment;
+
+    if (!isCreator && !isAssigned) {
+      return NextResponse.json(
+        {
+          error: "Unauthorized",
+          details: "You are not authorized to update this reminder",
+        },
+        { status: 403 }
+      );
+    }
+
+    // If user is assigned (not creator), update their assignment status
+    if (isAssigned && !isCreator) {
+      const { error: assignmentUpdateError } = await supabase
+        .from("reminder_assignments")
+        .update({ status })
+        .eq("id", assignment.id);
+
+      if (assignmentUpdateError) {
+        console.error("Error updating assignment status:", assignmentUpdateError);
+        return NextResponse.json(
+          {
+            error: "Failed to update reminder status",
+            details: assignmentUpdateError.message,
+          },
+          { status: 500 }
+        );
+      }
+    } else if (isCreator) {
+      // If user is creator, update the reminder status directly
+      const { error: reminderUpdateError } = await supabase
+        .from("reminders")
+        .update({ status })
+        .eq("id", id)
+        .eq("user_id", user.email);
+
+      if (reminderUpdateError) {
+        console.error("Error updating reminder status:", reminderUpdateError);
+        return NextResponse.json(
+          {
+            error: "Failed to update reminder status",
+            details: reminderUpdateError.message,
+          },
+          { status: 500 }
+        );
+      }
     }
 
     return NextResponse.json(

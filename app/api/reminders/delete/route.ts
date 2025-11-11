@@ -57,42 +57,59 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Use the RPC function to update status to 'hidden' (bypasses RLS issues)
-    const { error } = await supabase.rpc("update_reminder_status", {
-      reminder_id: id,
-      new_status: "hidden",
-    });
+    if (!user.email) {
+      return NextResponse.json(
+        {
+          error: "Unauthorized",
+          details: "User email not available",
+        },
+        { status: 401 }
+      );
+    }
 
-    if (error) {
-      // Fallback to direct update if RPC function doesn't exist
-      console.warn("RPC function failed, trying direct update:", error);
-      
-      if (!user.email) {
-        return NextResponse.json(
-          {
-            error: "Unauthorized",
-            details: "User email not available",
-          },
-          { status: 401 }
-        );
-      }
+    // Check if user is the creator (only creators can delete)
+    const { data: reminder, error: reminderError } = await supabase
+      .from("reminders")
+      .select("id, user_id")
+      .eq("id", id)
+      .single();
 
-      const { error: updateError } = await supabase
-        .from("reminders")
-        .update({ status: "hidden" })
-        .eq("id", id)
-        .eq("user_id", user.email);
+    if (reminderError || !reminder) {
+      return NextResponse.json(
+        {
+          error: "Reminder not found",
+          details: "The reminder does not exist",
+        },
+        { status: 404 }
+      );
+    }
 
-      if (updateError) {
-        console.error("Error deleting reminder:", updateError);
-        return NextResponse.json(
-          {
-            error: "Failed to delete reminder",
-            details: updateError.message,
-          },
-          { status: 500 }
-        );
-      }
+    if (reminder.user_id !== user.email) {
+      return NextResponse.json(
+        {
+          error: "Unauthorized",
+          details: "Only the creator can delete this reminder",
+        },
+        { status: 403 }
+      );
+    }
+
+    // Delete the reminder (cascade will delete assignments)
+    const { error: deleteError } = await supabase
+      .from("reminders")
+      .update({ status: "hidden" })
+      .eq("id", id)
+      .eq("user_id", user.email);
+
+    if (deleteError) {
+      console.error("Error deleting reminder:", deleteError);
+      return NextResponse.json(
+        {
+          error: "Failed to delete reminder",
+          details: deleteError.message,
+        },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json(
@@ -110,4 +127,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

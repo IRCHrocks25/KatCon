@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import type React from "react";
 import { motion } from "motion/react";
-import { Bell, Plus, X, Clock, Calendar, Edit } from "lucide-react";
+import { Bell, Plus, X, Clock, Calendar, Edit, User, Users } from "lucide-react";
 import { toast } from "sonner";
 import {
   getReminders,
@@ -13,6 +13,8 @@ import {
   deleteReminder,
   type Reminder,
 } from "@/lib/supabase/reminders";
+import { useAuth } from "@/contexts/AuthContext";
+import { validateEmailFormat, checkUserExists } from "@/lib/supabase/users";
 
 export type { Reminder };
 
@@ -25,6 +27,7 @@ export function RemindersContainer({
   reminders,
   setReminders,
 }: RemindersContainerProps) {
+  const { user: currentUser } = useAuth();
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -32,7 +35,9 @@ export function RemindersContainer({
     title: "",
     description: "",
     dueDate: "",
+    assignedTo: [] as string[],
   });
+  const [emailInput, setEmailInput] = useState("");
 
   // Fetch reminders on component mount (non-blocking)
   useEffect(() => {
@@ -67,6 +72,47 @@ export function RemindersContainer({
     return () => clearTimeout(timeoutId);
   }, [setReminders]);
 
+  const handleAddEmail = async () => {
+    const email = emailInput.trim().toLowerCase();
+    if (!email) return;
+
+    // Validate email format
+    if (!validateEmailFormat(email)) {
+      toast.error("Invalid email format");
+      return;
+    }
+
+    // Check if user exists
+    const userExists = await checkUserExists(email);
+    if (!userExists) {
+      toast.error("User does not exist", {
+        description: `The email "${email}" is not registered in the system.`,
+      });
+      setEmailInput("");
+      return;
+    }
+
+    // Check if email is already in the list (case-insensitive)
+    if (newReminder.assignedTo.some((e) => e.toLowerCase() === email)) {
+      toast.error("User already added");
+      setEmailInput("");
+      return;
+    }
+
+    setNewReminder({
+      ...newReminder,
+      assignedTo: [...newReminder.assignedTo, email],
+    });
+    setEmailInput("");
+  };
+
+  const handleRemoveEmail = (email: string) => {
+    setNewReminder({
+      ...newReminder,
+      assignedTo: newReminder.assignedTo.filter((e) => e !== email),
+    });
+  };
+
   const handleAddReminder = async () => {
     if (!newReminder.title.trim()) {
       toast.error("Reminder title is required");
@@ -82,6 +128,7 @@ export function RemindersContainer({
           dueDate: newReminder.dueDate
             ? new Date(newReminder.dueDate)
             : undefined,
+          assignedTo: newReminder.assignedTo.length > 0 ? newReminder.assignedTo : undefined,
         });
 
         setReminders((prev) =>
@@ -97,13 +144,15 @@ export function RemindersContainer({
           dueDate: newReminder.dueDate
             ? new Date(newReminder.dueDate)
             : undefined,
+          assignedTo: newReminder.assignedTo.length > 0 ? newReminder.assignedTo : undefined,
         });
 
         setReminders((prev) => [...prev, reminder]);
         toast.success("Reminder added");
       }
 
-      setNewReminder({ title: "", description: "", dueDate: "" });
+      setNewReminder({ title: "", description: "", dueDate: "", assignedTo: [] });
+      setEmailInput("");
       setIsAdding(false);
     } catch (error) {
       console.error("Error saving reminder:", error);
@@ -117,6 +166,12 @@ export function RemindersContainer({
   };
 
   const handleEditReminder = (reminder: Reminder) => {
+    // Only allow creator to edit
+    if (reminder.createdBy !== currentUser?.email) {
+      toast.error("Only the creator can edit this reminder");
+      return;
+    }
+
     setEditingId(reminder.id);
     setNewReminder({
       title: reminder.title,
@@ -124,13 +179,15 @@ export function RemindersContainer({
       dueDate: reminder.dueDate
         ? new Date(reminder.dueDate).toISOString().slice(0, 16)
         : "",
+      assignedTo: reminder.assignedTo || [],
     });
     setIsAdding(true);
   };
 
   const handleCancelEdit = () => {
     setEditingId(null);
-    setNewReminder({ title: "", description: "", dueDate: "" });
+    setNewReminder({ title: "", description: "", dueDate: "", assignedTo: [] });
+    setEmailInput("");
     setIsAdding(false);
   };
 
@@ -255,6 +312,55 @@ export function RemindersContainer({
               className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
             />
           </div>
+          {/* Assign to users */}
+          <div className="space-y-2">
+            <label className="text-xs text-gray-400 flex items-center gap-1">
+              <Users size={12} />
+              Assign to (optional)
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="email"
+                placeholder="Enter email address"
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddEmail();
+                  }
+                }}
+                className="flex-1 px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+              />
+              <button
+                type="button"
+                onClick={handleAddEmail}
+                className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition"
+              >
+                Add
+              </button>
+            </div>
+            {newReminder.assignedTo.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {newReminder.assignedTo.map((email) => (
+                  <div
+                    key={email}
+                    className="flex items-center gap-1 px-2 py-1 bg-purple-600/20 text-purple-300 rounded text-xs"
+                  >
+                    <User size={10} />
+                    <span>{email}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveEmail(email)}
+                      className="hover:text-purple-100"
+                    >
+                      <X size={10} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="flex gap-2">
             <button
               onClick={handleAddReminder}
@@ -354,22 +460,59 @@ export function RemindersContainer({
                       </span>
                     </div>
                   )}
+                  {/* Creator and assigned users info */}
+                  <div className="mt-2 space-y-1">
+                    {reminder.createdBy && (
+                      <div className="flex items-center gap-1 text-xs text-gray-500">
+                        <span className="text-gray-600">Created by:</span>
+                        <span className={reminder.createdBy === currentUser?.email ? "text-purple-400 font-medium" : "text-gray-400"}>
+                          {reminder.createdBy === currentUser?.email ? "You" : reminder.createdBy}
+                        </span>
+                      </div>
+                    )}
+                    {reminder.assignedTo && reminder.assignedTo.length > 0 && (
+                      <div className="flex items-start gap-1 text-xs text-gray-500">
+                        <Users size={12} className="mt-0.5 text-purple-400" />
+                        <div className="flex-1">
+                          <span className="text-gray-600">Assigned to: </span>
+                          <div className="inline-flex flex-wrap gap-1.5 mt-0.5">
+                            {reminder.assignedTo.map((email) => (
+                              <span
+                                key={email}
+                                className={`px-1.5 py-0.5 rounded ${
+                                  email === currentUser?.email 
+                                    ? "bg-purple-600/20 text-purple-300 font-medium" 
+                                    : "bg-gray-700/50 text-gray-300"
+                                }`}
+                              >
+                                {email === currentUser?.email ? "You" : email}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => handleEditReminder(reminder)}
-                    className="p-1 hover:bg-gray-700/50 rounded transition"
-                    title="Edit reminder"
-                  >
-                    <Edit size={14} className="text-gray-400" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteReminder(reminder.id)}
-                    className="p-1 hover:bg-gray-700/50 rounded transition"
-                    title="Delete reminder"
-                  >
-                    <X size={14} className="text-gray-400" />
-                  </button>
+                  {reminder.createdBy === currentUser?.email && (
+                    <button
+                      onClick={() => handleEditReminder(reminder)}
+                      className="p-1 hover:bg-gray-700/50 rounded transition"
+                      title="Edit reminder"
+                    >
+                      <Edit size={14} className="text-gray-400" />
+                    </button>
+                  )}
+                  {reminder.createdBy === currentUser?.email && (
+                    <button
+                      onClick={() => handleDeleteReminder(reminder.id)}
+                      className="p-1 hover:bg-gray-700/50 rounded transition"
+                      title="Delete reminder"
+                    >
+                      <X size={14} className="text-gray-400" />
+                    </button>
+                  )}
                 </div>
               </div>
             </motion.div>
