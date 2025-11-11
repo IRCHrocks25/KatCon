@@ -281,7 +281,7 @@ export function RemindersContainer({
             onKeyDown={(e) => {
               if (e.key === "Escape") {
                 setIsAdding(false);
-                setNewReminder({ title: "", description: "", dueDate: "" });
+                setNewReminder({ title: "", description: "", dueDate: "", assignedTo: [] });
               }
             }}
             autoFocus
