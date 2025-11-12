@@ -92,6 +92,7 @@ async function fetchUserProfile(
       .eq("id", userId)
       .single();
 
+    console.log("id is", userId);
     let result;
 
     if (useTimeout) {
