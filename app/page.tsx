@@ -21,7 +21,6 @@ import {
   RemindersContainer,
   type Reminder,
 } from "@/components/reminders/RemindersContainer";
-import { createReminder } from "@/lib/supabase/reminders";
 
 interface Message {
   id: string;
@@ -181,14 +180,55 @@ export default function Home() {
             // If no assignees specified, default to current user
             const assignedTo = assignees.length > 0 ? assignees : undefined;
 
-            const reminder = await createReminder({
-              title: reminderData.task,
-              description: reminderData.notes || undefined,
-              dueDate: new Date(reminderData.datetime),
-              assignedTo: assignedTo,
+            // Call the API route instead of using createReminder directly
+            const response = await fetch("/api/reminders/create", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                title: reminderData.task,
+                description: reminderData.notes || undefined,
+                dueDate: new Date(reminderData.datetime).toISOString(),
+                assignedTo: assignedTo,
+                userEmail: user?.email || null,
+              }),
             });
 
-            setReminders((prev) => [...prev, reminder]);
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({}));
+              throw new Error(
+                errorData.error || errorData.details || "Failed to create reminder"
+              );
+            }
+
+            const reminder = await response.json();
+
+            // Add reminder and sort automatically
+            setReminders((prev) => {
+              const updated = [...prev, reminder];
+              // Sort by dueDate (earliest first), then by created_at (newest first)
+              return updated.sort((a, b) => {
+                // If both have due dates, sort by due date (earliest first)
+                if (a.dueDate && b.dueDate) {
+                  const dateDiff =
+                    new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+                  if (dateDiff !== 0) return dateDiff;
+                }
+                // If only one has a due date, prioritize it
+                if (a.dueDate && !b.dueDate) return -1;
+                if (!a.dueDate && b.dueDate) return 1;
+                // If neither has a due date or dates are equal, sort by created_at (newest first)
+                // Use createdAt if available (from API), otherwise fall back to ID comparison
+                const aCreated = (a as any).createdAt ? new Date((a as any).createdAt).getTime() : 0;
+                const bCreated = (b as any).createdAt ? new Date((b as any).createdAt).getTime() : 0;
+                if (aCreated && bCreated) {
+                  return bCreated - aCreated; // Newest first
+                }
+                // Fallback: keep original order for items without createdAt
+                return 0;
+              });
+            });
 
             // Show "Reminder set!" as a bot message in chat
             const botMessage: Message = {

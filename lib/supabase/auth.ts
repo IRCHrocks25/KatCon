@@ -1,7 +1,7 @@
 import { supabase } from "./client";
 import { getUserEmail, clearEmailCache } from "./session";
 
-export type AccountType = "CRM TEAM" | "BRANDING TEAM" | "DIVISION TEAM";
+export type AccountType = "CRM" | "DEV" | "PM" | "AI" | "DESIGN" | "COPYWRITING" | "OTHERS";
 
 export interface AuthUser {
   id: string;

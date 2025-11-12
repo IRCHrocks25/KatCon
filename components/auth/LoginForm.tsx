@@ -11,7 +11,7 @@ export function LoginForm() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [accountType, setAccountType] = useState<AccountType>("CRM TEAM");
+  const [accountType, setAccountType] = useState<AccountType>("CRM");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const { signIn, signUp } = useAuth();
@@ -30,7 +30,7 @@ export function LoginForm() {
         // Clear fields after successful signup
         setEmail("");
         setPassword("");
-        setAccountType("CRM TEAM");
+        setAccountType("CRM");
       } else {
         await signIn(email, password);
         toast.success("Welcome back!", {
@@ -150,9 +150,13 @@ export function LoginForm() {
                     className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
                     disabled={loading}
                   >
-                    <option value="CRM TEAM">CRM TEAM</option>
-                    <option value="BRANDING TEAM">BRANDING TEAM</option>
-                    <option value="DIVISION TEAM">DIVISION TEAM</option>
+                    <option value="CRM">CRM</option>
+                    <option value="DEV">DEV</option>
+                    <option value="PM">PM</option>
+                    <option value="AI">AI</option>
+                    <option value="DESIGN">DESIGN</option>
+                    <option value="COPYWRITING">COPYWRITING</option>
+                    <option value="OTHERS">OTHERS</option>
                   </select>
                 </motion.div>
               )}
@@ -234,7 +238,7 @@ export function LoginForm() {
               onClick={() => {
                 setIsSignUp(!isSignUp);
                 setError("");
-                setAccountType("CRM TEAM");
+                setAccountType("CRM");
               }}
               className="text-sm text-gray-400 hover:text-white transition"
             >

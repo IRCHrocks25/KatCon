@@ -7,7 +7,6 @@ import { Bell, Plus, X, Clock, Calendar, Edit, User, Users } from "lucide-react"
 import { toast } from "sonner";
 import {
   getReminders,
-  createReminder,
   updateReminder,
   updateReminderStatus,
   deleteReminder,
@@ -137,17 +136,57 @@ export function RemindersContainer({
         toast.success("Reminder updated");
         setEditingId(null);
       } else {
-        // Create new reminder
-        const reminder = await createReminder({
-          title: newReminder.title,
-          description: newReminder.description || undefined,
-          dueDate: newReminder.dueDate
-            ? new Date(newReminder.dueDate)
-            : undefined,
-          assignedTo: newReminder.assignedTo.length > 0 ? newReminder.assignedTo : undefined,
+        // Create new reminder using API route
+        const response = await fetch("/api/reminders/create", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            title: newReminder.title,
+            description: newReminder.description || undefined,
+            dueDate: newReminder.dueDate
+              ? new Date(newReminder.dueDate).toISOString()
+              : undefined,
+            assignedTo: newReminder.assignedTo.length > 0 ? newReminder.assignedTo : undefined,
+            userEmail: currentUser?.email || null,
+          }),
         });
 
-        setReminders((prev) => [...prev, reminder]);
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(
+            errorData.error || errorData.details || "Failed to create reminder"
+          );
+        }
+
+        const reminder = await response.json();
+
+        // Add reminder and sort automatically
+        setReminders((prev) => {
+          const updated = [...prev, reminder];
+          // Sort by dueDate (earliest first), then by created_at (newest first)
+          return updated.sort((a, b) => {
+            // If both have due dates, sort by due date (earliest first)
+            if (a.dueDate && b.dueDate) {
+              const dateDiff =
+                new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+              if (dateDiff !== 0) return dateDiff;
+            }
+            // If only one has a due date, prioritize it
+            if (a.dueDate && !b.dueDate) return -1;
+            if (!a.dueDate && b.dueDate) return 1;
+            // If neither has a due date or dates are equal, sort by created_at (newest first)
+            // Use createdAt if available (from API), otherwise fall back to ID comparison
+            const aCreated = (a as any).createdAt ? new Date((a as any).createdAt).getTime() : 0;
+            const bCreated = (b as any).createdAt ? new Date((b as any).createdAt).getTime() : 0;
+            if (aCreated && bCreated) {
+              return bCreated - aCreated; // Newest first
+            }
+            // Fallback: keep original order for items without createdAt
+            return 0;
+          });
+        });
         toast.success("Reminder added");
       }
 
