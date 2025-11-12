@@ -26,6 +26,9 @@ interface ProfileData {
 }
 
 const isDev = process.env.NODE_ENV === "development";
+// Enable auth debugging in production (set NEXT_PUBLIC_DEBUG_AUTH=true)
+const debugAuth = process.env.NEXT_PUBLIC_DEBUG_AUTH === "true";
+const shouldLogAuth = isDev || debugAuth;
 
 // Profile fetch timeout (10 seconds for better UX)
 // This prevents users from waiting too long on slow connections
@@ -45,18 +48,29 @@ async function checkUserApproval(userId: string): Promise<boolean> {
       .single();
 
     if (error || !profile) {
-      if (isDev) {
+      if (shouldLogAuth) {
         console.warn(
-          "[AUTH] Profile check failed:",
+          "[AUTH DEBUG] Profile check failed:",
           error?.message || "Profile not found"
         );
       }
       return false;
     }
 
-    return profile.approved === true;
+    const isApproved = profile.approved === true;
+
+    if (shouldLogAuth) {
+      console.log("[AUTH DEBUG] Approval check:", {
+        approved: profile.approved,
+        approvedType: typeof profile.approved,
+        isApproved: isApproved,
+      });
+    }
+
+    return isApproved;
   } catch (error) {
-    if (isDev) console.error("[AUTH] Error checking user approval:", error);
+    if (shouldLogAuth)
+      console.error("[AUTH DEBUG] Error checking user approval:", error);
     return false;
   }
 }
@@ -87,24 +101,39 @@ async function fetchUserProfile(userId: string): Promise<ProfileData | null> {
 
     const result = await Promise.race([profilePromise, timeoutPromise]);
 
+    if (shouldLogAuth) {
+      console.log("[AUTH DEBUG] Profile fetch result:", {
+        hasResult: !!result,
+        hasData: !!result?.data,
+        hasError: !!result?.error,
+        errorMessage: result?.error?.message,
+        dataKeys: result?.data ? Object.keys(result.data) : [],
+      });
+    }
+
     // Check if result has valid data
     if (result?.data && !result.error) {
-      if (isDev) {
-        console.log("[AUTH] Profile fetch success:", {
-          hasAccountType: !!result.data.account_type,
+      if (shouldLogAuth) {
+        console.log("[AUTH DEBUG] Profile fetch success:", {
+          account_type: result.data.account_type,
           hasFullname: !!result.data.fullname,
           approved: result.data.approved,
+          approvedType: typeof result.data.approved,
+          approvedIsTrue: result.data.approved === true,
+          approvedStrictEqual: result.data.approved === true,
         });
       }
       return result.data as ProfileData;
     }
 
     // Log why profile fetch failed
-    if (isDev) {
+    if (shouldLogAuth) {
       if (result?.error) {
-        console.warn("[AUTH] Profile fetch error:", result.error);
+        console.warn("[AUTH DEBUG] Profile fetch error:", result.error);
       } else {
-        console.warn("[AUTH] Profile fetch failed: No data returned");
+        console.warn("[AUTH DEBUG] Profile fetch failed: No data returned", {
+          result: result,
+        });
       }
     }
 
@@ -343,10 +372,11 @@ export function onAuthStateChange(callback: (user: AuthUser | null) => void): {
   const {
     data: { subscription },
   } = supabase.auth.onAuthStateChange(async (event, session) => {
-    if (isDev) {
-      console.log("[AUTH] onAuthStateChange event:", event, {
+    if (shouldLogAuth) {
+      console.log("[AUTH DEBUG] onAuthStateChange event:", event, {
         hasSession: !!session,
         hasUser: !!session?.user,
+        userId: session?.user?.id,
         isInitial: isInitialEvent,
       });
     }
@@ -354,7 +384,8 @@ export function onAuthStateChange(callback: (user: AuthUser | null) => void): {
     // Handle SIGNED_OUT event
     if (event === "SIGNED_OUT") {
       clearEmailCache();
-      if (isDev) console.log("[AUTH] User signed out, cleared email cache");
+      if (shouldLogAuth)
+        console.log("[AUTH DEBUG] User signed out, cleared email cache");
       callback(null);
       return;
     }
@@ -367,9 +398,9 @@ export function onAuthStateChange(callback: (user: AuthUser | null) => void): {
       (event === "SIGNED_IN" && !isInitialEvent)
     ) {
       clearEmailCache();
-      if (isDev)
+      if (shouldLogAuth)
         console.log(
-          `[AUTH] ${event} event - session refreshed, skipping profile check`
+          `[AUTH DEBUG] ${event} event - session refreshed, skipping profile check`
         );
 
       if (session?.user) {
@@ -388,6 +419,10 @@ export function onAuthStateChange(callback: (user: AuthUser | null) => void): {
     // Future SIGNED_IN events will be treated as token refreshes
     if (isInitialEvent) {
       isInitialEvent = false;
+      if (shouldLogAuth)
+        console.log(
+          "[AUTH DEBUG] Initial event processed, future SIGNED_IN will skip profile check"
+        );
     }
 
     // NOTE: Only INITIAL_SESSION and first SIGNED_IN (signup/login) reach here
@@ -396,7 +431,8 @@ export function onAuthStateChange(callback: (user: AuthUser | null) => void): {
     // No session - user is logged out
     if (!session?.user) {
       clearEmailCache();
-      if (isDev) console.log("[AUTH] No session, calling callback with null");
+      if (shouldLogAuth)
+        console.log("[AUTH DEBUG] No session, calling callback with null");
       callback(null);
       return;
     }
@@ -406,9 +442,16 @@ export function onAuthStateChange(callback: (user: AuthUser | null) => void): {
     // Fetch profile data
     const profile = await fetchUserProfile(sessionUser.id);
 
+    if (shouldLogAuth) {
+      console.log("[AUTH DEBUG] After fetchUserProfile:", {
+        profileExists: !!profile,
+        profileData: profile,
+      });
+    }
+
     // If profile fetch failed, deny access for security
     if (!profile) {
-      if (isDev) console.warn("[AUTH] Profile fetch failed, clearing session");
+      console.warn("[AUTH DEBUG] Profile fetch failed, clearing session");
       // Use direct session removal instead of signOut to prevent loops
       removeStorageItem("supabase.auth.token");
       callback(null);
@@ -416,15 +459,28 @@ export function onAuthStateChange(callback: (user: AuthUser | null) => void): {
     }
 
     // Check approval status - CRITICAL for signup flow
+    if (shouldLogAuth) {
+      console.log("[AUTH DEBUG] Checking approval:", {
+        approved: profile.approved,
+        approvedType: typeof profile.approved,
+        isStrictlyTrue: profile.approved === true,
+        checkResult: profile.approved !== true,
+      });
+    }
+
     if (profile.approved !== true) {
-      if (isDev) console.warn("[AUTH] User not approved, clearing session");
+      console.warn("[AUTH DEBUG] User not approved, clearing session", {
+        approved: profile.approved,
+        approvedType: typeof profile.approved,
+      });
       // Use direct session removal instead of signOut to prevent loops
       removeStorageItem("supabase.auth.token");
       callback(null);
       return;
     }
 
-    if (isDev) console.log("[AUTH] User approved, allowing access");
+    if (shouldLogAuth)
+      console.log("[AUTH DEBUG] User approved, allowing access");
 
     // Build and return authenticated user
     const user = buildAuthUser(sessionUser, profile);
