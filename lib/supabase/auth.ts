@@ -76,11 +76,15 @@ async function checkUserApproval(userId: string): Promise<boolean> {
 }
 
 /**
- * Fetch user profile data with timeout
+ * Fetch user profile data with optional timeout
  * @param userId - The user's ID from Supabase auth
+ * @param useTimeout - Whether to use timeout (false for initial session restoration)
  * @returns Promise<ProfileData | null> - Profile data or null if fetch fails
  */
-async function fetchUserProfile(userId: string): Promise<ProfileData | null> {
+async function fetchUserProfile(
+  userId: string,
+  useTimeout: boolean = true
+): Promise<ProfileData | null> {
   try {
     const profilePromise = supabase
       .from("profiles")
@@ -88,18 +92,30 @@ async function fetchUserProfile(userId: string): Promise<ProfileData | null> {
       .eq("id", userId)
       .single();
 
-    const timeoutPromise = new Promise<{
-      data: null;
-      error: { message: string };
-    }>((resolve) => {
-      setTimeout(
-        () =>
-          resolve({ data: null, error: { message: "Profile fetch timeout" } }),
-        PROFILE_FETCH_TIMEOUT
-      );
-    });
+    let result;
 
-    const result = await Promise.race([profilePromise, timeoutPromise]);
+    if (useTimeout) {
+      // Use timeout for signup/login flows where we need quick approval checks
+      const timeoutPromise = new Promise<{
+        data: null;
+        error: { message: string };
+      }>((resolve) => {
+        setTimeout(
+          () =>
+            resolve({
+              data: null,
+              error: { message: "Profile fetch timeout" },
+            }),
+          PROFILE_FETCH_TIMEOUT
+        );
+      });
+
+      result = await Promise.race([profilePromise, timeoutPromise]);
+    } else {
+      // No timeout for session restoration - let it take as long as needed
+      // This prevents cold start issues in serverless environments
+      result = await profilePromise;
+    }
 
     if (shouldLogAuth) {
       console.log("[AUTH DEBUG] Profile fetch result:", {
@@ -139,7 +155,8 @@ async function fetchUserProfile(userId: string): Promise<ProfileData | null> {
 
     return null;
   } catch (error) {
-    if (isDev) console.error("[AUTH] Profile fetch exception:", error);
+    if (shouldLogAuth)
+      console.error("[AUTH DEBUG] Profile fetch exception:", error);
     return null;
   }
 }
@@ -176,7 +193,7 @@ export async function signUp(
   });
 
   if (error) {
-    if (isDev) console.error("[AUTH] signUp error:", error);
+    if (shouldLogAuth) console.error("[AUTH DEBUG] signUp error:", error);
     throw error;
   }
 
@@ -194,9 +211,9 @@ export async function signUp(
 
     // If insert fails due to conflict (trigger already created profile), update it
     if (insertError) {
-      if (isDev)
+      if (shouldLogAuth)
         console.log(
-          "[AUTH] Profile may already exist, updating instead:",
+          "[AUTH DEBUG] Profile may already exist, updating instead:",
           insertError
         );
 
@@ -211,16 +228,19 @@ export async function signUp(
         .eq("id", data.user.id);
 
       if (updateError) {
-        if (isDev)
-          console.error("[AUTH] signUp profile update error:", updateError);
+        if (shouldLogAuth)
+          console.error(
+            "[AUTH DEBUG] signUp profile update error:",
+            updateError
+          );
         throw updateError;
       }
     }
 
     // IMPORTANT: Sign out immediately after signup since account needs approval
     // This prevents the user from accessing the app with an unapproved account
-    if (isDev)
-      console.log("[AUTH] signUp: Signing out user (pending approval)");
+    if (shouldLogAuth)
+      console.log("[AUTH DEBUG] signUp: Signing out user (pending approval)");
 
     // Force clear the session immediately (don't wait for API call)
     removeStorageItem("supabase.auth.token");
@@ -249,17 +269,24 @@ export async function signIn(
   });
 
   if (error) {
-    if (isDev) console.error("[AUTH] signIn error:", error);
+    if (shouldLogAuth) console.error("[AUTH DEBUG] signIn error:", error);
     throw error;
   }
 
   // Step 2: Check approval status BEFORE allowing session to persist
   if (data.user) {
+    if (shouldLogAuth)
+      console.log(
+        "[AUTH DEBUG] Checking approval on signIn for user:",
+        data.user.id
+      );
+
     const isApproved = await checkUserApproval(data.user.id);
 
     if (!isApproved) {
       // Immediately clear session - user is not approved
-      if (isDev) console.warn("[AUTH] signIn blocked: User not approved");
+      if (shouldLogAuth)
+        console.warn("[AUTH DEBUG] signIn blocked: User not approved");
 
       // Force clear local session immediately
       removeStorageItem("supabase.auth.token");
@@ -275,7 +302,8 @@ export async function signIn(
       );
     }
 
-    if (isDev) console.log("[AUTH] signIn success: User approved");
+    if (shouldLogAuth)
+      console.log("[AUTH DEBUG] signIn success: User approved");
   }
 
   // Step 3: User is approved, return session
@@ -329,22 +357,23 @@ export async function getSession(): Promise<Session | null> {
     } = await supabase.auth.getSession();
 
     if (error) {
-      if (isDev) console.error("[AUTH] getSession error:", error);
+      if (shouldLogAuth) console.error("[AUTH DEBUG] getSession error:", error);
       return null;
     }
 
-    if (isDev && session) {
+    if (shouldLogAuth && session) {
       console.log(
-        "[AUTH] getSession: Session found for user",
+        "[AUTH DEBUG] getSession: Session found for user",
         session.user.email
       );
-    } else if (isDev) {
-      console.log("[AUTH] getSession: No session found");
+    } else if (shouldLogAuth) {
+      console.log("[AUTH DEBUG] getSession: No session found");
     }
 
     return session;
   } catch (error) {
-    if (isDev) console.error("[AUTH] getSession exception:", error);
+    if (shouldLogAuth)
+      console.error("[AUTH DEBUG] getSession exception:", error);
     return null;
   }
 }
@@ -440,10 +469,18 @@ export function onAuthStateChange(callback: (user: AuthUser | null) => void): {
     const sessionUser = session.user;
 
     // Fetch profile data
-    const profile = await fetchUserProfile(sessionUser.id);
+    // On INITIAL_SESSION, don't use timeout to handle serverless cold starts
+    // On first SIGNED_IN (signup), use timeout for quick approval check
+    const isInitialSessionRestore = event === "INITIAL_SESSION";
+    const profile = await fetchUserProfile(
+      sessionUser.id,
+      !isInitialSessionRestore
+    );
 
     if (shouldLogAuth) {
       console.log("[AUTH DEBUG] After fetchUserProfile:", {
+        event: event,
+        usedTimeout: !isInitialSessionRestore,
         profileExists: !!profile,
         profileData: profile,
       });
@@ -485,8 +522,8 @@ export function onAuthStateChange(callback: (user: AuthUser | null) => void): {
     // Build and return authenticated user
     const user = buildAuthUser(sessionUser, profile);
 
-    if (isDev) {
-      console.log("[AUTH] Calling callback with user:", {
+    if (shouldLogAuth) {
+      console.log("[AUTH DEBUG] Calling callback with user:", {
         id: user.id,
         email: user.email,
       });
