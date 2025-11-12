@@ -30,23 +30,40 @@ export async function robustFetch(
 
   if (isDev) {
     console.log(`[FETCH ${requestId}] Starting request to: ${url}`);
+    // Log if Authorization header is present (but don't log the actual token)
+    if (fetchOptions.headers) {
+      const headers = new Headers(fetchOptions.headers);
+      if (headers.has('Authorization')) {
+        console.log(`[FETCH ${requestId}] Has Authorization header: YES`);
+      }
+    }
   }
+
+  // Preserve existing headers (especially auth headers from Supabase)
+  const existingHeaders = new Headers(fetchOptions.headers);
+  
+  // Add our connection management headers (but don't override existing ones)
+  if (!existingHeaders.has('Connection')) {
+    existingHeaders.set('Connection', 'close');
+  }
+  if (!existingHeaders.has('Cache-Control')) {
+    existingHeaders.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  }
+  if (!existingHeaders.has('Pragma')) {
+    existingHeaders.set('Pragma', 'no-cache');
+  }
+  if (!existingHeaders.has('Expires')) {
+    existingHeaders.set('Expires', '0');
+  }
+  // Always add request ID for debugging
+  existingHeaders.set('X-Request-Id', requestId);
 
   // Ensure fresh connections - prevent stale connection reuse
   const freshOptions: RequestInit = {
     ...fetchOptions,
     cache: 'no-store', // Prevent browser from caching failed requests
     keepalive: false, // Don't keep connections alive (force new connections)
-    headers: {
-      ...fetchOptions.headers,
-      // Critical headers to prevent connection reuse
-      'Connection': 'close', // Force connection closure after request
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Pragma': 'no-cache',
-      'Expires': '0',
-      // Add request ID for debugging
-      'X-Request-Id': requestId,
-    },
+    headers: existingHeaders,
   };
 
   let lastError: Error | null = null;

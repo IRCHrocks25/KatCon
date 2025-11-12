@@ -20,6 +20,7 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
     detectSessionInUrl: false, // We handle auth state manually
     storage: typeof window !== "undefined" ? window.localStorage : undefined,
     storageKey: "supabase.auth.token",
+    flowType: "pkce", // Use PKCE flow for better security
   },
   global: {
     // Use robustFetch for ALL Supabase network requests

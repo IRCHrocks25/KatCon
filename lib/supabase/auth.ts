@@ -192,12 +192,38 @@ export async function signIn(
  * Sign out the current user
  */
 export async function signOut(): Promise<void> {
-  const { error } = await supabase.auth.signOut();
-  clearEmailCache(); // Clear cached email on logout
+  try {
+    const { error } = await supabase.auth.signOut();
+    clearEmailCache(); // Clear cached email on logout
 
-  if (error) {
-    if (isDev) console.error("[AUTH] signOut error:", error);
-    throw error;
+    if (error) {
+      // Ignore "Auth session missing" error - it means user is already signed out
+      if (error.message?.includes("Auth session missing")) {
+        if (isDev) console.log("[AUTH] signOut: Session already cleared");
+        return; // Successfully signed out (already was)
+      }
+      
+      if (isDev) console.error("[AUTH] signOut error:", error);
+      throw error;
+    }
+  } catch (error) {
+    // Catch any other errors (like 403 Forbidden from expired tokens)
+    // If logout fails, it usually means the session is already invalid
+    // So we treat it as a successful logout
+    clearEmailCache();
+    
+    if (isDev) {
+      console.log("[AUTH] signOut error caught, treating as successful logout:", error);
+    }
+    
+    // Clear local storage manually to ensure clean state
+    if (typeof globalThis.window !== "undefined") {
+      try {
+        globalThis.window.localStorage.removeItem("supabase.auth.token");
+      } catch (storageError) {
+        // Ignore storage errors
+      }
+    }
   }
 }
 
@@ -205,10 +231,28 @@ export async function signOut(): Promise<void> {
  * Get current session
  */
 export async function getSession(): Promise<Session | null> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  return session;
+  try {
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.getSession();
+    
+    if (error) {
+      if (isDev) console.error("[AUTH] getSession error:", error);
+      return null;
+    }
+    
+    if (isDev && session) {
+      console.log("[AUTH] getSession: Session found for user", session.user.email);
+    } else if (isDev) {
+      console.log("[AUTH] getSession: No session found");
+    }
+    
+    return session;
+  } catch (error) {
+    if (isDev) console.error("[AUTH] getSession exception:", error);
+    return null;
+  }
 }
 
 /**
@@ -268,7 +312,10 @@ export function onAuthStateChange(
     // If profile fetch failed, deny access for security
     if (!profile) {
       if (isDev) console.warn("[AUTH] Profile fetch failed, signing out");
-      await supabase.auth.signOut();
+      // Use direct session removal instead of signOut to prevent loops
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem("supabase.auth.token");
+      }
       callback(null);
       return;
     }
@@ -276,7 +323,10 @@ export function onAuthStateChange(
     // Check approval status
     if (profile.approved !== true) {
       if (isDev) console.warn("[AUTH] User not approved, signing out");
-      await supabase.auth.signOut();
+      // Use direct session removal instead of signOut to prevent loops
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem("supabase.auth.token");
+      }
       callback(null);
       return;
     }
