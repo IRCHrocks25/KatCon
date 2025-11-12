@@ -7,7 +7,7 @@ import { toast } from "sonner";
 interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
-  signUp: (email: string, password: string, accountType: AccountType) => Promise<void>;
+  signUp: (email: string, password: string, accountType: AccountType, fullname?: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -21,6 +21,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isInitialLoadRef = React.useRef(true);
   const userRef = React.useRef<AuthUser | null>(null);
   const loadingRef = React.useRef(true);
+  const isIntentionalLogoutRef = React.useRef(false);
 
   // Keep refs in sync with state
   React.useEffect(() => {
@@ -48,18 +49,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       clearTimeout(safetyTimeout);
       
       // Check if this is an unexpected sign-out (user was logged in, now logged out)
-      // But not on initial load and not if user was already null
+      // But not on initial load, not if user was already null, and not if it's an intentional logout
       if (
         !isInitialLoadRef.current &&
         previousUser !== null &&
         newUser === null &&
-        currentUser !== null
+        currentUser !== null &&
+        !isIntentionalLogoutRef.current
       ) {
-        // Session expired unexpectedly
-        toast.error("Session expired", {
-          description: "Your session has expired. Please sign in again.",
-          duration: 5000,
+        // Check if this might be due to approval status
+        // We'll show a generic message since we can't easily distinguish the reason
+        // The actual error message will come from signIn if they try to log in
+        toast.error("Access denied", {
+          description: "Your account may be pending approval or your session was revoked. Please contact support if you believe this is an error.",
+          duration: 6000,
         });
+      }
+
+      // Reset intentional logout flag after handling the state change
+      if (isIntentionalLogoutRef.current) {
+        isIntentionalLogoutRef.current = false;
       }
 
       // Update refs
@@ -76,8 +85,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const handleSignUp = async (email: string, password: string, accountType: AccountType) => {
-    await signUp(email, password, accountType);
+  const handleSignUp = async (email: string, password: string, accountType: AccountType, fullname?: string) => {
+    await signUp(email, password, accountType, fullname);
     // User will be set via auth state change listener
   };
 
@@ -88,13 +97,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const handleLogout = async () => {
     try {
+      // Mark as intentional logout to prevent showing "Access denied" toast
+      isIntentionalLogoutRef.current = true;
       await signOut();
       // Clear chat session from localStorage
       if (typeof window !== "undefined") {
         window.localStorage.removeItem("chatSessionId");
       }
-      toast.success("Logged out successfully");
+      // Don't show success toast on logout - user initiated it, no need to notify
     } catch (error) {
+      // Reset flag on error
+      isIntentionalLogoutRef.current = false;
       toast.error("Failed to logout", {
         description: error instanceof Error ? error.message : "An error occurred",
       });

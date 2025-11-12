@@ -400,7 +400,7 @@ export default function Home() {
               below.
             </p>
             <p className="text-xs text-gray-500 mt-1">
-              Logged in as: {user.email}
+              Logged in as: {user.fullname || user.email}
               {user.accountType && (
                 <span className="ml-2 text-gray-400">({user.accountType})</span>
               )}

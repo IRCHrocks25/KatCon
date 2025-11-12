@@ -7,6 +7,7 @@ export interface AuthUser {
   id: string;
   email: string;
   accountType?: AccountType;
+  fullname?: string;
 }
 
 const isDev = process.env.NODE_ENV === "development";
@@ -15,7 +16,8 @@ const isDev = process.env.NODE_ENV === "development";
 export async function signUp(
   email: string,
   password: string,
-  accountType: AccountType
+  accountType: AccountType,
+  fullname?: string
 ) {
   const { data, error } = await supabase.auth.signUp({
     email: email,
@@ -27,16 +29,37 @@ export async function signUp(
     throw error;
   }
 
-  // If user was created, create profile with account type
+  // If user was created, create or update profile with account type, fullname, and email
+  // Set approved to false by default - admin must manually approve
+  // Use upsert in case trigger already created a basic profile
   if (data.user) {
-    const { error: profileError } = await supabase.from("profiles").insert({
+    // First try to insert, if it fails due to conflict, update instead
+    const { error: insertError } = await supabase.from("profiles").insert({
       id: data.user.id,
+      email: email,
       account_type: accountType,
+      fullname: fullname || null,
+      approved: false, // Requires manual approval
     });
 
-    if (profileError) {
-      if (isDev) console.error("[AUTH] signUp profile error:", profileError);
-      throw profileError;
+    // If insert fails due to conflict (trigger already created profile), update it
+    if (insertError) {
+      if (isDev) console.log("[AUTH] Profile may already exist, updating instead:", insertError);
+      
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({
+          email: email,
+          account_type: accountType,
+          fullname: fullname || null,
+          approved: false,
+        })
+        .eq("id", data.user.id);
+
+      if (updateError) {
+        if (isDev) console.error("[AUTH] signUp profile update error:", updateError);
+        throw updateError;
+      }
     }
   }
 
@@ -53,6 +76,35 @@ export async function signIn(email: string, password: string) {
   if (error) {
     if (isDev) console.error("[AUTH] signIn error:", error);
     throw error;
+  }
+
+  // Check if user is approved before allowing sign in
+  if (data.user) {
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("approved")
+      .eq("id", data.user.id)
+      .single();
+
+    if (profileError) {
+      if (isDev) console.error("[AUTH] signIn profile check error:", profileError);
+      // If we can't check the profile, deny access for security
+      await supabase.auth.signOut();
+      throw new Error("Unable to verify account status. Please contact support.");
+    }
+
+    // If profile doesn't exist or user is not approved, deny access
+    if (!profile) {
+      await supabase.auth.signOut();
+      throw new Error("Account profile not found. Please contact support.");
+    }
+
+    if (profile.approved !== true) {
+      await supabase.auth.signOut();
+      throw new Error(
+        "Your account is pending approval. An administrator will review your request and you'll be notified once approved."
+      );
+    }
   }
 
   return data;
@@ -113,11 +165,11 @@ export function onAuthStateChange(callback: (user: AuthUser | null) => void) {
 
       if (session?.user) {
         // Fetch profile with timeout to prevent hanging
-        let profile: { account_type: string } | null = null;
+        let profile: { account_type: string; fullname?: string; approved?: boolean } | null = null;
         try {
           const profilePromise = supabase
             .from("profiles")
-            .select("account_type")
+            .select("account_type, fullname, approved")
             .eq("id", session.user.id)
             .single();
 
@@ -131,18 +183,39 @@ export function onAuthStateChange(callback: (user: AuthUser | null) => void) {
 
           if (result && result.data && !result.error) {
             profile = result.data;
-          } else if (isDev && result && result.error) {
-            console.warn("[AUTH] Profile fetch error:", result.error);
+            
+            // If user is not approved, sign them out immediately
+            if (profile.approved !== true) {
+              if (isDev) console.warn("[AUTH] User not approved, signing out");
+              await supabase.auth.signOut();
+              callback(null);
+              return;
+            }
+          } else {
+            // If we can't fetch the profile or it doesn't exist, deny access for security
+            if (isDev) {
+              console.warn("[AUTH] Profile fetch failed or profile doesn't exist, signing out");
+              if (result && result.error) {
+                console.warn("[AUTH] Profile error:", result.error);
+              }
+            }
+            await supabase.auth.signOut();
+            callback(null);
+            return;
           }
         } catch (error) {
+          // If profile fetch fails, deny access for security
           if (isDev) console.warn("[AUTH] Profile fetch failed:", error);
-          // Continue without profile - accountType will be undefined
+          await supabase.auth.signOut();
+          callback(null);
+          return;
         }
 
         const user: AuthUser = {
           id: session.user.id,
           email: session.user.email || "",
           accountType: profile?.account_type as AccountType | undefined,
+          fullname: profile?.fullname || undefined,
         };
 
         if (isDev) {
@@ -168,6 +241,7 @@ export function onAuthStateChange(callback: (user: AuthUser | null) => void) {
           id: session.user.id,
           email: session.user.email || "",
           accountType: undefined,
+          fullname: undefined,
         });
       } else {
         clearEmailCache();
