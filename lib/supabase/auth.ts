@@ -470,9 +470,11 @@ export function onAuthStateChange(callback: (user: AuthUser | null) => void): {
     const sessionUser = session.user;
 
     // Fetch profile data
-    // On INITIAL_SESSION, don't use timeout to handle serverless cold starts
-    // On first SIGNED_IN (signup), use timeout for quick approval check
-    const isInitialSessionRestore = event === "INITIAL_SESSION";
+    // On INITIAL_SESSION or first SIGNED_IN (page load), don't use timeout to handle serverless cold starts
+    // This allows the profile fetch to complete even during cold starts (which can take 10-20+ seconds)
+    // Subsequent SIGNED_IN events are already filtered out above (line 428) and skip profile fetch entirely
+    const isInitialSessionRestore =
+      event === "INITIAL_SESSION" || (event === "SIGNED_IN" && isInitialEvent);
     const profile = await fetchUserProfile(
       sessionUser.id,
       !isInitialSessionRestore
