@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { robustFetch } from "@/lib/utils/fetch";
+import { getLocalStorage } from "@/lib/utils/storage";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -17,10 +18,11 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: false, // We handle auth state manually
-    storage: typeof window !== "undefined" ? window.localStorage : undefined,
+    detectSessionInUrl: false, // We handle auth state manually (no OAuth redirects)
+    storage: getLocalStorage() || undefined,
     storageKey: "supabase.auth.token",
-    flowType: "pkce", // Use PKCE flow for better security
+    // Note: Using default implicit flow (not PKCE) since we don't use OAuth redirects
+    // PKCE requires detectSessionInUrl: true to work properly
   },
   global: {
     // Use robustFetch for ALL Supabase network requests

@@ -6,9 +6,13 @@ interface FetchOptions extends RequestInit {
   retries?: number;
   retryDelay?: number;
   timeout?: number;
+  forceCloseConnection?: boolean; // Force Connection: close header (for unreliable endpoints)
 }
 
 const isDev = process.env.NODE_ENV === "development";
+// Allow production logging for debugging (set NEXT_PUBLIC_ENABLE_PROD_LOGS=true)
+const enableProdLogs = process.env.NEXT_PUBLIC_ENABLE_PROD_LOGS === "true";
+const shouldLog = isDev || enableProdLogs;
 
 // Generate unique request ID for debugging
 function generateRequestId(): string {
@@ -23,12 +27,13 @@ export async function robustFetch(
     retries = 2,
     retryDelay = 1000,
     timeout = 30000,
+    forceCloseConnection = false, // Default: allow connection reuse for performance
     ...fetchOptions
   } = options;
 
   const requestId = generateRequestId();
 
-  if (isDev) {
+  if (shouldLog) {
     console.log(`[FETCH ${requestId}] Starting request to: ${url}`);
     // Log if Authorization header is present (but don't log the actual token)
     if (fetchOptions.headers) {
@@ -42,10 +47,13 @@ export async function robustFetch(
   // Preserve existing headers (especially auth headers from Supabase)
   const existingHeaders = new Headers(fetchOptions.headers);
   
-  // Add our connection management headers (but don't override existing ones)
-  if (!existingHeaders.has('Connection')) {
+  // Add connection management headers (but don't override existing ones)
+  // Only force Connection: close for unreliable external endpoints
+  if (forceCloseConnection && !existingHeaders.has('Connection')) {
     existingHeaders.set('Connection', 'close');
   }
+  
+  // Always prevent caching for fresh data
   if (!existingHeaders.has('Cache-Control')) {
     existingHeaders.set('Cache-Control', 'no-cache, no-store, must-revalidate');
   }
@@ -55,14 +63,16 @@ export async function robustFetch(
   if (!existingHeaders.has('Expires')) {
     existingHeaders.set('Expires', '0');
   }
+  
   // Always add request ID for debugging
   existingHeaders.set('X-Request-Id', requestId);
 
-  // Ensure fresh connections - prevent stale connection reuse
+  // Configure fetch options
   const freshOptions: RequestInit = {
     ...fetchOptions,
     cache: 'no-store', // Prevent browser from caching failed requests
-    keepalive: false, // Don't keep connections alive (force new connections)
+    // keepalive: Allow browser to reuse connections unless explicitly disabled
+    keepalive: !forceCloseConnection,
     headers: existingHeaders,
   };
 
@@ -70,7 +80,7 @@ export async function robustFetch(
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      if (isDev && attempt > 0) {
+      if (shouldLog && attempt > 0) {
         console.log(`[FETCH ${requestId}] Retry attempt ${attempt}/${retries}`);
       }
 
@@ -96,7 +106,7 @@ export async function robustFetch(
         clearTimeout(timeoutId);
         const duration = Date.now() - startTime;
 
-        if (isDev) {
+        if (shouldLog) {
           console.log(
             `[FETCH ${requestId}] Response: ${response.status} (${duration}ms)`
           );
@@ -109,7 +119,7 @@ export async function robustFetch(
 
         // If it's a server error (5xx), retry
         if (response.status >= 500 && attempt < retries) {
-          if (isDev) {
+          if (shouldLog) {
             console.warn(
               `[FETCH ${requestId}] Server error ${response.status}, will retry`
             );
@@ -118,7 +128,7 @@ export async function robustFetch(
         }
 
         // For client errors (4xx), don't retry
-        if (isDev && response.status >= 400) {
+        if (shouldLog && response.status >= 400) {
           console.warn(
             `[FETCH ${requestId}] Client error ${response.status}, not retrying`
           );
@@ -128,13 +138,13 @@ export async function robustFetch(
         clearTimeout(timeoutId);
 
         if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-          if (isDev) {
+          if (shouldLog) {
             console.error(`[FETCH ${requestId}] Request timeout after ${timeout}ms`);
           }
           throw new Error(`Request timeout after ${timeout}ms`);
         }
 
-        if (isDev) {
+        if (shouldLog) {
           console.error(`[FETCH ${requestId}] Fetch error:`, fetchError);
         }
         throw fetchError;
@@ -146,7 +156,7 @@ export async function robustFetch(
       if (attempt < retries) {
         // Exponential backoff
         const delay = retryDelay * Math.pow(2, attempt);
-        if (isDev) {
+        if (shouldLog) {
           console.log(`[FETCH ${requestId}] Waiting ${delay}ms before retry`);
         }
         await new Promise((resolve) => setTimeout(resolve, delay));
@@ -156,7 +166,7 @@ export async function robustFetch(
   }
 
   // If all retries failed, throw the last error
-  if (isDev) {
+  if (shouldLog) {
     console.error(`[FETCH ${requestId}] All retries failed:`, lastError);
   }
   throw lastError || new Error('Fetch failed after all retries');

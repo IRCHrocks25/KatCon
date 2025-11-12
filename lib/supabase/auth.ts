@@ -1,8 +1,16 @@
 import { supabase } from "./client";
 import { clearEmailCache } from "./session";
+import { removeStorageItem } from "@/lib/utils/storage";
 import type { Session, User as SupabaseUser } from "@supabase/supabase-js";
 
-export type AccountType = "CRM" | "DEV" | "PM" | "AI" | "DESIGN" | "COPYWRITING" | "OTHERS";
+export type AccountType =
+  | "CRM"
+  | "DEV"
+  | "PM"
+  | "AI"
+  | "DESIGN"
+  | "COPYWRITING"
+  | "OTHERS";
 
 export interface AuthUser {
   id: string;
@@ -19,7 +27,8 @@ interface ProfileData {
 
 const isDev = process.env.NODE_ENV === "development";
 
-// Profile fetch timeout (10 seconds - increased for slower connections)
+// Profile fetch timeout (10 seconds for better UX)
+// This prevents users from waiting too long on slow connections
 const PROFILE_FETCH_TIMEOUT = 10000;
 
 /**
@@ -37,7 +46,10 @@ async function checkUserApproval(userId: string): Promise<boolean> {
 
     if (error || !profile) {
       if (isDev) {
-        console.warn("[AUTH] Profile check failed:", error?.message || "Profile not found");
+        console.warn(
+          "[AUTH] Profile check failed:",
+          error?.message || "Profile not found"
+        );
       }
       return false;
     }
@@ -62,14 +74,16 @@ async function fetchUserProfile(userId: string): Promise<ProfileData | null> {
       .eq("id", userId)
       .single();
 
-    const timeoutPromise = new Promise<{ data: null; error: { message: string } }>(
-      (resolve) => {
-        setTimeout(
-          () => resolve({ data: null, error: { message: "Profile fetch timeout" } }),
-          PROFILE_FETCH_TIMEOUT
-        );
-      }
-    );
+    const timeoutPromise = new Promise<{
+      data: null;
+      error: { message: string };
+    }>((resolve) => {
+      setTimeout(
+        () =>
+          resolve({ data: null, error: { message: "Profile fetch timeout" } }),
+        PROFILE_FETCH_TIMEOUT
+      );
+    });
 
     const result = await Promise.race([profilePromise, timeoutPromise]);
 
@@ -151,7 +165,11 @@ export async function signUp(
 
     // If insert fails due to conflict (trigger already created profile), update it
     if (insertError) {
-      if (isDev) console.log("[AUTH] Profile may already exist, updating instead:", insertError);
+      if (isDev)
+        console.log(
+          "[AUTH] Profile may already exist, updating instead:",
+          insertError
+        );
 
       const { error: updateError } = await supabase
         .from("profiles")
@@ -164,20 +182,20 @@ export async function signUp(
         .eq("id", data.user.id);
 
       if (updateError) {
-        if (isDev) console.error("[AUTH] signUp profile update error:", updateError);
+        if (isDev)
+          console.error("[AUTH] signUp profile update error:", updateError);
         throw updateError;
       }
     }
 
     // IMPORTANT: Sign out immediately after signup since account needs approval
     // This prevents the user from accessing the app with an unapproved account
-    if (isDev) console.log("[AUTH] signUp: Signing out user (pending approval)");
-    
+    if (isDev)
+      console.log("[AUTH] signUp: Signing out user (pending approval)");
+
     // Force clear the session immediately (don't wait for API call)
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem("supabase.auth.token");
-    }
-    
+    removeStorageItem("supabase.auth.token");
+
     // Also call signOut to clear on server side
     await supabase.auth.signOut().catch(() => {
       // Ignore errors - session is already cleared locally
@@ -213,23 +231,21 @@ export async function signIn(
     if (!isApproved) {
       // Immediately clear session - user is not approved
       if (isDev) console.warn("[AUTH] signIn blocked: User not approved");
-      
+
       // Force clear local session immediately
-      if (typeof window !== "undefined") {
-        window.localStorage.removeItem("supabase.auth.token");
-      }
-      
+      removeStorageItem("supabase.auth.token");
+
       // Sign out on server
       await supabase.auth.signOut().catch(() => {
         // Ignore signOut errors - session already cleared
       });
-      
+
       // Throw error to inform user
       throw new Error(
         "Your account is pending approval. An administrator will review your request and you'll be notified once approved."
       );
     }
-    
+
     if (isDev) console.log("[AUTH] signIn success: User approved");
   }
 
@@ -251,7 +267,7 @@ export async function signOut(): Promise<void> {
         if (isDev) console.log("[AUTH] signOut: Session already cleared");
         return; // Successfully signed out (already was)
       }
-      
+
       if (isDev) console.error("[AUTH] signOut error:", error);
       throw error;
     }
@@ -260,19 +276,16 @@ export async function signOut(): Promise<void> {
     // If logout fails, it usually means the session is already invalid
     // So we treat it as a successful logout
     clearEmailCache();
-    
+
     if (isDev) {
-      console.log("[AUTH] signOut error caught, treating as successful logout:", error);
+      console.log(
+        "[AUTH] signOut error caught, treating as successful logout:",
+        error
+      );
     }
-    
+
     // Clear local storage manually to ensure clean state
-    if (typeof globalThis.window !== "undefined") {
-      try {
-        globalThis.window.localStorage.removeItem("supabase.auth.token");
-      } catch (storageError) {
-        // Ignore storage errors
-      }
-    }
+    removeStorageItem("supabase.auth.token");
   }
 }
 
@@ -285,18 +298,21 @@ export async function getSession(): Promise<Session | null> {
       data: { session },
       error,
     } = await supabase.auth.getSession();
-    
+
     if (error) {
       if (isDev) console.error("[AUTH] getSession error:", error);
       return null;
     }
-    
+
     if (isDev && session) {
-      console.log("[AUTH] getSession: Session found for user", session.user.email);
+      console.log(
+        "[AUTH] getSession: Session found for user",
+        session.user.email
+      );
     } else if (isDev) {
       console.log("[AUTH] getSession: No session found");
     }
-    
+
     return session;
   } catch (error) {
     if (isDev) console.error("[AUTH] getSession exception:", error);
@@ -317,9 +333,13 @@ export async function getUserEmailFromSession(): Promise<string | null> {
  * Listen to auth state changes
  * Handles session updates, profile fetching, and approval checks
  */
-export function onAuthStateChange(
-  callback: (user: AuthUser | null) => void
-): { subscription: { unsubscribe: () => void } } {
+export function onAuthStateChange(callback: (user: AuthUser | null) => void): {
+  subscription: { unsubscribe: () => void };
+} {
+  // Track if this is the first auth event (initial session restoration)
+  // After the first event, we skip profile checks on SIGNED_IN to prevent timeout loops
+  let isInitialEvent = true;
+
   const {
     data: { subscription },
   } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -327,6 +347,7 @@ export function onAuthStateChange(
       console.log("[AUTH] onAuthStateChange event:", event, {
         hasSession: !!session,
         hasUser: !!session?.user,
+        isInitial: isInitialEvent,
       });
     }
 
@@ -338,12 +359,19 @@ export function onAuthStateChange(
       return;
     }
 
-    // Handle TOKEN_REFRESHED event (auto token refresh)
-    // For token refresh ONLY, skip profile check since user was already verified
-    if (event === "TOKEN_REFRESHED") {
+    // Handle TOKEN_REFRESHED and subsequent SIGNED_IN events (after initial load)
+    // Skip profile re-fetch to avoid timeouts and unnecessary approval checks
+    // The user was already verified on initial login/session restoration
+    if (
+      event === "TOKEN_REFRESHED" ||
+      (event === "SIGNED_IN" && !isInitialEvent)
+    ) {
       clearEmailCache();
-      if (isDev) console.log("[AUTH] TOKEN_REFRESHED event - session refreshed");
-      
+      if (isDev)
+        console.log(
+          `[AUTH] ${event} event - session refreshed, skipping profile check`
+        );
+
       if (session?.user) {
         const user: AuthUser = {
           id: session.user.id,
@@ -355,9 +383,15 @@ export function onAuthStateChange(
         return;
       }
     }
-    
-    // NOTE: SIGNED_IN events should continue to profile check below
-    // Because SIGNED_IN fires on signup and we need to verify approval
+
+    // Mark that we've processed the initial event
+    // Future SIGNED_IN events will be treated as token refreshes
+    if (isInitialEvent) {
+      isInitialEvent = false;
+    }
+
+    // NOTE: Only INITIAL_SESSION and first SIGNED_IN (signup/login) reach here
+    // This prevents repeated profile fetches on every token refresh
 
     // No session - user is logged out
     if (!session?.user) {
@@ -376,9 +410,7 @@ export function onAuthStateChange(
     if (!profile) {
       if (isDev) console.warn("[AUTH] Profile fetch failed, clearing session");
       // Use direct session removal instead of signOut to prevent loops
-      if (typeof window !== "undefined") {
-        window.localStorage.removeItem("supabase.auth.token");
-      }
+      removeStorageItem("supabase.auth.token");
       callback(null);
       return;
     }
@@ -387,13 +419,11 @@ export function onAuthStateChange(
     if (profile.approved !== true) {
       if (isDev) console.warn("[AUTH] User not approved, clearing session");
       // Use direct session removal instead of signOut to prevent loops
-      if (typeof window !== "undefined") {
-        window.localStorage.removeItem("supabase.auth.token");
-      }
+      removeStorageItem("supabase.auth.token");
       callback(null);
       return;
     }
-    
+
     if (isDev) console.log("[AUTH] User approved, allowing access");
 
     // Build and return authenticated user

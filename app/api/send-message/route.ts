@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
     };
 
     // Use robustFetch for webhook calls with connection management
+    // Force close connections for external webhooks to prevent stale connection issues
     try {
       const response = await robustFetch(
         "https://katalyst-crm.fly.dev/webhook/send-message",
@@ -36,6 +37,7 @@ export async function POST(request: NextRequest) {
           body: JSON.stringify(webhookPayload),
           retries: 2,
           timeout: 30000,
+          forceCloseConnection: true, // External webhook - prevent stale connections
         }
       );
 

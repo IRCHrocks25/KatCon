@@ -22,6 +22,11 @@ import {
   type Reminder,
 } from "@/components/reminders/RemindersContainer";
 import { robustFetch } from "@/lib/utils/fetch";
+import {
+  getStorageItem,
+  setStorageItem,
+  removeStorageItem,
+} from "@/lib/utils/storage";
 
 interface Message {
   id: string;
@@ -37,10 +42,7 @@ export default function Home() {
   const [chatInputValue, setChatInputValue] = useState<string | null>(null);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(() => {
-    if (globalThis.window) {
-      return globalThis.window.localStorage.getItem("chatSessionId");
-    }
-    return null;
+    return getStorageItem("chatSessionId");
   });
 
   // Get or generate sessionId
@@ -52,9 +54,7 @@ export default function Home() {
     // Generate new UUID
     const newSessionId = crypto.randomUUID();
     setSessionId(newSessionId);
-    if (globalThis.window) {
-      globalThis.window.localStorage.setItem("chatSessionId", newSessionId);
-    }
+    setStorageItem("chatSessionId", newSessionId);
 
     return newSessionId;
   };
@@ -76,18 +76,14 @@ export default function Home() {
         setChatInputValue(null);
         const newSessionId = crypto.randomUUID();
         setSessionId(newSessionId);
-        if (globalThis.window) {
-          globalThis.window.localStorage.setItem("chatSessionId", newSessionId);
-        }
+        setStorageItem("chatSessionId", newSessionId);
       } else {
         // User logged out - clear everything
         setMessages([]);
         setReminders([]);
         setChatInputValue(null);
         setSessionId(null);
-        if (globalThis.window) {
-          globalThis.window.localStorage.removeItem("chatSessionId");
-        }
+        removeStorageItem("chatSessionId");
       }
 
       // Update the ref to track the current user ID
@@ -203,7 +199,9 @@ export default function Home() {
             if (!response.ok) {
               const errorData = await response.json().catch(() => ({}));
               throw new Error(
-                errorData.error || errorData.details || "Failed to create reminder"
+                errorData.error ||
+                  errorData.details ||
+                  "Failed to create reminder"
               );
             }
 
@@ -217,7 +215,8 @@ export default function Home() {
                 // If both have due dates, sort by due date (earliest first)
                 if (a.dueDate && b.dueDate) {
                   const dateDiff =
-                    new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+                    new Date(a.dueDate).getTime() -
+                    new Date(b.dueDate).getTime();
                   if (dateDiff !== 0) return dateDiff;
                 }
                 // If only one has a due date, prioritize it
@@ -225,8 +224,12 @@ export default function Home() {
                 if (!a.dueDate && b.dueDate) return 1;
                 // If neither has a due date or dates are equal, sort by created_at (newest first)
                 // Use createdAt if available (from API), otherwise fall back to ID comparison
-                const aCreated = (a as any).createdAt ? new Date((a as any).createdAt).getTime() : 0;
-                const bCreated = (b as any).createdAt ? new Date((b as any).createdAt).getTime() : 0;
+                const aCreated = (a as any).createdAt
+                  ? new Date((a as any).createdAt).getTime()
+                  : 0;
+                const bCreated = (b as any).createdAt
+                  ? new Date((b as any).createdAt).getTime()
+                  : 0;
                 if (aCreated && bCreated) {
                   return bCreated - aCreated; // Newest first
                 }

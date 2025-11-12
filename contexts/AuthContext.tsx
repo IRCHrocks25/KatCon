@@ -18,6 +18,7 @@ import {
   signUp,
   getSession,
 } from "@/lib/supabase/auth";
+import { removeStorageItem } from "@/lib/utils/storage";
 import { toast } from "sonner";
 
 interface AuthContextType {
@@ -154,9 +155,7 @@ export function AuthProvider({ children }: { readonly children: React.ReactNode 
       await signOut();
       
       // Clear chat session from localStorage
-      if (typeof globalThis.window !== "undefined") {
-        globalThis.window.localStorage.removeItem("chatSessionId");
-      }
+      removeStorageItem("chatSessionId");
       
       // Don't show success toast on logout - user initiated it
     } catch (error) {
