@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { robustFetch } from "@/lib/utils/fetch";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -11,6 +12,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 // Create a single, centralized Supabase client instance
 // Configured for optimal session persistence and auth handling
+// Uses custom fetch with connection management to prevent stale connection issues
 export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
@@ -18,6 +20,11 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
     detectSessionInUrl: false, // We handle auth state manually
     storage: typeof window !== "undefined" ? window.localStorage : undefined,
     storageKey: "supabase.auth.token",
+  },
+  global: {
+    // Use robustFetch for ALL Supabase network requests
+    // This prevents HTTP connection pooling issues that cause intermittent failures
+    fetch: robustFetch as unknown as typeof fetch,
   },
 });
 
