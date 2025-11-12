@@ -1,7 +1,23 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
-import { AccountType, AuthUser, onAuthStateChange, signIn, signOut, signUp, getSession } from "@/lib/supabase/auth";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
+import {
+  AccountType,
+  AuthUser,
+  onAuthStateChange,
+  signIn,
+  signOut,
+  signUp,
+  getSession,
+} from "@/lib/supabase/auth";
 import { toast } from "sonner";
 
 interface AuthContextType {
@@ -14,66 +30,73 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children }: { readonly children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const previousUserRef = React.useRef<AuthUser | null>(null);
-  const isInitialLoadRef = React.useRef(true);
-  const userRef = React.useRef<AuthUser | null>(null);
-  const loadingRef = React.useRef(true);
-  const isIntentionalLogoutRef = React.useRef(false);
+  
+  // Track previous user to detect unexpected sign-outs
+  const previousUserRef = useRef<AuthUser | null>(null);
+  
+  // Track current user for comparison (avoid stale closures)
+  const currentUserRef = useRef<AuthUser | null>(null);
+  
+  // Track intentional logout to suppress "Access denied" toast
+  const isIntentionalLogoutRef = useRef(false);
+  
+  // Track if this is the initial load
+  const isInitialLoadRef = useRef(true);
 
-  // Keep refs in sync with state
-  React.useEffect(() => {
-    userRef.current = user;
+  // Keep ref in sync with state
+  useEffect(() => {
+    currentUserRef.current = user;
   }, [user]);
 
-  React.useEffect(() => {
-    loadingRef.current = loading;
-  }, [loading]);
-
+  // Initialize auth state on mount
   useEffect(() => {
-    // Safety timeout to ensure loading doesn't hang forever
-    const safetyTimeout = setTimeout(() => {
-      if (loadingRef.current) {
-        console.warn("[AUTH CONTEXT] Loading timeout - forcing loading to false");
-        setLoading(false);
-        // If callback hasn't fired, manually check session and set user to null
-        if (isInitialLoadRef.current) {
-          getSession().then((session) => {
-            if (!session) {
-              setUser(null);
-              isInitialLoadRef.current = false;
-            }
-          }).catch(() => {
-            setUser(null);
-            isInitialLoadRef.current = false;
-          });
+    let mounted = true;
+    let subscription: { unsubscribe: () => void } | null = null;
+
+    // Restore session immediately on mount
+    const initializeAuth = async () => {
+      try {
+        const session = await getSession();
+        
+        // If no session, set loading to false immediately
+        if (!session && mounted) {
+          setLoading(false);
+          isInitialLoadRef.current = false;
+        }
+      } catch (error) {
+        // On error, ensure we don't hang
+        if (mounted) {
+          setLoading(false);
+          isInitialLoadRef.current = false;
         }
       }
-    }, 5000); // 5 second safety timeout
+    };
 
-    const { subscription } = onAuthStateChange((newUser) => {
+    // Set up auth state change listener
+    const { subscription: authSubscription } = onAuthStateChange((newUser) => {
+      if (!mounted) return;
+
       const previousUser = previousUserRef.current;
-      const currentUser = userRef.current;
-      
-      // Clear safety timeout since callback was called
-      clearTimeout(safetyTimeout);
-      
-      // Check if this is an unexpected sign-out (user was logged in, now logged out)
-      // But not on initial load, not if user was already null, and not if it's an intentional logout
+
+      // Check if this is an unexpected sign-out
+      // Only show toast if:
+      // - Not initial load
+      // - User was previously logged in
+      // - User is now logged out
+      // - Not an intentional logout
       if (
         !isInitialLoadRef.current &&
         previousUser !== null &&
         newUser === null &&
-        currentUser !== null &&
+        currentUserRef.current !== null &&
         !isIntentionalLogoutRef.current
       ) {
-        // Check if this might be due to approval status
-        // We'll show a generic message since we can't easily distinguish the reason
-        // The actual error message will come from signIn if they try to log in
         toast.error("Access denied", {
-          description: "Your account may be pending approval or your session was revoked. Please contact support if you believe this is an error.",
+          description:
+            "Your account may be pending approval or your session was revoked. Please contact support if you believe this is an error.",
           duration: 6000,
         });
       }
@@ -83,63 +106,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isIntentionalLogoutRef.current = false;
       }
 
-      // Update refs
+      // Update state
       previousUserRef.current = newUser;
       isInitialLoadRef.current = false;
-      
       setUser(newUser);
       setLoading(false);
     });
 
-    // Also check initial session immediately as a fallback
-    // This ensures callback fires even if onAuthStateChange doesn't fire immediately
-    getSession().then((session) => {
-      // If we still haven't received a callback after a short delay, trigger it manually
-      setTimeout(() => {
-        if (isInitialLoadRef.current && loadingRef.current) {
-          // onAuthStateChange should have fired by now, but if not, handle it
-          if (!session) {
-            setUser(null);
-            setLoading(false);
-            isInitialLoadRef.current = false;
-          }
-        }
-      }, 100);
-    }).catch(() => {
-      // On error, ensure we don't hang
-      if (isInitialLoadRef.current && loadingRef.current) {
-        setUser(null);
-        setLoading(false);
-        isInitialLoadRef.current = false;
-      }
-    });
+    subscription = authSubscription;
 
+    // Initialize auth state
+    initializeAuth();
+
+    // Cleanup
     return () => {
-      clearTimeout(safetyTimeout);
-      subscription.unsubscribe();
+      mounted = false;
+      if (subscription) {
+        subscription.unsubscribe();
+      }
     };
-  }, []);
+  }, []); // Empty deps - only run on mount
 
-  const handleSignUp = async (email: string, password: string, accountType: AccountType, fullname?: string) => {
-    await signUp(email, password, accountType, fullname);
-    // User will be set via auth state change listener
-  };
+  // Memoized sign up handler
+  const handleSignUp = useCallback(
+    async (email: string, password: string, accountType: AccountType, fullname?: string) => {
+      await signUp(email, password, accountType, fullname);
+      // User will be set via auth state change listener
+    },
+    []
+  );
 
-  const handleSignIn = async (email: string, password: string) => {
+  // Memoized sign in handler
+  const handleSignIn = useCallback(async (email: string, password: string) => {
     await signIn(email, password);
     // User will be set via auth state change listener
-  };
+  }, []);
 
-  const handleLogout = async () => {
+  // Memoized logout handler
+  const handleLogout = useCallback(async () => {
     try {
       // Mark as intentional logout to prevent showing "Access denied" toast
       isIntentionalLogoutRef.current = true;
       await signOut();
+      
       // Clear chat session from localStorage
-      if (typeof window !== "undefined") {
-        window.localStorage.removeItem("chatSessionId");
+      if (typeof globalThis.window !== "undefined") {
+        globalThis.window.localStorage.removeItem("chatSessionId");
       }
-      // Don't show success toast on logout - user initiated it, no need to notify
+      
+      // Don't show success toast on logout - user initiated it
     } catch (error) {
       // Reset flag on error
       isIntentionalLogoutRef.current = false;
@@ -147,20 +162,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         description: error instanceof Error ? error.message : "An error occurred",
       });
     }
-  };
+  }, []);
+
+  // Memoized context value to prevent unnecessary re-renders
+  const contextValue = useMemo<AuthContextType>(
+    () => ({
+      user,
+      loading,
+      signUp: handleSignUp,
+      signIn: handleSignIn,
+      logout: handleLogout,
+    }),
+    [user, loading, handleSignUp, handleSignIn, handleLogout]
+  );
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        signUp: handleSignUp,
-        signIn: handleSignIn,
-        logout: handleLogout,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+    <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>
   );
 }
 
@@ -171,4 +188,3 @@ export function useAuth() {
   }
   return context;
 }
-
