@@ -21,6 +21,7 @@ import {
   RemindersContainer,
   type Reminder,
 } from "@/components/reminders/RemindersContainer";
+import { robustFetch } from "@/lib/utils/fetch";
 
 interface Message {
   id: string;
@@ -118,7 +119,7 @@ export default function Home() {
 
     // Send to webhook via API route
     try {
-      const response = await fetch("/api/send-message", {
+      const response = await robustFetch("/api/send-message", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -129,6 +130,8 @@ export default function Home() {
           sessionId: currentSessionId,
           userEmail: user?.email || null,
         }),
+        retries: 2,
+        timeout: 30000,
       });
 
       if (response.ok) {
@@ -181,7 +184,7 @@ export default function Home() {
             const assignedTo = assignees.length > 0 ? assignees : undefined;
 
             // Call the API route instead of using createReminder directly
-            const response = await fetch("/api/reminders/create", {
+            const response = await robustFetch("/api/reminders/create", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
@@ -193,6 +196,8 @@ export default function Home() {
                 assignedTo: assignedTo,
                 userEmail: user?.email || null,
               }),
+              retries: 2,
+              timeout: 30000,
             });
 
             if (!response.ok) {

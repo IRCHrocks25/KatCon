@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { robustFetch } from "@/lib/utils/fetch";
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,12 +24,9 @@ export async function POST(request: NextRequest) {
       ...(body.userEmail && { userEmail: body.userEmail }),
     };
 
-    // Set timeout for the fetch request (30 seconds)
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
-
+    // Use robustFetch for webhook calls with connection management
     try {
-      const response = await fetch(
+      const response = await robustFetch(
         "https://katalyst-crm.fly.dev/webhook/send-message",
         {
           method: "POST",
@@ -36,11 +34,10 @@ export async function POST(request: NextRequest) {
             "Content-Type": "application/json",
           },
           body: JSON.stringify(webhookPayload),
-          signal: controller.signal,
+          retries: 2,
+          timeout: 30000,
         }
       );
-
-      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorText = await response
@@ -56,16 +53,17 @@ export async function POST(request: NextRequest) {
       const data = await response.json().catch(() => ({}));
       return NextResponse.json(data, { status: 200 });
     } catch (fetchError: unknown) {
-      clearTimeout(timeoutId);
-
-      if (fetchError instanceof Error && fetchError.name === "AbortError") {
-        return NextResponse.json(
-          {
-            error: "Request timeout",
-            details: "The server took too long to respond",
-          },
-          { status: 504 }
-        );
+      if (fetchError instanceof Error) {
+        if (fetchError.message.includes("timeout")) {
+          return NextResponse.json(
+            {
+              error: "Request timeout",
+              details: "The server took too long to respond",
+            },
+            { status: 504 }
+          );
+        }
+        throw fetchError;
       }
       throw fetchError;
     }

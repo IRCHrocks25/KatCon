@@ -1,4 +1,5 @@
 import { supabase } from "./client";
+import { robustFetch } from "@/lib/utils/fetch";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -80,12 +81,14 @@ export async function checkUserExists(email: string): Promise<boolean> {
   }
 
   try {
-    const response = await fetch("/api/check-user", {
+    const response = await robustFetch("/api/check-user", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      retries: 2,
+      timeout: 10000,
     });
 
     if (!response.ok) {

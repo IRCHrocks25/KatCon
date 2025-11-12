@@ -14,6 +14,7 @@ import {
 } from "@/lib/supabase/reminders";
 import { useAuth } from "@/contexts/AuthContext";
 import { validateEmailFormat, checkUserExists } from "@/lib/supabase/users";
+import { robustFetch } from "@/lib/utils/fetch";
 
 export type { Reminder };
 
@@ -137,7 +138,7 @@ export function RemindersContainer({
         setEditingId(null);
       } else {
         // Create new reminder using API route
-        const response = await fetch("/api/reminders/create", {
+        const response = await robustFetch("/api/reminders/create", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -151,6 +152,8 @@ export function RemindersContainer({
             assignedTo: newReminder.assignedTo.length > 0 ? newReminder.assignedTo : undefined,
             userEmail: currentUser?.email || null,
           }),
+          retries: 2,
+          timeout: 30000,
         });
 
         if (!response.ok) {
