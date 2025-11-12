@@ -32,7 +32,7 @@ const shouldLogAuth = isDev || debugAuth;
 
 // Profile fetch timeout (10 seconds for better UX)
 // This prevents users from waiting too long on slow connections
-const PROFILE_FETCH_TIMEOUT = 10000;
+const PROFILE_FETCH_TIMEOUT = 60000;
 
 /**
  * Check if a user is approved to access the system
