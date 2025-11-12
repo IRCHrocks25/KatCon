@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { AccountType, AuthUser, onAuthStateChange, signIn, signOut, signUp } from "@/lib/supabase/auth";
+import { AccountType, AuthUser, onAuthStateChange, signIn, signOut, signUp, getSession } from "@/lib/supabase/auth";
 import { toast } from "sonner";
 
 interface AuthContextType {
@@ -38,6 +38,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (loadingRef.current) {
         console.warn("[AUTH CONTEXT] Loading timeout - forcing loading to false");
         setLoading(false);
+        // If callback hasn't fired, manually check session and set user to null
+        if (isInitialLoadRef.current) {
+          getSession().then((session) => {
+            if (!session) {
+              setUser(null);
+              isInitialLoadRef.current = false;
+            }
+          }).catch(() => {
+            setUser(null);
+            isInitialLoadRef.current = false;
+          });
+        }
       }
     }, 5000); // 5 second safety timeout
 
@@ -77,6 +89,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       setUser(newUser);
       setLoading(false);
+    });
+
+    // Also check initial session immediately as a fallback
+    // This ensures callback fires even if onAuthStateChange doesn't fire immediately
+    getSession().then((session) => {
+      // If we still haven't received a callback after a short delay, trigger it manually
+      setTimeout(() => {
+        if (isInitialLoadRef.current && loadingRef.current) {
+          // onAuthStateChange should have fired by now, but if not, handle it
+          if (!session) {
+            setUser(null);
+            setLoading(false);
+            isInitialLoadRef.current = false;
+          }
+        }
+      }, 100);
+    }).catch(() => {
+      // On error, ensure we don't hang
+      if (isInitialLoadRef.current && loadingRef.current) {
+        setUser(null);
+        setLoading(false);
+        isInitialLoadRef.current = false;
+      }
     });
 
     return () => {

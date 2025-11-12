@@ -234,16 +234,25 @@ export function onAuthStateChange(callback: (user: AuthUser | null) => void) {
         callback(null);
       }
     } catch (error) {
+      // CRITICAL: Always call callback, even on error, to prevent infinite loading
       if (isDev) console.error("[AUTH] onAuthStateChange error:", error);
-      // Always call callback to prevent infinite loading
-      if (session?.user) {
-        callback({
-          id: session.user.id,
-          email: session.user.email || "",
-          accountType: undefined,
-          fullname: undefined,
-        });
-      } else {
+      
+      try {
+        // If we have a session but error occurred, try to get basic user info
+        if (session?.user) {
+          callback({
+            id: session.user.id,
+            email: session.user.email || "",
+            accountType: undefined,
+            fullname: undefined,
+          });
+        } else {
+          clearEmailCache();
+          callback(null);
+        }
+      } catch (callbackError) {
+        // Even if callback fails, ensure we don't hang
+        if (isDev) console.error("[AUTH] Callback error:", callbackError);
         clearEmailCache();
         callback(null);
       }
