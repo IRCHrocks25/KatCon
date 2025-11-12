@@ -93,9 +93,9 @@ async function fetchUserProfile(
       .single();
 
     console.log("id is", userId);
-    const result = await profilePromise;
+    let result;
 
-    /*  if (useTimeout) {
+    if (useTimeout) {
       // Use timeout for signup/login flows where we need quick approval checks
       const timeoutPromise = new Promise<{
         data: null;
@@ -114,9 +114,9 @@ async function fetchUserProfile(
       result = await Promise.race([profilePromise, timeoutPromise]);
     } else {
       // No timeout for session restoration - let it take as long as needed
-      // This prevents cold start issues in serverless environments */
-
-    /*  } */
+      // This prevents cold start issues in serverless environments
+      result = await profilePromise;
+    }
 
     if (shouldLogAuth) {
       console.log("[AUTH DEBUG] Profile fetch result:", {
