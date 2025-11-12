@@ -25,9 +25,9 @@ export function LoginForm() {
     try {
       if (isSignUp) {
         await signUp(email, password, accountType, fullname.trim() || undefined);
-        toast.success("Account created successfully!", {
-          description: "Your account is pending approval. You'll be notified once an administrator approves your request.",
-          duration: 6000,
+        toast.success("Registration submitted!", {
+          description: "Your account is pending approval. An administrator will review your request. Please try logging in once you've been approved.",
+          duration: 7000,
         });
         // Clear fields after successful signup
         setEmail("");
@@ -36,19 +36,21 @@ export function LoginForm() {
         setAccountType("CRM");
         // Switch to sign in view after signup
         setIsSignUp(false);
+        // User stays on login page (not redirected since they're not logged in)
       } else {
+        // Sign in - will throw error if not approved
         await signIn(email, password);
-        toast.success("Welcome back!", {
-          description: "You've been signed in successfully.",
-        });
-        // Clear fields after successful signin
+        // If we reach here, user is approved and will be redirected to chat UI
+        // No need for success toast - they'll see the UI
         setEmail("");
         setPassword("");
       }
     } catch (err: any) {
       const errorMessage = err.message || "An error occurred. Please try again.";
       setError(errorMessage);
-      toast.error("Authentication failed", {
+      
+      // Show error toast
+      toast.error(isSignUp ? "Registration failed" : "Sign in failed", {
         description: errorMessage,
       });
       // Don't clear fields on error so user can retry

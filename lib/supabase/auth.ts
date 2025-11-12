@@ -19,8 +19,8 @@ interface ProfileData {
 
 const isDev = process.env.NODE_ENV === "development";
 
-// Profile fetch timeout (3 seconds)
-const PROFILE_FETCH_TIMEOUT = 3000;
+// Profile fetch timeout (10 seconds - increased for slower connections)
+const PROFILE_FETCH_TIMEOUT = 10000;
 
 /**
  * Check if a user is approved to access the system
@@ -62,18 +62,36 @@ async function fetchUserProfile(userId: string): Promise<ProfileData | null> {
       .eq("id", userId)
       .single();
 
-    const timeoutPromise = new Promise<{ data: null; error: null }>((resolve) => {
-      setTimeout(() => resolve({ data: null, error: null }), PROFILE_FETCH_TIMEOUT);
-    });
+    const timeoutPromise = new Promise<{ data: null; error: { message: string } }>(
+      (resolve) => {
+        setTimeout(
+          () => resolve({ data: null, error: { message: "Profile fetch timeout" } }),
+          PROFILE_FETCH_TIMEOUT
+        );
+      }
+    );
 
     const result = await Promise.race([profilePromise, timeoutPromise]);
 
-    if (result && result.data && !result.error) {
+    // Check if result has valid data
+    if (result?.data && !result.error) {
+      if (isDev) {
+        console.log("[AUTH] Profile fetch success:", {
+          hasAccountType: !!result.data.account_type,
+          hasFullname: !!result.data.fullname,
+          approved: result.data.approved,
+        });
+      }
       return result.data as ProfileData;
     }
 
-    if (isDev && result && result.error) {
-      console.warn("[AUTH] Profile fetch error:", result.error);
+    // Log why profile fetch failed
+    if (isDev) {
+      if (result?.error) {
+        console.warn("[AUTH] Profile fetch error:", result.error);
+      } else {
+        console.warn("[AUTH] Profile fetch failed: No data returned");
+      }
     }
 
     return null;
@@ -101,6 +119,7 @@ function buildAuthUser(
 /**
  * Sign up with email and password
  * Creates user account and profile with account type and fullname
+ * Note: User will be signed out immediately since approval is required
  */
 export async function signUp(
   email: string,
@@ -149,19 +168,34 @@ export async function signUp(
         throw updateError;
       }
     }
+
+    // IMPORTANT: Sign out immediately after signup since account needs approval
+    // This prevents the user from accessing the app with an unapproved account
+    if (isDev) console.log("[AUTH] signUp: Signing out user (pending approval)");
+    
+    // Force clear the session immediately (don't wait for API call)
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem("supabase.auth.token");
+    }
+    
+    // Also call signOut to clear on server side
+    await supabase.auth.signOut().catch(() => {
+      // Ignore errors - session is already cleared locally
+    });
   }
 
-  return { user: data.user, session: data.session };
+  return { user: data.user, session: null }; // Return null session since we signed them out
 }
 
 /**
  * Sign in with email and password
- * Checks user approval before allowing access
+ * Checks user approval BEFORE creating session to prevent unauthorized access
  */
 export async function signIn(
   email: string,
   password: string
 ): Promise<{ user: SupabaseUser | null; session: Session | null }> {
+  // Step 1: Authenticate credentials (creates temporary session)
   const { data, error } = await supabase.auth.signInWithPassword({
     email: email,
     password: password,
@@ -172,19 +206,34 @@ export async function signIn(
     throw error;
   }
 
-  // Check if user is approved before allowing sign in
+  // Step 2: Check approval status BEFORE allowing session to persist
   if (data.user) {
     const isApproved = await checkUserApproval(data.user.id);
 
     if (!isApproved) {
-      // Sign out immediately if not approved
-      await supabase.auth.signOut();
+      // Immediately clear session - user is not approved
+      if (isDev) console.warn("[AUTH] signIn blocked: User not approved");
+      
+      // Force clear local session immediately
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem("supabase.auth.token");
+      }
+      
+      // Sign out on server
+      await supabase.auth.signOut().catch(() => {
+        // Ignore signOut errors - session already cleared
+      });
+      
+      // Throw error to inform user
       throw new Error(
         "Your account is pending approval. An administrator will review your request and you'll be notified once approved."
       );
     }
+    
+    if (isDev) console.log("[AUTH] signIn success: User approved");
   }
 
+  // Step 3: User is approved, return session
   return { user: data.user, session: data.session };
 }
 
@@ -289,12 +338,26 @@ export function onAuthStateChange(
       return;
     }
 
-    // Handle TOKEN_REFRESHED event
+    // Handle TOKEN_REFRESHED event (auto token refresh)
+    // For token refresh ONLY, skip profile check since user was already verified
     if (event === "TOKEN_REFRESHED") {
       clearEmailCache();
-      if (isDev) console.log("[AUTH] Token refreshed, cleared email cache");
-      // Continue to process session below
+      if (isDev) console.log("[AUTH] TOKEN_REFRESHED event - session refreshed");
+      
+      if (session?.user) {
+        const user: AuthUser = {
+          id: session.user.id,
+          email: session.user.email || "",
+          accountType: undefined,
+          fullname: undefined,
+        };
+        callback(user);
+        return;
+      }
     }
+    
+    // NOTE: SIGNED_IN events should continue to profile check below
+    // Because SIGNED_IN fires on signup and we need to verify approval
 
     // No session - user is logged out
     if (!session?.user) {
@@ -311,7 +374,7 @@ export function onAuthStateChange(
 
     // If profile fetch failed, deny access for security
     if (!profile) {
-      if (isDev) console.warn("[AUTH] Profile fetch failed, signing out");
+      if (isDev) console.warn("[AUTH] Profile fetch failed, clearing session");
       // Use direct session removal instead of signOut to prevent loops
       if (typeof window !== "undefined") {
         window.localStorage.removeItem("supabase.auth.token");
@@ -320,9 +383,9 @@ export function onAuthStateChange(
       return;
     }
 
-    // Check approval status
+    // Check approval status - CRITICAL for signup flow
     if (profile.approved !== true) {
-      if (isDev) console.warn("[AUTH] User not approved, signing out");
+      if (isDev) console.warn("[AUTH] User not approved, clearing session");
       // Use direct session removal instead of signOut to prevent loops
       if (typeof window !== "undefined") {
         window.localStorage.removeItem("supabase.auth.token");
@@ -330,6 +393,8 @@ export function onAuthStateChange(
       callback(null);
       return;
     }
+    
+    if (isDev) console.log("[AUTH] User approved, allowing access");
 
     // Build and return authenticated user
     const user = buildAuthUser(sessionUser, profile);

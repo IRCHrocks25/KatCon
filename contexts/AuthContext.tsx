@@ -131,15 +131,19 @@ export function AuthProvider({ children }: { readonly children: React.ReactNode 
   const handleSignUp = useCallback(
     async (email: string, password: string, accountType: AccountType, fullname?: string) => {
       await signUp(email, password, accountType, fullname);
-      // User will be set via auth state change listener
+      // Force set user to null after signup (user needs approval)
+      setUser(null);
+      setLoading(false);
     },
     []
   );
 
   // Memoized sign in handler
   const handleSignIn = useCallback(async (email: string, password: string) => {
+    // signIn will throw error if user is not approved
+    // Only succeeds if user is approved
     await signIn(email, password);
-    // User will be set via auth state change listener
+    // User will be set via auth state change listener (only for approved users)
   }, []);
 
   // Memoized logout handler
