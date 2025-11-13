@@ -5,7 +5,8 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // Apply to all API routes - prevent connection pooling issues
+        // Apply to remaining API routes (reminders, check-user)
+        // Note: send-message now calls webhook directly from browser
         source: '/api/:path*',
         headers: [
           {

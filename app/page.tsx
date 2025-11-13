@@ -113,22 +113,26 @@ export default function Home() {
     // Show loading indicator
     setIsLoading(true);
 
-    // Send to webhook via API route
+    // Send directly to webhook (no API proxy for better reliability)
     try {
-      const response = await robustFetch("/api/send-message", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: text.trim(),
-          timestamp: newMessage.timestamp.toISOString(),
-          sessionId: currentSessionId,
-          userEmail: user?.email || null,
-        }),
-        retries: 2,
-        timeout: 30000,
-      });
+      const response = await robustFetch(
+        "https://katalyst-crm.fly.dev/webhook/send-message",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            message: text.trim(),
+            timestamp: newMessage.timestamp.toISOString(),
+            sessionId: currentSessionId,
+            userEmail: user?.email || null,
+          }),
+          retries: 3, // More retries for external service
+          timeout: 45000, // Longer timeout for external webhook
+          forceCloseConnection: false, // Let browser manage connection
+        }
+      );
 
       if (response.ok) {
         const data = await response.json();
