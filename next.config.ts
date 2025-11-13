@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // Apply to all API routes
+        // Apply to all API routes - prevent connection pooling issues
         source: '/api/:path*',
         headers: [
           {
@@ -19,8 +19,9 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // Prevent aggressive caching of HTML pages (but allow asset caching)
-        source: '/',
+        // Prevent aggressive HTML caching - allow browser to revalidate
+        // This ensures auth state is properly restored on page refresh
+        source: '/:path*',
         headers: [
           {
             key: 'Cache-Control',

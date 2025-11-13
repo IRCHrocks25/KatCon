@@ -1,10 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-
-// Prevent page-level caching to ensure auth state is always fresh
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 import { AIChatInput } from "@/components/ui/ai-chat-input";
 import {
   CheckSquare,
