@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type React from "react";
 import { motion } from "motion/react";
-import { Bell, Plus, X, Clock, Calendar, Edit, User, Users } from "lucide-react";
+import { Bell, Plus, X, Clock, Calendar, Edit, User, Users, RefreshCw, ArrowUpDown } from "lucide-react";
 import { toast } from "sonner";
 import {
   getReminders,
@@ -23,6 +23,8 @@ interface RemindersContainerProps {
   setReminders: React.Dispatch<React.SetStateAction<Reminder[]>>;
 }
 
+type SortOption = "dueDate" | "createdDate" | "manual";
+
 export function RemindersContainer({
   reminders,
   setReminders,
@@ -31,6 +33,8 @@ export function RemindersContainer({
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [sortBy, setSortBy] = useState<SortOption>("dueDate");
   const [newReminder, setNewReminder] = useState({
     title: "",
     description: "",
@@ -39,38 +43,72 @@ export function RemindersContainer({
   });
   const [emailInput, setEmailInput] = useState("");
 
+  // Reusable fetch function
+  const fetchReminders = useCallback(async (isRefresh = false) => {
+    try {
+      if (isRefresh) {
+        setIsRefreshing(true);
+      } else {
+        setIsLoading(true);
+      }
+
+      const fetchedReminders = await getReminders();
+      setReminders(fetchedReminders);
+      
+      if (isRefresh) {
+        toast.success("Reminders refreshed");
+      }
+    } catch (error) {
+      console.error("Error fetching reminders:", error);
+      // Don't show error toast on initial load to avoid blocking UI
+      // Only show error if it's a critical issue
+      if (
+        error instanceof Error &&
+        error.message !== "User not authenticated"
+      ) {
+        toast.error("Failed to load reminders", {
+          description: error.message,
+        });
+      }
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [setReminders]);
+
   // Fetch reminders on component mount (non-blocking)
   useEffect(() => {
-    const fetchReminders = async () => {
-      try {
-        setIsLoading(true);
-
-        const fetchedReminders = await getReminders();
-        setReminders(fetchedReminders);
-      } catch (error) {
-        console.error("Error fetching reminders:", error);
-        // Don't show error toast on initial load to avoid blocking UI
-        // Only show error if it's a critical issue
-        if (
-          error instanceof Error &&
-          error.message !== "User not authenticated"
-        ) {
-          toast.error("Failed to load reminders", {
-            description: error.message,
-          });
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     // Small delay to ensure page renders first
     const timeoutId = setTimeout(() => {
-      fetchReminders();
+      fetchReminders(false);
     }, 100);
 
     return () => clearTimeout(timeoutId);
-  }, [setReminders]);
+  }, [fetchReminders]);
+
+  // Sort reminders whenever sort option or reminders change
+  const sortedReminders = [...reminders].sort((a, b) => {
+    if (sortBy === "dueDate") {
+      // Sort by dueDate (earliest first), then by created_at (newest first)
+      if (a.dueDate && b.dueDate) {
+        const dateDiff = new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+        if (dateDiff !== 0) return dateDiff;
+      }
+      if (a.dueDate && !b.dueDate) return -1;
+      if (!a.dueDate && b.dueDate) return 1;
+      // Fallback to created date
+      const aCreated = (a as any).createdAt ? new Date((a as any).createdAt).getTime() : 0;
+      const bCreated = (b as any).createdAt ? new Date((b as any).createdAt).getTime() : 0;
+      return bCreated - aCreated;
+    } else if (sortBy === "createdDate") {
+      // Sort by created date only (newest first)
+      const aCreated = (a as any).createdAt ? new Date((a as any).createdAt).getTime() : 0;
+      const bCreated = (b as any).createdAt ? new Date((b as any).createdAt).getTime() : 0;
+      return bCreated - aCreated;
+    }
+    // Manual - keep original order
+    return 0;
+  });
 
   const handleAddEmail = async () => {
     const email = emailInput.trim().toLowerCase();
@@ -285,23 +323,50 @@ export function RemindersContainer({
   return (
     <div className="h-full flex flex-col bg-gray-900/50 backdrop-blur-sm border-r border-gray-800/50">
       {/* Header */}
-      <div className="p-4 border-b border-gray-800/50 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Bell size={20} className="text-purple-400" />
-          <h2 className="text-lg font-semibold text-white">Reminders</h2>
+      <div className="p-4 border-b border-gray-800/50">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Bell size={20} className="text-purple-400" />
+            <h2 className="text-lg font-semibold text-white">Reminders</h2>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => fetchReminders(true)}
+              disabled={isRefreshing}
+              className="p-1.5 rounded-lg bg-gray-700/50 hover:bg-gray-600/50 text-gray-300 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Refresh reminders"
+            >
+              <RefreshCw size={16} className={isRefreshing ? "animate-spin" : ""} />
+            </button>
+            <button
+              onClick={() => {
+                if (isAdding) {
+                  handleCancelEdit();
+                } else {
+                  setIsAdding(true);
+                }
+              }}
+              className="p-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 transition"
+              title="Add reminder"
+            >
+              <Plus size={18} />
+            </button>
+          </div>
         </div>
-        <button
-          onClick={() => {
-            if (isAdding) {
-              handleCancelEdit();
-            } else {
-              setIsAdding(true);
-            }
-          }}
-          className="p-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 transition"
-        >
-          <Plus size={18} />
-        </button>
+        
+        {/* Sort dropdown */}
+        <div className="flex items-center gap-2">
+          <ArrowUpDown size={14} className="text-gray-500" />
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortOption)}
+            className="flex-1 px-2 py-1.5 bg-gray-800/50 border border-gray-700 rounded text-xs text-gray-300 focus:outline-none focus:ring-1 focus:ring-purple-500 cursor-pointer"
+          >
+            <option value="dueDate">Sort by Due Date</option>
+            <option value="createdDate">Sort by Created Date</option>
+            <option value="manual">Manual Order</option>
+          </select>
+        </div>
       </div>
 
       {/* Add Reminder Form */}
@@ -434,7 +499,7 @@ export function RemindersContainer({
             <p className="text-xs mt-1">Click + to add one</p>
           </div>
         ) : (
-          reminders.map((reminder) => (
+          sortedReminders.map((reminder) => (
             <motion.div
               key={reminder.id}
               initial={{ opacity: 0, y: 10 }}
