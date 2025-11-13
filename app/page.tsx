@@ -387,7 +387,8 @@ export default function Home() {
       {/* Logout Button - Top Right */}
       <button
         onClick={logout}
-        className="absolute top-4 right-4 z-20 p-2 text-gray-400 hover:text-white transition flex items-center gap-2 text-sm bg-gray-900/50 backdrop-blur-sm border border-gray-800/50 rounded-lg hover:border-gray-700"
+        disabled={authLoading}
+        className="absolute top-4 right-4 z-20 p-2 text-gray-400 hover:text-white transition flex items-center gap-2 text-sm bg-gray-900/50 backdrop-blur-sm border border-gray-800/50 rounded-lg hover:border-gray-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
         title="Logout"
       >
         <LogOut size={16} />

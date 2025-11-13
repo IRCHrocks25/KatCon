@@ -151,23 +151,31 @@ export function AuthProvider({ children }: { readonly children: React.ReactNode 
     // User will be set via auth state change listener (only for approved users)
   }, []);
 
-  // Memoized logout handler
+  // Memoized logout handler with optimistic logout
   const handleLogout = useCallback(async () => {
+    // Mark as intentional logout to prevent showing "Access denied" toast
+    isIntentionalLogoutRef.current = true;
+    
+    // Optimistic logout: Clear state IMMEDIATELY (don't wait for API)
+    setUser(null);
+    setLoading(false);
+    removeStorageItem("chatSessionId");
+    
+    // Then call signOut in background (with timeout)
     try {
-      // Mark as intentional logout to prevent showing "Access denied" toast
-      isIntentionalLogoutRef.current = true;
-      await signOut();
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Logout timeout")), 5000)
+      );
       
-      // Clear chat session from localStorage
-      removeStorageItem("chatSessionId");
-      
-      // Don't show success toast on logout - user initiated it
+      await Promise.race([signOut(), timeoutPromise]);
     } catch (error) {
-      // Reset flag on error
+      // Ignore errors - user is already logged out locally
+      // This handles timeouts, network errors, or API failures gracefully
+      console.warn("Logout API call failed (ignored):", error);
+    } finally {
+      // Always reset the flag
       isIntentionalLogoutRef.current = false;
-      toast.error("Failed to logout", {
-        description: error instanceof Error ? error.message : "An error occurred",
-      });
     }
   }, []);
 

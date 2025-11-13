@@ -315,9 +315,13 @@ export async function signIn(
  * Sign out the current user
  */
 export async function signOut(): Promise<void> {
+  // Force clear local storage FIRST (optimistic logout)
+  removeStorageItem("supabase.auth.token");
+  clearEmailCache();
+
   try {
+    // Then try to clear on server (best effort)
     const { error } = await supabase.auth.signOut();
-    clearEmailCache(); // Clear cached email on logout
 
     if (error) {
       // Ignore "Auth session missing" error - it means user is already signed out
@@ -326,24 +330,15 @@ export async function signOut(): Promise<void> {
         return; // Successfully signed out (already was)
       }
 
-      if (isDev) console.error("[AUTH] signOut error:", error);
-      throw error;
+      // Log but don't throw - local logout already succeeded
+      if (isDev) console.warn("[AUTH] signOut API error (ignored):", error);
     }
   } catch (error) {
-    // Catch any other errors (like 403 Forbidden from expired tokens)
-    // If logout fails, it usually means the session is already invalid
-    // So we treat it as a successful logout
-    clearEmailCache();
-
+    // Catch any errors (network, timeout, 403, etc.)
+    // Local logout already succeeded, so just log and continue
     if (isDev) {
-      console.log(
-        "[AUTH] signOut error caught, treating as successful logout:",
-        error
-      );
+      console.warn("[AUTH] signOut exception (ignored):", error);
     }
-
-    // Clear local storage manually to ensure clean state
-    removeStorageItem("supabase.auth.token");
   }
 }
 
