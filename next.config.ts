@@ -1,11 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Add response headers to prevent connection pooling and caching issues
+  // Add response headers for API routes
   async headers() {
     return [
       {
-        // Apply to remaining API routes (reminders, check-user)
+        // Apply to API routes (reminders, check-user)
         // Note: send-message now calls webhook directly from browser
         source: '/api/:path*',
         headers: [
@@ -16,17 +16,6 @@ const nextConfig: NextConfig = {
           {
             key: 'Cache-Control',
             value: 'no-store, no-cache, must-revalidate',
-          },
-        ],
-      },
-      {
-        // Prevent aggressive HTML caching - allow browser to revalidate
-        // This ensures auth state is properly restored on page refresh
-        source: '/:path*',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'no-cache, must-revalidate',
           },
         ],
       },

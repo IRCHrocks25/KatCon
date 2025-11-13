@@ -1,198 +1,178 @@
 "use client";
 
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useMemo,
-  useCallback,
-  useRef,
-} from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase/client";
+import { removeStorageItem } from "@/lib/utils/storage";
+import { toast } from "sonner";
+import type { User as SupabaseUser, Session } from "@supabase/supabase-js";
 import {
   AccountType,
   AuthUser,
-  onAuthStateChange,
   signIn,
   signOut,
   signUp,
-  getSession,
+  fetchUserProfile,
+  buildAuthUser,
 } from "@/lib/supabase/auth";
-import { removeStorageItem } from "@/lib/utils/storage";
-import { toast } from "sonner";
 
 interface AuthContextType {
   user: AuthUser | null;
+  session: Session | null;
   loading: boolean;
-  signUp: (email: string, password: string, accountType: AccountType, fullname?: string) => Promise<void>;
+  signUp: (
+    email: string,
+    password: string,
+    accountType: AccountType,
+    fullname?: string
+  ) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { readonly children: React.ReactNode }) {
+export function AuthProvider({
+  children,
+}: {
+  readonly children: React.ReactNode;
+}) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  
-  // Track previous user to detect unexpected sign-outs
-  const previousUserRef = useRef<AuthUser | null>(null);
-  
-  // Track current user for comparison (avoid stale closures)
-  const currentUserRef = useRef<AuthUser | null>(null);
-  
-  // Track intentional logout to suppress "Access denied" toast
-  const isIntentionalLogoutRef = useRef(false);
-  
-  // Track if this is the initial load
-  const isInitialLoadRef = useRef(true);
 
-  // Keep ref in sync with state
   useEffect(() => {
-    currentUserRef.current = user;
-  }, [user]);
-
-  // Initialize auth state on mount
-  useEffect(() => {
-    let mounted = true;
-    let subscription: { unsubscribe: () => void } | null = null;
-
-    // Restore session immediately on mount
-    const initializeAuth = async () => {
-      try {
-        // Small delay to ensure localStorage is ready after cached page load
-        // This handles cases where browser loads page from cache
-        await new Promise(resolve => requestAnimationFrame(resolve));
-        
-        const session = await getSession();
-        
-        // If no session, set loading to false immediately
-        if (!session && mounted) {
-          setLoading(false);
-          isInitialLoadRef.current = false;
-        }
-      } catch (error) {
-        // On error, ensure we don't hang
-        if (mounted) {
-          setLoading(false);
-          isInitialLoadRef.current = false;
-        }
-      }
-    };
-
-    // Set up auth state change listener
-    const { subscription: authSubscription } = onAuthStateChange((newUser) => {
-      if (!mounted) return;
-
-      const previousUser = previousUserRef.current;
-
-      // Check if this is an unexpected sign-out
-      // Only show toast if:
-      // - Not initial load
-      // - User was previously logged in
-      // - User is now logged out
-      // - Not an intentional logout
-      if (
-        !isInitialLoadRef.current &&
-        previousUser !== null &&
-        newUser === null &&
-        currentUserRef.current !== null &&
-        !isIntentionalLogoutRef.current
-      ) {
-        toast.error("Access denied", {
-          description:
-            "Your account may be pending approval or your session was revoked. Please contact support if you believe this is an error.",
-          duration: 6000,
+    // Set up auth state listener - simple, like the working implementation
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log("[AUTH] Event:", _event);
+      
+      // Directly set session and user - no profile fetch on session restore
+      // If they have a valid session, they were already approved at login
+      setSession(session);
+      
+      if (session?.user) {
+        // Build basic user object - profile will be fetched separately if needed
+        setUser({
+          id: session.user.id,
+          email: session.user.email || "",
+          // Profile data will be lazy-loaded later if needed
+          accountType: undefined,
+          fullname: undefined,
         });
+      } else {
+        setUser(null);
       }
-
-      // Reset intentional logout flag after handling the state change
-      if (isIntentionalLogoutRef.current) {
-        isIntentionalLogoutRef.current = false;
-      }
-
-      // Update state
-      previousUserRef.current = newUser;
-      isInitialLoadRef.current = false;
-      setUser(newUser);
+      
       setLoading(false);
     });
 
-    subscription = authSubscription;
-
-    // Initialize auth state
-    initializeAuth();
-
-    // Cleanup
-    return () => {
-      mounted = false;
-      if (subscription) {
-        subscription.unsubscribe();
-      }
-    };
-  }, []); // Empty deps - only run on mount
-
-  // Memoized sign up handler
-  const handleSignUp = useCallback(
-    async (email: string, password: string, accountType: AccountType, fullname?: string) => {
-      await signUp(email, password, accountType, fullname);
-      // Force set user to null after signup (user needs approval)
-      setUser(null);
-      setLoading(false);
-    },
-    []
-  );
-
-  // Memoized sign in handler
-  const handleSignIn = useCallback(async (email: string, password: string) => {
-    // signIn will throw error if user is not approved
-    // Only succeeds if user is approved
-    await signIn(email, password);
-    // User will be set via auth state change listener (only for approved users)
-  }, []);
-
-  // Memoized logout handler with optimistic logout
-  const handleLogout = useCallback(async () => {
-    // Mark as intentional logout to prevent showing "Access denied" toast
-    isIntentionalLogoutRef.current = true;
-    
-    // Optimistic logout: Clear state IMMEDIATELY (don't wait for API)
-    setUser(null);
-    setLoading(false);
-    removeStorageItem("chatSessionId");
-    
-    // Then call signOut in background (with timeout)
-    try {
-      // Add timeout to prevent hanging
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Logout timeout")), 5000)
-      );
+    // Check for existing session on mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
       
-      await Promise.race([signOut(), timeoutPromise]);
-    } catch (error) {
-      // Ignore errors - user is already logged out locally
-      // This handles timeouts, network errors, or API failures gracefully
-      console.warn("Logout API call failed (ignored):", error);
-    } finally {
-      // Always reset the flag
-      isIntentionalLogoutRef.current = false;
-    }
+      if (session?.user) {
+        setUser({
+          id: session.user.id,
+          email: session.user.email || "",
+          accountType: undefined,
+          fullname: undefined,
+        });
+      } else {
+        setUser(null);
+      }
+      
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  // Memoized context value to prevent unnecessary re-renders
-  const contextValue = useMemo<AuthContextType>(
-    () => ({
-      user,
-      loading,
-      signUp: handleSignUp,
-      signIn: handleSignIn,
-      logout: handleLogout,
-    }),
-    [user, loading, handleSignUp, handleSignIn, handleLogout]
-  );
+  // Lazy-load profile data after session is confirmed (for UI display)
+  useEffect(() => {
+    if (user?.id && !user.accountType) {
+      // Only fetch if we don't have profile data yet
+      fetchUserProfile(user.id).then((profile) => {
+        if (profile) {
+          setUser((prev) => 
+            prev ? { ...prev, accountType: profile.account_type as AccountType, fullname: profile.fullname } : null
+          );
+        }
+      });
+    }
+  }, [user?.id]);
+
+  // Simple sign up handler
+  const handleSignUp = async (
+    email: string,
+    password: string,
+    accountType: AccountType,
+    fullname?: string
+  ) => {
+    const { error } = await signUp(email, password, accountType, fullname);
+    if (error) throw error;
+    // User is auto-signed out after signup in signUp function
+    // Set loading to false explicitly
+    setLoading(false);
+  };
+
+  // Sign in handler with approval check
+  const handleSignIn = async (email: string, password: string) => {
+    const { error } = await signIn(email, password);
+    if (error) throw error;
+    
+    // Check approval ONLY on explicit login (not on session restore)
+    // This prevents timeout issues on page refresh
+    const session = await supabase.auth.getSession();
+    if (session.data.session?.user) {
+      const profile = await fetchUserProfile(session.data.session.user.id);
+      
+      if (profile?.approved !== true) {
+        // Not approved - sign out immediately
+        await supabase.auth.signOut();
+        throw new Error(
+          "Your account is pending approval. An administrator will review your request."
+        );
+      }
+      
+      // Update user with full profile data
+      setUser(buildAuthUser(session.data.session.user, profile));
+    }
+    // onAuthStateChange will handle the session
+  };
+
+  // Simple logout handler
+  const handleLogout = async () => {
+    await signOut();
+    // Clear chat session from localStorage
+    removeStorageItem("chatSessionId");
+    // onAuthStateChange will clear user/session
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="text-center">
+          <div className="inline-block w-16 h-16 border-4 border-purple-600/30 border-t-purple-600 rounded-full animate-spin mb-4" />
+          <p className="text-gray-400 text-sm">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        loading,
+        signUp: handleSignUp,
+        signIn: handleSignIn,
+        logout: handleLogout,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
   );
 }
 
