@@ -60,6 +60,10 @@ export function AuthProvider({ children }: { readonly children: React.ReactNode 
     // Restore session immediately on mount
     const initializeAuth = async () => {
       try {
+        // Small delay to ensure localStorage is ready after cached page load
+        // This handles cases where browser loads page from cache
+        await new Promise(resolve => requestAnimationFrame(resolve));
+        
         const session = await getSession();
         
         // If no session, set loading to false immediately

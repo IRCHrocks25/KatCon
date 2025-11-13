@@ -4,6 +4,11 @@ import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { Toaster } from "@/components/ui/toaster";
 
+// Force dynamic rendering for auth to work properly with browser cache
+// This ensures AuthProvider always runs fresh on page load
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
