@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { checkUserExistsServer, validateEmailFormat } from "@/lib/supabase/server-users";
 import type { AccountType } from "@/lib/supabase/auth";
 
@@ -40,7 +40,7 @@ interface ProfileEmail {
  */
 async function expandTeamAssignments(
   assignedTo: string[],
-  supabaseClient: ReturnType<typeof createClient>
+  supabaseClient: any
 ): Promise<string[]> {
   const expandedEmails: string[] = [];
   const teamTypes: AccountType[] = [];
