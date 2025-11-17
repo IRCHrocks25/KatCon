@@ -67,9 +67,14 @@ export function NotificationCenter() {
 
   // Mark all as read (client-side)
   const handleMarkAllAsRead = async () => {
+    if (!user?.email) {
+      console.warn("[NOTIFICATIONS] No user email, cannot mark all as read");
+      return;
+    }
+    
     setMarkingAllRead(true);
     try {
-      const success = await markAllAsRead(user?.email);
+      const success = await markAllAsRead(user.email);
       if (success) {
         setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
         setUnreadCount(0);
