@@ -169,7 +169,18 @@ export async function signUp(
       return { error: profileError as unknown as AuthError };
     }
 
-    // Sign out immediately after signup - user needs approval first
+    // IMMEDIATELY clear localStorage before signOut to prevent UI flash
+    if (globalThis.window !== undefined) {
+      const keysToRemove = Object.keys(localStorage).filter(
+        (key) => key.startsWith("sb-") || key.includes("supabase")
+      );
+      for (const key of keysToRemove) {
+        localStorage.removeItem(key);
+      }
+      console.log("[AUTH] Signup: Cleared session keys immediately");
+    }
+
+    // Sign out after signup - user needs approval first
     await supabase.auth.signOut();
   }
 
@@ -194,10 +205,27 @@ export async function signIn(
 
 /**
  * Sign out the current user
- * Simple wrapper - let Supabase handle it
+ * Ensures session is fully cleared from localStorage
  */
 export async function signOut(): Promise<void> {
-  await supabase.auth.signOut();
+  try {
+    // Call Supabase signOut
+    await supabase.auth.signOut();
+  } catch (error) {
+    console.error("[AUTH] signOut error:", error);
+  }
+
+  // Force clear all Supabase session keys from localStorage
+  // This ensures a clean logout even if the API call fails
+  if (globalThis.window !== undefined) {
+    const keysToRemove = Object.keys(localStorage).filter(
+      (key) => key.startsWith("sb-") || key.includes("supabase")
+    );
+    for (const key of keysToRemove) {
+      localStorage.removeItem(key);
+    }
+    console.log("[AUTH] Cleared session keys:", keysToRemove);
+  }
 }
 
 /**
