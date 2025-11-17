@@ -28,6 +28,11 @@ interface ReminderAssignment {
   created_at: string;
 }
 
+// Profile result format (for team expansion)
+interface ProfileEmail {
+  email: string;
+}
+
 /**
  * Expand team assignments to individual user emails
  * Takes array like ["team:CRM", "user@example.com", "team:AI"]
@@ -62,7 +67,8 @@ async function expandTeamAssignments(
       console.error("Error fetching team members:", error);
     } else if (profiles) {
       // Add team member emails
-      for (const profile of profiles) {
+      const typedProfiles = profiles as ProfileEmail[];
+      for (const profile of typedProfiles) {
         if (profile.email) {
           expandedEmails.push(profile.email.trim().toLowerCase());
         }
