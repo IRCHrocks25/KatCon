@@ -4,7 +4,7 @@ import * as React from "react";
 
 import { useState, useEffect, useRef, startTransition } from "react";
 
-import { Mic, Send } from "lucide-react";
+import { Send } from "lucide-react";
 
 import { AnimatePresence, motion, Variants } from "motion/react";
 
@@ -30,12 +30,14 @@ interface AIChatInputProps {
   onSend?: (message: string) => void;
   hasMessages?: boolean;
   setValue?: string | null;
+  isLoading?: boolean;
 }
 
 const AIChatInput = ({
   onSend,
   hasMessages = false,
   setValue,
+  isLoading = false,
 }: AIChatInputProps) => {
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
 
@@ -241,22 +243,18 @@ const AIChatInput = ({
             </div>
 
             <button
-              className="p-2.5 rounded-full hover:bg-gray-800/50 transition text-gray-400 hover:text-white"
-              title="Voice input"
-              type="button"
-              tabIndex={-1}
-            >
-              <Mic size={18} />
-            </button>
-
-            <button
-              className="flex items-center gap-1 bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 hover:from-purple-500 hover:via-pink-400 hover:to-orange-400 text-white p-2.5 rounded-full font-medium justify-center transition-all shadow-lg shadow-purple-500/30 text-sm"
+              className="flex items-center gap-1 bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 hover:from-purple-500 hover:via-pink-400 hover:to-orange-400 text-white p-2.5 rounded-full font-medium justify-center transition-all shadow-lg shadow-purple-500/30 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               title="Send"
               type="button"
               onClick={handleSend}
+              disabled={isLoading || !inputValue.trim()}
               tabIndex={-1}
             >
-              <Send size={16} />
+              {isLoading ? (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <Send size={16} />
+              )}
             </button>
           </div>
         </div>

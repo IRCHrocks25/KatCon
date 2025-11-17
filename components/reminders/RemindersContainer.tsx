@@ -1,9 +1,22 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type React from "react";
 import { motion } from "motion/react";
-import { Bell, Plus, X, Clock, Calendar, Edit, User, Users, RefreshCw, ArrowUpDown } from "lucide-react";
+import {
+  Bell,
+  Plus,
+  X,
+  Clock,
+  Calendar,
+  Edit,
+  User,
+  Users,
+  RefreshCw,
+  ArrowUpDown,
+  ChevronDown,
+  Check,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   getReminders,
@@ -13,8 +26,9 @@ import {
   type Reminder,
 } from "@/lib/supabase/reminders";
 import { useAuth } from "@/contexts/AuthContext";
-import { validateEmailFormat, checkUserExists } from "@/lib/supabase/users";
+import { getAllUsers, type UserWithTeam } from "@/lib/supabase/users";
 import { robustFetch } from "@/lib/utils/fetch";
+import type { AccountType } from "@/lib/supabase/auth";
 
 export type { Reminder };
 
@@ -35,46 +49,73 @@ export function RemindersContainer({
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>("dueDate");
+  const [isSaving, setIsSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const [newReminder, setNewReminder] = useState({
     title: "",
     description: "",
     dueDate: "",
     assignedTo: [] as string[],
   });
-  const [emailInput, setEmailInput] = useState("");
+  const [allUsers, setAllUsers] = useState<UserWithTeam[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Reusable fetch function
-  const fetchReminders = useCallback(async (isRefresh = false) => {
-    try {
-      if (isRefresh) {
-        setIsRefreshing(true);
-      } else {
-        setIsLoading(true);
-      }
+  const fetchReminders = useCallback(
+    async (isRefresh = false) => {
+      try {
+        if (isRefresh) {
+          setIsRefreshing(true);
+        } else {
+          setIsLoading(true);
+        }
 
-      const fetchedReminders = await getReminders();
-      setReminders(fetchedReminders);
-      
-      if (isRefresh) {
-        toast.success("Reminders refreshed");
+        const fetchedReminders = await getReminders();
+        setReminders(fetchedReminders);
+
+        if (isRefresh) {
+          toast.success("Reminders refreshed");
+        }
+      } catch (error) {
+        console.error("Error fetching reminders:", error);
+        // Don't show error toast on initial load to avoid blocking UI
+        // Only show error if it's a critical issue
+        if (
+          error instanceof Error &&
+          error.message !== "User not authenticated"
+        ) {
+          toast.error("Failed to load reminders", {
+            description: error.message,
+          });
+        }
+      } finally {
+        setIsLoading(false);
+        setIsRefreshing(false);
       }
-    } catch (error) {
-      console.error("Error fetching reminders:", error);
-      // Don't show error toast on initial load to avoid blocking UI
-      // Only show error if it's a critical issue
-      if (
-        error instanceof Error &&
-        error.message !== "User not authenticated"
-      ) {
-        toast.error("Failed to load reminders", {
-          description: error.message,
-        });
+    },
+    [setReminders]
+  );
+
+  // Fetch users on component mount
+  useEffect(() => {
+    const fetchUsers = async () => {
+      setIsLoadingUsers(true);
+      try {
+        const users = await getAllUsers();
+        setAllUsers(users);
+      } catch (error) {
+        console.error("Error fetching users:", error);
+      } finally {
+        setIsLoadingUsers(false);
       }
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, [setReminders]);
+    };
+
+    fetchUsers();
+  }, []);
 
   // Fetch reminders on component mount (non-blocking)
   useEffect(() => {
@@ -86,69 +127,116 @@ export function RemindersContainer({
     return () => clearTimeout(timeoutId);
   }, [fetchReminders]);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowDropdown(false);
+      }
+    };
+
+    if (showDropdown) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showDropdown]);
+
   // Sort reminders whenever sort option or reminders change
   const sortedReminders = [...reminders].sort((a, b) => {
     if (sortBy === "dueDate") {
       // Sort by dueDate (earliest first), then by created_at (newest first)
       if (a.dueDate && b.dueDate) {
-        const dateDiff = new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+        const dateDiff =
+          new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
         if (dateDiff !== 0) return dateDiff;
       }
       if (a.dueDate && !b.dueDate) return -1;
       if (!a.dueDate && b.dueDate) return 1;
-      // Fallback to created date
-      const aCreated = (a as any).createdAt ? new Date((a as any).createdAt).getTime() : 0;
-      const bCreated = (b as any).createdAt ? new Date((b as any).createdAt).getTime() : 0;
+      // Fallback to created date (if available in extended reminder object)
+      const aCreated =
+        "createdAt" in a && typeof a.createdAt === "string"
+          ? new Date(a.createdAt).getTime()
+          : 0;
+      const bCreated =
+        "createdAt" in b && typeof b.createdAt === "string"
+          ? new Date(b.createdAt).getTime()
+          : 0;
       return bCreated - aCreated;
     } else if (sortBy === "createdDate") {
       // Sort by created date only (newest first)
-      const aCreated = (a as any).createdAt ? new Date((a as any).createdAt).getTime() : 0;
-      const bCreated = (b as any).createdAt ? new Date((b as any).createdAt).getTime() : 0;
+      const aCreated =
+        "createdAt" in a && typeof a.createdAt === "string"
+          ? new Date(a.createdAt).getTime()
+          : 0;
+      const bCreated =
+        "createdAt" in b && typeof b.createdAt === "string"
+          ? new Date(b.createdAt).getTime()
+          : 0;
       return bCreated - aCreated;
     }
     // Manual - keep original order
     return 0;
   });
 
-  const handleAddEmail = async () => {
-    const email = emailInput.trim().toLowerCase();
-    if (!email) return;
-
-    // Validate email format
-    if (!validateEmailFormat(email)) {
-      toast.error("Invalid email format");
-      return;
+  // Group users by account type
+  const usersByTeam = allUsers.reduce((acc, user) => {
+    if (!acc[user.accountType]) {
+      acc[user.accountType] = [];
     }
+    acc[user.accountType].push(user);
+    return acc;
+  }, {} as Record<AccountType, UserWithTeam[]>);
 
-    // Check if user exists
-    const userExists = await checkUserExists(email);
-    if (!userExists) {
-      toast.error("User does not exist", {
-        description: `The email "${email}" is not registered in the system.`,
+  const teamOptions = Object.keys(usersByTeam) as AccountType[];
+
+  // Filter users and teams based on search query
+  const filteredUsers = allUsers.filter((user) => {
+    const query = searchQuery.toLowerCase();
+    return (
+      user.email.toLowerCase().includes(query) ||
+      user.fullname?.toLowerCase().includes(query) ||
+      user.accountType.toLowerCase().includes(query)
+    );
+  });
+
+  const filteredTeams = teamOptions.filter((team) =>
+    team.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const handleToggleAssignment = (assignment: string) => {
+    if (newReminder.assignedTo.includes(assignment)) {
+      setNewReminder({
+        ...newReminder,
+        assignedTo: newReminder.assignedTo.filter((a) => a !== assignment),
       });
-      setEmailInput("");
-      return;
+    } else {
+      setNewReminder({
+        ...newReminder,
+        assignedTo: [...newReminder.assignedTo, assignment],
+      });
     }
-
-    // Check if email is already in the list (case-insensitive)
-    if (newReminder.assignedTo.some((e) => e.toLowerCase() === email)) {
-      toast.error("User already added");
-      setEmailInput("");
-      return;
-    }
-
-    setNewReminder({
-      ...newReminder,
-      assignedTo: [...newReminder.assignedTo, email],
-    });
-    setEmailInput("");
   };
 
-  const handleRemoveEmail = (email: string) => {
+  const handleRemoveAssignment = (assignment: string) => {
     setNewReminder({
       ...newReminder,
-      assignedTo: newReminder.assignedTo.filter((e) => e !== email),
+      assignedTo: newReminder.assignedTo.filter((a) => a !== assignment),
     });
+  };
+
+  // Helper to get display name for assignment
+  const getAssignmentDisplay = (assignment: string) => {
+    if (assignment.startsWith("team:")) {
+      const teamName = assignment.replace("team:", "");
+      return { display: `${teamName} Team`, isTeam: true };
+    }
+    return { display: assignment, isTeam: false };
   };
 
   const handleAddReminder = async () => {
@@ -157,6 +245,7 @@ export function RemindersContainer({
       return;
     }
 
+    setIsSaving(true);
     try {
       if (editingId) {
         // Update existing reminder
@@ -166,7 +255,10 @@ export function RemindersContainer({
           dueDate: newReminder.dueDate
             ? new Date(newReminder.dueDate)
             : undefined,
-          assignedTo: newReminder.assignedTo.length > 0 ? newReminder.assignedTo : undefined,
+          assignedTo:
+            newReminder.assignedTo.length > 0
+              ? newReminder.assignedTo
+              : undefined,
         });
 
         setReminders((prev) =>
@@ -187,7 +279,10 @@ export function RemindersContainer({
             dueDate: newReminder.dueDate
               ? new Date(newReminder.dueDate).toISOString()
               : undefined,
-            assignedTo: newReminder.assignedTo.length > 0 ? newReminder.assignedTo : undefined,
+            assignedTo:
+              newReminder.assignedTo.length > 0
+                ? newReminder.assignedTo
+                : undefined,
             userEmail: currentUser?.email || null,
           }),
           retries: 2,
@@ -219,8 +314,14 @@ export function RemindersContainer({
             if (!a.dueDate && b.dueDate) return 1;
             // If neither has a due date or dates are equal, sort by created_at (newest first)
             // Use createdAt if available (from API), otherwise fall back to ID comparison
-            const aCreated = (a as any).createdAt ? new Date((a as any).createdAt).getTime() : 0;
-            const bCreated = (b as any).createdAt ? new Date((b as any).createdAt).getTime() : 0;
+            const aCreated =
+              "createdAt" in a && typeof a.createdAt === "string"
+                ? new Date(a.createdAt).getTime()
+                : 0;
+            const bCreated =
+              "createdAt" in b && typeof b.createdAt === "string"
+                ? new Date(b.createdAt).getTime()
+                : 0;
             if (aCreated && bCreated) {
               return bCreated - aCreated; // Newest first
             }
@@ -231,8 +332,13 @@ export function RemindersContainer({
         toast.success("Reminder added");
       }
 
-      setNewReminder({ title: "", description: "", dueDate: "", assignedTo: [] });
-      setEmailInput("");
+      setNewReminder({
+        title: "",
+        description: "",
+        dueDate: "",
+        assignedTo: [],
+      });
+      setSearchQuery("");
       setIsAdding(false);
     } catch (error) {
       console.error("Error saving reminder:", error);
@@ -242,6 +348,8 @@ export function RemindersContainer({
           description: error instanceof Error ? error.message : "Unknown error",
         }
       );
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -267,7 +375,8 @@ export function RemindersContainer({
   const handleCancelEdit = () => {
     setEditingId(null);
     setNewReminder({ title: "", description: "", dueDate: "", assignedTo: [] });
-    setEmailInput("");
+    setSearchQuery("");
+    setShowDropdown(false);
     setIsAdding(false);
   };
 
@@ -277,6 +386,7 @@ export function RemindersContainer({
 
     const newStatus = reminder.status === "pending" ? "done" : "pending";
 
+    setTogglingId(id);
     try {
       const updatedReminder = await updateReminderStatus(id, newStatus);
 
@@ -298,10 +408,13 @@ export function RemindersContainer({
       toast.error("Failed to update reminder", {
         description: error instanceof Error ? error.message : "Unknown error",
       });
+    } finally {
+      setTogglingId(null);
     }
   };
 
   const handleDeleteReminder = async (id: string) => {
+    setDeletingId(id);
     try {
       await deleteReminder(id);
       setReminders((prev) => prev.filter((reminder) => reminder.id !== id));
@@ -317,6 +430,8 @@ export function RemindersContainer({
       toast.error("Failed to delete reminder", {
         description: errorMessage,
       });
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -336,7 +451,10 @@ export function RemindersContainer({
               className="p-1.5 rounded-lg bg-gray-700/50 hover:bg-gray-600/50 text-gray-300 transition disabled:opacity-50 disabled:cursor-not-allowed"
               title="Refresh reminders"
             >
-              <RefreshCw size={16} className={isRefreshing ? "animate-spin" : ""} />
+              <RefreshCw
+                size={16}
+                className={isRefreshing ? "animate-spin" : ""}
+              />
             </button>
             <button
               onClick={() => {
@@ -353,7 +471,7 @@ export function RemindersContainer({
             </button>
           </div>
         </div>
-        
+
         {/* Sort dropdown */}
         <div className="flex items-center gap-2">
           <ArrowUpDown size={14} className="text-gray-500" />
@@ -388,7 +506,12 @@ export function RemindersContainer({
             onKeyDown={(e) => {
               if (e.key === "Escape") {
                 setIsAdding(false);
-                setNewReminder({ title: "", description: "", dueDate: "", assignedTo: [] });
+                setNewReminder({
+                  title: "",
+                  description: "",
+                  dueDate: "",
+                  assignedTo: [],
+                });
               }
             }}
             autoFocus
@@ -419,65 +542,220 @@ export function RemindersContainer({
               className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
             />
           </div>
-          {/* Assign to users */}
-          <div className="space-y-2">
+          {/* Assign to users/teams */}
+          <div className="space-y-2 relative" ref={dropdownRef}>
             <label className="text-xs text-gray-400 flex items-center gap-1">
               <Users size={12} />
               Assign to (optional)
             </label>
-            <div className="flex gap-2">
-              <input
-                type="email"
-                placeholder="Enter email address"
-                value={emailInput}
-                onChange={(e) => setEmailInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleAddEmail();
-                  }
-                }}
-                className="flex-1 px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+
+            {/* Dropdown Trigger */}
+            <button
+              type="button"
+              onClick={() => setShowDropdown(!showDropdown)}
+              disabled={isLoadingUsers}
+              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm text-left flex items-center justify-between hover:bg-gray-800/70 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span className="text-gray-400">
+                {newReminder.assignedTo.length > 0
+                  ? `${newReminder.assignedTo.length} selected`
+                  : "Select users or teams"}
+              </span>
+              <ChevronDown
+                size={16}
+                className={`transition-transform ${
+                  showDropdown ? "rotate-180" : ""
+                }`}
               />
-              <button
-                type="button"
-                onClick={handleAddEmail}
-                className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition"
+            </button>
+
+            {/* Dropdown Menu */}
+            {showDropdown && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="absolute z-50 w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-h-80 overflow-hidden flex flex-col"
               >
-                Add
-              </button>
-            </div>
+                {/* Search Input */}
+                <div className="p-2 border-b border-gray-700">
+                  <input
+                    type="text"
+                    placeholder="Search users or teams..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-900/50 border border-gray-600 rounded text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                    autoFocus
+                  />
+                </div>
+
+                {/* Options List */}
+                <div className="overflow-y-auto custom-scrollbar flex-1">
+                  {isLoadingUsers ? (
+                    <div className="p-4 text-center text-gray-400 text-sm">
+                      <div className="w-5 h-5 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mx-auto mb-2" />
+                      Loading...
+                    </div>
+                  ) : (
+                    <>
+                      {/* Teams Section */}
+                      {filteredTeams.length > 0 && (
+                        <div className="p-2">
+                          <div className="text-xs text-gray-500 font-medium px-2 py-1">
+                            TEAMS
+                          </div>
+                          {filteredTeams.map((team) => {
+                            const teamAssignment = `team:${team}`;
+                            const isSelected =
+                              newReminder.assignedTo.includes(teamAssignment);
+                            const memberCount = usersByTeam[team]?.length || 0;
+
+                            return (
+                              <button
+                                key={team}
+                                type="button"
+                                onClick={() =>
+                                  handleToggleAssignment(teamAssignment)
+                                }
+                                className="w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-700/50 rounded transition text-left"
+                              >
+                                <div
+                                  className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                                    isSelected
+                                      ? "bg-purple-600 border-purple-600"
+                                      : "border-gray-600"
+                                  }`}
+                                >
+                                  {isSelected && (
+                                    <Check size={12} className="text-white" />
+                                  )}
+                                </div>
+                                <Users size={14} className="text-purple-400" />
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm text-white font-medium">
+                                    {team} Team
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {memberCount} members
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Individual Users Section */}
+                      {filteredUsers.length > 0 && (
+                        <div className="p-2">
+                          {filteredTeams.length > 0 && (
+                            <div className="text-xs text-gray-500 font-medium px-2 py-1 mt-2">
+                              INDIVIDUAL USERS
+                            </div>
+                          )}
+                          {filteredUsers.map((user) => {
+                            const isSelected = newReminder.assignedTo.includes(
+                              user.email
+                            );
+
+                            return (
+                              <button
+                                key={user.email}
+                                type="button"
+                                onClick={() =>
+                                  handleToggleAssignment(user.email)
+                                }
+                                className="w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-700/50 rounded transition text-left"
+                              >
+                                <div
+                                  className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                                    isSelected
+                                      ? "bg-purple-600 border-purple-600"
+                                      : "border-gray-600"
+                                  }`}
+                                >
+                                  {isSelected && (
+                                    <Check size={12} className="text-white" />
+                                  )}
+                                </div>
+                                <User size={14} className="text-gray-400" />
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm text-white truncate">
+                                    {user.fullname || user.email}
+                                  </div>
+                                  <div className="text-xs text-gray-500 truncate">
+                                    {user.fullname
+                                      ? user.email
+                                      : user.accountType}
+                                  </div>
+                                </div>
+                                <div className="text-xs text-gray-600 px-1.5 py-0.5 bg-gray-700/50 rounded">
+                                  {user.accountType}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* No Results */}
+                      {filteredTeams.length === 0 &&
+                        filteredUsers.length === 0 && (
+                          <div className="p-4 text-center text-gray-500 text-sm">
+                            No users or teams found
+                          </div>
+                        )}
+                    </>
+                  )}
+                </div>
+              </motion.div>
+            )}
+
+            {/* Selected Chips */}
             {newReminder.assignedTo.length > 0 && (
               <div className="flex flex-wrap gap-2">
-                {newReminder.assignedTo.map((email) => (
-                  <div
-                    key={email}
-                    className="flex items-center gap-1 px-2 py-1 bg-purple-600/20 text-purple-300 rounded text-xs"
-                  >
-                    <User size={10} />
-                    <span>{email}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveEmail(email)}
-                      className="hover:text-purple-100"
+                {newReminder.assignedTo.map((assignment) => {
+                  const { display, isTeam } = getAssignmentDisplay(assignment);
+
+                  return (
+                    <div
+                      key={assignment}
+                      className="flex items-center gap-1 px-2 py-1 bg-purple-600/20 text-purple-300 rounded text-xs"
                     >
-                      <X size={10} />
-                    </button>
-                  </div>
-                ))}
+                      {isTeam ? <Users size={10} /> : <User size={10} />}
+                      <span>{display}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveAssignment(assignment)}
+                        className="hover:text-purple-100"
+                      >
+                        <X size={10} />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
           <div className="flex gap-2">
             <button
               onClick={handleAddReminder}
-              className="flex-1 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition"
+              disabled={isSaving}
+              className="flex-1 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {editingId ? "Save Changes" : "Add"}
+              {isSaving ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  {editingId ? "Saving..." : "Adding..."}
+                </>
+              ) : (
+                <>{editingId ? "Save Changes" : "Add"}</>
+              )}
             </button>
             <button
               onClick={handleCancelEdit}
-              className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm transition"
+              disabled={isSaving}
+              className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
@@ -513,13 +791,16 @@ export function RemindersContainer({
               <div className="flex items-start gap-2">
                 <button
                   onClick={() => handleToggleComplete(reminder.id)}
-                  className={`mt-0.5 w-4 h-4 rounded border-2 flex items-center justify-center transition ${
+                  disabled={togglingId === reminder.id}
+                  className={`mt-0.5 w-4 h-4 rounded border-2 flex items-center justify-center transition disabled:opacity-50 disabled:cursor-not-allowed ${
                     reminder.status === "done"
                       ? "bg-purple-600 border-purple-600"
                       : "border-gray-600 hover:border-purple-500"
                   }`}
                 >
-                  {reminder.status === "done" && (
+                  {togglingId === reminder.id ? (
+                    <div className="w-2.5 h-2.5 border border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : reminder.status === "done" ? (
                     <svg
                       className="w-3 h-3 text-white"
                       fill="none"
@@ -531,7 +812,7 @@ export function RemindersContainer({
                     >
                       <path d="M5 13l4 4L19 7" />
                     </svg>
-                  )}
+                  ) : null}
                 </button>
                 <div className="flex-1 min-w-0">
                   <h3
@@ -572,8 +853,16 @@ export function RemindersContainer({
                     {reminder.createdBy && (
                       <div className="flex items-center gap-1 text-xs text-gray-500">
                         <span className="text-gray-600">Created by:</span>
-                        <span className={reminder.createdBy === currentUser?.email ? "text-purple-400 font-medium" : "text-gray-400"}>
-                          {reminder.createdBy === currentUser?.email ? "You" : reminder.createdBy}
+                        <span
+                          className={
+                            reminder.createdBy === currentUser?.email
+                              ? "text-purple-400 font-medium"
+                              : "text-gray-400"
+                          }
+                        >
+                          {reminder.createdBy === currentUser?.email
+                            ? "You"
+                            : reminder.createdBy}
                         </span>
                       </div>
                     )}
@@ -583,18 +872,37 @@ export function RemindersContainer({
                         <div className="flex-1">
                           <span className="text-gray-600">Assigned to: </span>
                           <div className="inline-flex flex-wrap gap-1.5 mt-0.5">
-                            {reminder.assignedTo.map((email) => (
-                              <span
-                                key={email}
-                                className={`px-1.5 py-0.5 rounded ${
-                                  email === currentUser?.email 
-                                    ? "bg-purple-600/20 text-purple-300 font-medium" 
-                                    : "bg-gray-700/50 text-gray-300"
-                                }`}
-                              >
-                                {email === currentUser?.email ? "You" : email}
-                              </span>
-                            ))}
+                            {reminder.assignedTo.map((assignment) => {
+                              const { display, isTeam } =
+                                getAssignmentDisplay(assignment);
+                              const isCurrentUser =
+                                !isTeam && assignment === currentUser?.email;
+
+                              return (
+                                <span
+                                  key={assignment}
+                                  className={`px-1.5 py-0.5 rounded flex items-center gap-1 ${
+                                    isCurrentUser
+                                      ? "bg-purple-600/20 text-purple-300 font-medium"
+                                      : isTeam
+                                      ? "bg-blue-600/20 text-blue-300 font-medium"
+                                      : "bg-gray-700/50 text-gray-300"
+                                  }`}
+                                >
+                                  {isTeam ? (
+                                    <>
+                                      <Users size={10} />
+                                      {display}
+                                    </>
+                                  ) : (
+                                    <>
+                                      <User size={10} />
+                                      {isCurrentUser ? "You" : display}
+                                    </>
+                                  )}
+                                </span>
+                              );
+                            })}
                           </div>
                         </div>
                       </div>
@@ -605,7 +913,8 @@ export function RemindersContainer({
                   {reminder.createdBy === currentUser?.email && (
                     <button
                       onClick={() => handleEditReminder(reminder)}
-                      className="p-1 hover:bg-gray-700/50 rounded transition"
+                      disabled={isSaving || deletingId === reminder.id}
+                      className="p-1 hover:bg-gray-700/50 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
                       title="Edit reminder"
                     >
                       <Edit size={14} className="text-gray-400" />
@@ -614,10 +923,15 @@ export function RemindersContainer({
                   {reminder.createdBy === currentUser?.email && (
                     <button
                       onClick={() => handleDeleteReminder(reminder.id)}
-                      className="p-1 hover:bg-gray-700/50 rounded transition"
+                      disabled={deletingId === reminder.id || isSaving}
+                      className="p-1 hover:bg-gray-700/50 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
                       title="Delete reminder"
                     >
-                      <X size={14} className="text-gray-400" />
+                      {deletingId === reminder.id ? (
+                        <div className="w-3.5 h-3.5 border-2 border-gray-400/30 border-t-gray-400 rounded-full animate-spin" />
+                      ) : (
+                        <X size={14} className="text-gray-400" />
+                      )}
                     </button>
                   )}
                 </div>

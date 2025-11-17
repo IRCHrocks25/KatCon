@@ -1,11 +1,18 @@
 import { supabase } from "./client";
 import { robustFetch } from "@/lib/utils/fetch";
+import type { AccountType } from "./auth";
 
 const isDev = process.env.NODE_ENV === "development";
 
 export interface User {
   email: string;
   id: string;
+}
+
+export interface UserWithTeam {
+  email: string;
+  fullname?: string;
+  accountType: AccountType;
 }
 
 /**
@@ -104,5 +111,30 @@ export async function checkUserExists(email: string): Promise<boolean> {
     if (isDev) console.error("Error checking user existence:", error);
     // If check fails, allow the assignment (fail open)
     return true;
+  }
+}
+
+/**
+ * Get all approved users with their team information
+ * Used for displaying user/team dropdown in reminders
+ */
+export async function getAllUsers(): Promise<UserWithTeam[]> {
+  try {
+    const response = await robustFetch("/api/users/list", {
+      method: "GET",
+      retries: 2,
+      timeout: 15000,
+    });
+
+    if (!response.ok) {
+      if (isDev) console.error("Error fetching all users:", response.statusText);
+      return [];
+    }
+
+    const data = await response.json();
+    return data.users || [];
+  } catch (error) {
+    if (isDev) console.error("Error fetching all users:", error);
+    return [];
   }
 }

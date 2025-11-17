@@ -228,12 +228,14 @@ export default function Home() {
                 if (!a.dueDate && b.dueDate) return 1;
                 // If neither has a due date or dates are equal, sort by created_at (newest first)
                 // Use createdAt if available (from API), otherwise fall back to ID comparison
-                const aCreated = (a as any).createdAt
-                  ? new Date((a as any).createdAt).getTime()
-                  : 0;
-                const bCreated = (b as any).createdAt
-                  ? new Date((b as any).createdAt).getTime()
-                  : 0;
+                const aCreated =
+                  "createdAt" in a && typeof a.createdAt === "string"
+                    ? new Date(a.createdAt).getTime()
+                    : 0;
+                const bCreated =
+                  "createdAt" in b && typeof b.createdAt === "string"
+                    ? new Date(b.createdAt).getTime()
+                    : 0;
                 if (aCreated && bCreated) {
                   return bCreated - aCreated; // Newest first
                 }
@@ -391,7 +393,11 @@ export default function Home() {
         className="absolute top-4 right-4 z-20 p-2 text-gray-400 hover:text-white transition flex items-center gap-2 text-sm bg-gray-900/50 backdrop-blur-sm border border-gray-800/50 rounded-lg hover:border-gray-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
         title="Logout"
       >
-        <LogOut size={16} />
+        {authLoading ? (
+          <div className="w-4 h-4 border-2 border-gray-400/30 border-t-gray-400 rounded-full animate-spin" />
+        ) : (
+          <LogOut size={16} />
+        )}
         <span className="hidden sm:inline">Logout</span>
       </button>
 
@@ -497,6 +503,7 @@ export default function Home() {
               onSend={handleSendMessage}
               hasMessages={messages.length > 0}
               setValue={chatInputValue}
+              isLoading={isLoading}
             />
           </div>
 

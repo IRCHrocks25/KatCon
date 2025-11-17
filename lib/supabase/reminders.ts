@@ -1,6 +1,7 @@
 import { supabase } from "./client";
 import { getUserEmail } from "./session";
 import { checkUserExists, validateEmailFormat } from "./users";
+import type { AccountType } from "./auth";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -33,6 +34,49 @@ interface ReminderAssignment {
   user_email: string;
   status: "pending" | "done" | "hidden";
   created_at: string;
+}
+
+/**
+ * Expand team assignments to individual user emails
+ * Takes array like ["team:CRM", "user@example.com", "team:AI"]
+ * Returns expanded array of individual emails
+ */
+async function expandTeamAssignments(assignedTo: string[]): Promise<string[]> {
+  const expandedEmails: string[] = [];
+  const teamTypes: AccountType[] = [];
+
+  // Separate team assignments from individual emails
+  for (const assignment of assignedTo) {
+    if (assignment.startsWith("team:")) {
+      const teamName = assignment.replace("team:", "") as AccountType;
+      teamTypes.push(teamName);
+    } else {
+      expandedEmails.push(assignment.trim().toLowerCase());
+    }
+  }
+
+  // If there are team assignments, fetch users for those teams
+  if (teamTypes.length > 0) {
+    const { data: profiles, error } = await supabase
+      .from("profiles")
+      .select("email")
+      .in("account_type", teamTypes)
+      .eq("approved", true);
+
+    if (error) {
+      if (isDev) console.error("Error fetching team members:", error);
+    } else if (profiles) {
+      // Add team member emails
+      for (const profile of profiles) {
+        if (profile.email) {
+          expandedEmails.push(profile.email.trim().toLowerCase());
+        }
+      }
+    }
+  }
+
+  // Remove duplicates and return
+  return Array.from(new Set(expandedEmails));
 }
 
 // Convert database reminder to app reminder format
@@ -159,23 +203,32 @@ export async function createReminder(
     ? reminder.assignedTo
     : [userEmail];
 
+  // Expand team assignments to individual emails
+  const expandedEmails = await expandTeamAssignments(assignedTo);
+
   // Validate all assignees exist before creating the reminder
+  // Only validate non-team assignments (individual emails)
   if (reminder.assignedTo && reminder.assignedTo.length > 0) {
     const invalidEmails: string[] = [];
     
-    for (const email of reminder.assignedTo) {
-      const normalizedEmail = email.trim().toLowerCase();
+    for (const assignment of reminder.assignedTo) {
+      // Skip team assignments in validation
+      if (assignment.startsWith("team:")) {
+        continue;
+      }
+      
+      const normalizedEmail = assignment.trim().toLowerCase();
       
       // Validate email format
       if (!validateEmailFormat(normalizedEmail)) {
-        invalidEmails.push(email);
+        invalidEmails.push(assignment);
         continue;
       }
       
       // Check if user exists
       const exists = await checkUserExists(normalizedEmail);
       if (!exists) {
-        invalidEmails.push(email);
+        invalidEmails.push(assignment);
       }
     }
     
@@ -204,9 +257,9 @@ export async function createReminder(
     throw reminderError;
   }
 
-  // Create assignments for all assigned users
-  if (assignedTo.length > 0) {
-    const assignments = assignedTo.map((email) => ({
+  // Create assignments for all assigned users (using expanded emails)
+  if (expandedEmails.length > 0) {
+    const assignments = expandedEmails.map((email) => ({
       reminder_id: reminderData.id,
       user_email: email.trim().toLowerCase(),
       status: "pending" as const,
@@ -288,6 +341,9 @@ export async function updateReminder(
 
   // If assignedTo is provided, update assignments
   if (reminder.assignedTo !== undefined) {
+    // Expand team assignments to individual emails
+    const expandedEmails = await expandTeamAssignments(reminder.assignedTo);
+
     // Delete existing assignments
     const { error: deleteError } = await supabase
       .from("reminder_assignments")
@@ -298,9 +354,9 @@ export async function updateReminder(
       if (isDev) console.error("Error deleting assignments:", deleteError);
     }
 
-    // Create new assignments
-    if (reminder.assignedTo.length > 0) {
-      const assignments = reminder.assignedTo.map((email) => ({
+    // Create new assignments (using expanded emails)
+    if (expandedEmails.length > 0) {
+      const assignments = expandedEmails.map((email) => ({
         reminder_id: id,
         user_email: email.trim().toLowerCase(),
         status: "pending" as const,

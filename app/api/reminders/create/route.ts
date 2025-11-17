@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { checkUserExistsServer, validateEmailFormat } from "@/lib/supabase/server-users";
+import type { AccountType } from "@/lib/supabase/auth";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
@@ -25,6 +26,52 @@ interface ReminderAssignment {
   user_email: string;
   status: "pending" | "done" | "hidden";
   created_at: string;
+}
+
+/**
+ * Expand team assignments to individual user emails
+ * Takes array like ["team:CRM", "user@example.com", "team:AI"]
+ * Returns expanded array of individual emails
+ */
+async function expandTeamAssignments(
+  assignedTo: string[],
+  supabaseClient: ReturnType<typeof createClient>
+): Promise<string[]> {
+  const expandedEmails: string[] = [];
+  const teamTypes: AccountType[] = [];
+
+  // Separate team assignments from individual emails
+  for (const assignment of assignedTo) {
+    if (assignment.startsWith("team:")) {
+      const teamName = assignment.replace("team:", "") as AccountType;
+      teamTypes.push(teamName);
+    } else {
+      expandedEmails.push(assignment.trim().toLowerCase());
+    }
+  }
+
+  // If there are team assignments, fetch users for those teams
+  if (teamTypes.length > 0) {
+    const { data: profiles, error } = await supabaseClient
+      .from("profiles")
+      .select("email")
+      .in("account_type", teamTypes)
+      .eq("approved", true);
+
+    if (error) {
+      console.error("Error fetching team members:", error);
+    } else if (profiles) {
+      // Add team member emails
+      for (const profile of profiles) {
+        if (profile.email) {
+          expandedEmails.push(profile.email.trim().toLowerCase());
+        }
+      }
+    }
+  }
+
+  // Remove duplicates and return
+  return Array.from(new Set(expandedEmails));
 }
 
 // Convert database reminder to app reminder format
@@ -60,27 +107,44 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Create Supabase client with service role key for server-side operations
+    // This bypasses RLS, but we validate userEmail in the request body
+    const supabase = supabaseServiceRoleKey
+      ? createClient(supabaseUrl, supabaseServiceRoleKey, {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+          },
+        })
+      : createClient(supabaseUrl, supabaseAnonKey);
+
     // Default to assigning to creator if no assignedTo provided
-    const finalAssignedTo =
+    const rawAssignedTo =
       assignedTo && assignedTo.length > 0 ? assignedTo : [userEmail];
 
     // Validate all assignees exist before creating the reminder
+    // Only validate non-team assignments (individual emails)
     if (assignedTo && assignedTo.length > 0) {
       const invalidEmails: string[] = [];
 
-      for (const email of assignedTo) {
-        const normalizedEmail = email.trim().toLowerCase();
+      for (const assignment of assignedTo) {
+        // Skip team assignments in validation
+        if (assignment.startsWith("team:")) {
+          continue;
+        }
+
+        const normalizedEmail = assignment.trim().toLowerCase();
 
         // Validate email format
         if (!validateEmailFormat(normalizedEmail)) {
-          invalidEmails.push(email);
+          invalidEmails.push(assignment);
           continue;
         }
 
         // Check if user exists using server-side function directly
         const exists = await checkUserExistsServer(normalizedEmail);
         if (!exists) {
-          invalidEmails.push(email);
+          invalidEmails.push(assignment);
         }
       }
 
@@ -96,16 +160,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create Supabase client with service role key for server-side operations
-    // This bypasses RLS, but we validate userEmail in the request body
-    const supabase = supabaseServiceRoleKey
-      ? createClient(supabaseUrl, supabaseServiceRoleKey, {
-          auth: {
-            autoRefreshToken: false,
-            persistSession: false,
-          },
-        })
-      : createClient(supabaseUrl, supabaseAnonKey);
+    // Expand team assignments to individual emails
+    const finalAssignedTo = await expandTeamAssignments(rawAssignedTo, supabase);
 
     // Create the reminder
     const { data: reminderData, error: reminderError } = await supabase
