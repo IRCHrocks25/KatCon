@@ -10,7 +10,8 @@ export interface Reminder {
   title: string;
   description?: string;
   dueDate?: Date;
-  status: "pending" | "done" | "hidden";
+  status: "pending" | "done" | "hidden"; // Overall reminder status (creator's view)
+  myStatus?: "pending" | "done" | "hidden"; // Current user's assignment status
   createdBy: string; // Email of the creator
   assignedTo: string[]; // Array of emails of assigned users
 }
@@ -82,14 +83,38 @@ async function expandTeamAssignments(assignedTo: string[]): Promise<string[]> {
 // Convert database reminder to app reminder format
 async function dbToAppReminder(
   dbReminder: DatabaseReminder,
-  assignments: ReminderAssignment[] = []
+  assignments: ReminderAssignment[] = [],
+  currentUserEmail?: string
 ): Promise<Reminder> {
+  // Find current user's assignment status (if they're assigned)
+  // Normalize emails to lowercase for comparison
+  const normalizedUserEmail = currentUserEmail?.toLowerCase();
+  const myAssignment = normalizedUserEmail
+    ? assignments.find((a) => a.user_email?.toLowerCase() === normalizedUserEmail)
+    : null;
+
+  console.log("[REMINDER] dbToAppReminder converting:", {
+    reminderId: dbReminder.id,
+    currentUserEmail,
+    assignmentsCount: assignments.length,
+    myAssignment: myAssignment ? {
+      id: myAssignment.id,
+      status: myAssignment.status,
+      user_email: myAssignment.user_email,
+    } : null,
+    allAssignments: assignments.map(a => ({
+      user_email: a.user_email,
+      status: a.status,
+    })),
+  });
+
   return {
     id: dbReminder.id,
     title: dbReminder.title,
     description: dbReminder.description || undefined,
     dueDate: dbReminder.due_date ? new Date(dbReminder.due_date) : undefined,
-    status: dbReminder.status,
+    status: dbReminder.status, // Overall reminder status
+    myStatus: myAssignment?.status, // Current user's assignment status
     createdBy: dbReminder.user_id,
     assignedTo: assignments.map((a) => a.user_email),
   };
@@ -181,7 +206,8 @@ export async function getReminders(): Promise<Reminder[]> {
     sortedReminders.map((reminder) =>
       dbToAppReminder(
         reminder,
-        assignmentsByReminder.get(reminder.id) || []
+        assignmentsByReminder.get(reminder.id) || [],
+        userEmail // Pass current user email
       )
     )
   );
@@ -306,7 +332,7 @@ export async function createReminder(
     });
   }
 
-  return dbToAppReminder(reminderData, assignmentsData || []);
+  return dbToAppReminder(reminderData, assignmentsData || [], userEmail);
 }
 
 // Update reminder (title, description, dueDate)
@@ -388,7 +414,7 @@ export async function updateReminder(
     if (isDev) console.error("Error fetching assignments after update:", fetchError);
   }
 
-  return dbToAppReminder(reminderData, assignmentsData || []);
+  return dbToAppReminder(reminderData, assignmentsData || [], userEmail);
 }
 
 // Update reminder status (client-side)
@@ -403,6 +429,8 @@ export async function updateReminderStatus(
     throw new Error("User not authenticated");
   }
 
+  console.log(`[REMINDER] updateReminderStatus called:`, { id, status, userEmail });
+  
   // Check if user is creator or assigned to this reminder
   const { data: reminder, error: reminderError } = await supabase
     .from("reminders")
@@ -411,10 +439,12 @@ export async function updateReminderStatus(
     .single();
 
   if (reminderError || !reminder) {
+    console.error("[REMINDER] Reminder not found:", reminderError);
     throw new Error("Reminder not found");
   }
 
   const isCreator = reminder.user_id === userEmail;
+  console.log(`[REMINDER] User role check:`, { isCreator, creatorEmail: reminder.user_id });
 
   // Check if user is assigned to this reminder
   const { data: assignment } = await supabase
@@ -425,44 +455,79 @@ export async function updateReminderStatus(
     .single();
 
   const isAssigned = !!assignment;
+  console.log(`[REMINDER] Assignment check:`, { isAssigned, currentStatus: assignment?.status });
 
   if (!isCreator && !isAssigned) {
+    console.error("[REMINDER] Unauthorized update attempt");
     throw new Error("You are not authorized to update this reminder");
   }
 
-  // If user is assigned (not creator), update their assignment status
+  // If user is assigned (not creator), update their assignment status AND overall reminder status
   if (isAssigned && !isCreator) {
-    const { error: assignmentUpdateError } = await supabase
+    console.log(`[REMINDER] Assignee updating status: ${userEmail} -> ${status}`);
+    console.log(`[REMINDER] Assignment ID: ${assignment.id}, Reminder ID: ${id}`);
+    
+    // Step 1: Update the assignee's individual status
+    const { data: assignmentData, error: assignmentUpdateError } = await supabase
       .from("reminder_assignments")
       .update({ status })
-      .eq("id", assignment.id);
+      .eq("id", assignment.id)
+      .select() // Return data to avoid 406 error
+      .single();
 
     if (assignmentUpdateError) {
+      console.error("[REMINDER] Assignment update error:", assignmentUpdateError);
       throw new Error(
         `Failed to update assignment status: ${assignmentUpdateError.message}`
       );
     }
-  } else if (isCreator) {
-    // If user is creator, update the reminder status directly
-    const { error: reminderUpdateError } = await supabase
+    console.log("[REMINDER] ✅ Assignment status updated:", assignmentData);
+
+    // Step 2: Update the overall reminder status (so creator sees the change too)
+    console.log("[REMINDER] Updating overall reminder status...");
+    const { data: reminderUpdateData, error: reminderUpdateError } = await supabase
       .from("reminders")
       .update({ status })
       .eq("id", id)
-      .eq("user_id", userEmail);
+      .select()
+      .single();
+    
+    if (reminderUpdateError) {
+      console.error("[REMINDER] ❌ Failed to update overall reminder status:", reminderUpdateError);
+      console.error("[REMINDER] Reminder update error details:", {
+        message: reminderUpdateError.message,
+        code: reminderUpdateError.code,
+        details: reminderUpdateError.details,
+        hint: reminderUpdateError.hint,
+      });
+      // Don't throw - allow the assignment update to succeed even if reminder update fails
+    } else {
+      console.log("[REMINDER] ✅ Overall reminder status updated:", reminderUpdateData);
+    }
+
+  } else if (isCreator) {
+    // If user is creator, update the reminder status directly
+    console.log(`[REMINDER] Creator updating status: ${userEmail} -> ${status}`);
+    
+    const { data: reminderData, error: reminderUpdateError } = await supabase
+      .from("reminders")
+      .update({ status })
+      .eq("id", id)
+      .eq("user_id", userEmail)
+      .select() // Return data to avoid 406 error
+      .single();
 
     if (reminderUpdateError) {
+      console.error("[REMINDER] Creator update error:", reminderUpdateError);
       throw new Error(
         `Failed to update reminder status: ${reminderUpdateError.message}`
       );
     }
+    console.log("[REMINDER] ✅ Reminder status updated by creator:", reminderData);
   }
 
-  // If status is 'done' or 'hidden', we don't need to return the reminder
-  if (status === "done" || status === "hidden") {
-    return null;
-  }
-
-  // For 'pending', fetch the updated reminder with assignments
+  // Always fetch and return the updated reminder with assignments
+  console.log("[REMINDER] Fetching updated reminder data...");
   const { data: reminderData, error: fetchError } = await supabase
     .from("reminders")
     .select("*")
@@ -470,16 +535,37 @@ export async function updateReminderStatus(
     .single();
 
   if (fetchError || !reminderData) {
+    console.error("[REMINDER] Failed to fetch updated reminder:", fetchError);
     return null;
   }
 
   // Fetch assignments for this reminder
-  const { data: assignmentsData } = await supabase
+  const { data: assignmentsData, error: assignmentsFetchError } = await supabase
     .from("reminder_assignments")
     .select("*")
     .eq("reminder_id", id);
 
-  return dbToAppReminder(reminderData, assignmentsData || []);
+  if (assignmentsFetchError) {
+    console.error("[REMINDER] Failed to fetch assignments:", assignmentsFetchError);
+  }
+
+  console.log("[REMINDER] Fetched assignments:", assignmentsData?.map(a => ({
+    id: a.id,
+    user_email: a.user_email,
+    status: a.status,
+    isCurrentUser: a.user_email === userEmail,
+  })));
+
+  const updatedReminder = await dbToAppReminder(reminderData, assignmentsData || [], userEmail);
+  console.log("[REMINDER] ✅ Returning updated reminder:", {
+    id: updatedReminder.id,
+    status: updatedReminder.status,
+    myStatus: updatedReminder.myStatus,
+    assignedTo: updatedReminder.assignedTo,
+    currentUserEmail: userEmail,
+  });
+  
+  return updatedReminder;
 }
 
 // Delete a reminder (soft delete - sets status to 'hidden')

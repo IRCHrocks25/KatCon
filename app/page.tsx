@@ -21,6 +21,7 @@ import {
   RemindersContainer,
   type Reminder,
 } from "@/components/reminders/RemindersContainer";
+import { NotificationCenter } from "@/components/notifications/NotificationCenter";
 import { robustFetch } from "@/lib/utils/fetch";
 import {
   getStorageItem,
@@ -196,7 +197,7 @@ export default function Home() {
                 assignedTo: assignedTo,
                 userEmail: user?.email || null,
               }),
-              retries: 2,
+              retries: 0, // No retries for POST - prevents duplicate reminders
               timeout: 30000,
             });
 
@@ -386,20 +387,26 @@ export default function Home() {
       <div className="absolute inset-0 bg-gradient-to-b from-purple-950/40 via-black to-black" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-purple-600/15 via-pink-500/10 via-blue-500/10 to-orange-500/10" />
 
-      {/* Logout Button - Top Right */}
-      <button
-        onClick={logout}
-        disabled={authLoading}
-        className="absolute top-4 right-4 z-20 p-2 text-gray-400 hover:text-white transition flex items-center gap-2 text-sm bg-gray-900/50 backdrop-blur-sm border border-gray-800/50 rounded-lg hover:border-gray-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
-        title="Logout"
-      >
-        {authLoading ? (
-          <div className="w-4 h-4 border-2 border-gray-400/30 border-t-gray-400 rounded-full animate-spin" />
-        ) : (
-          <LogOut size={16} />
-        )}
-        <span className="hidden sm:inline">Logout</span>
-      </button>
+      {/* Top Right Actions */}
+      <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+        {/* Notification Center */}
+        <NotificationCenter />
+
+        {/* Logout Button */}
+        <button
+          onClick={logout}
+          disabled={authLoading}
+          className="p-2 text-gray-400 hover:text-white transition flex items-center gap-2 text-sm bg-gray-900/50 backdrop-blur-sm border border-gray-800/50 rounded-lg hover:border-gray-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+          title="Logout"
+        >
+          {authLoading ? (
+            <div className="w-4 h-4 border-2 border-gray-400/30 border-t-gray-400 rounded-full animate-spin" />
+          ) : (
+            <LogOut size={16} />
+          )}
+          <span className="hidden sm:inline">Logout</span>
+        </button>
+      </div>
 
       {/* Reminders Section - 1/3 width (Left) */}
       <div className="relative z-10 w-1/3 h-screen">

@@ -224,6 +224,47 @@ export async function POST(request: NextRequest) {
     // Convert to app format
     const reminder = dbToAppReminder(reminderData, assignmentsData || []);
 
+    // Create notifications asynchronously in background (fire and forget)
+    // This happens AFTER we prepare the response, so it doesn't block
+    if (finalAssignedTo.length > 0) {
+      console.log(`[NOTIFICATIONS] Creating notifications for ${finalAssignedTo.length} users`);
+      console.log(`[NOTIFICATIONS] Assigned to:`, finalAssignedTo);
+      console.log(`[NOTIFICATIONS] Creator (excluded):`, userEmail);
+      
+      const notificationPromises = finalAssignedTo
+        .filter((email) => email !== userEmail.toLowerCase())
+        .map((email) => {
+          console.log(`[NOTIFICATIONS] Creating notification for:`, email);
+          return supabase.from("notifications").insert({
+            user_email: email,
+            type: "reminder_assigned",
+            title: "New Reminder Assigned",
+            message: `You were assigned to: ${reminderData.title}`,
+            reminder_id: reminderData.id,
+            read: false,
+          });
+        });
+
+      // Fire and forget - don't await, let it happen in background
+      Promise.all(notificationPromises)
+        .then((results) => {
+          console.log(`[NOTIFICATIONS] Successfully created ${results.length} notifications`);
+          results.forEach((result, index) => {
+            if (result.error) {
+              console.error(`[NOTIFICATIONS] Error for user ${finalAssignedTo[index]}:`, result.error);
+            } else {
+              console.log(`[NOTIFICATIONS] ✅ Notification created for ${finalAssignedTo[index]}`);
+            }
+          });
+        })
+        .catch((error) => {
+          console.error("[NOTIFICATIONS] Error creating notifications:", error);
+        });
+    } else {
+      console.log("[NOTIFICATIONS] No users to notify (finalAssignedTo is empty or all excluded)");
+    }
+
+    // Return response immediately (notifications continue in background)
     return NextResponse.json(reminder, { status: 200 });
   } catch (error) {
     console.error("Error in create reminder API route:", error);

@@ -29,6 +29,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getAllUsers, type UserWithTeam } from "@/lib/supabase/users";
 import { robustFetch } from "@/lib/utils/fetch";
 import type { AccountType } from "@/lib/supabase/auth";
+import { supabase } from "@/lib/supabase/client";
 
 export type { Reminder };
 
@@ -146,6 +147,94 @@ export function RemindersContainer({
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [showDropdown]);
+
+  // Real-time subscription for reminders
+  useEffect(() => {
+    if (!currentUser?.email) {
+      console.warn("[REMINDERS] No user email, skipping realtime subscription");
+      return;
+    }
+
+    console.log(
+      "[REMINDERS] Setting up realtime subscription for:",
+      currentUser.email
+    );
+
+    // Subscribe to changes in reminders table
+    const remindersChannel = supabase
+      .channel("reminders-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*", // Listen to INSERT, UPDATE, DELETE
+          schema: "public",
+          table: "reminders",
+        },
+        async (payload) => {
+          console.log(
+            "[REMINDERS] 🔔 Change received:",
+            payload.eventType,
+            payload
+          );
+
+          if (payload.eventType === "INSERT") {
+            // New reminder created - fetch full details and add to list
+            const newReminderId = payload.new.id;
+            const allReminders = await getReminders();
+            const newReminder = allReminders.find(
+              (r) => r.id === newReminderId
+            );
+
+            if (newReminder) {
+              setReminders((prev) => {
+                // Check if already exists (prevent duplicates)
+                if (prev.some((r) => r.id === newReminder.id)) return prev;
+                return [newReminder, ...prev];
+              });
+
+              // Show toast if assigned to current user and created by someone else
+              if (
+                newReminder.assignedTo.includes(currentUser.email || "") &&
+                newReminder.createdBy !== currentUser.email
+              ) {
+                toast.info("New reminder assigned to you", {
+                  description: newReminder.title,
+                  duration: 5000,
+                });
+              }
+            }
+          } else if (payload.eventType === "UPDATE") {
+            // Reminder updated - fetch and update in list
+            const updatedId = payload.new.id;
+            const allReminders = await getReminders();
+            const updatedReminder = allReminders.find(
+              (r) => r.id === updatedId
+            );
+
+            if (updatedReminder) {
+              setReminders((prev) =>
+                prev.map((r) => (r.id === updatedId ? updatedReminder : r))
+              );
+            } else {
+              // No longer visible to user (unassigned), remove it
+              setReminders((prev) => prev.filter((r) => r.id !== updatedId));
+            }
+          } else if (payload.eventType === "DELETE") {
+            // Reminder deleted - remove from list
+            const deletedId = payload.old.id;
+            setReminders((prev) => prev.filter((r) => r.id !== deletedId));
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log("[REMINDERS] Realtime subscription status:", status);
+      });
+
+    return () => {
+      console.log("[REMINDERS] Cleaning up realtime subscription");
+      supabase.removeChannel(remindersChannel);
+    };
+  }, [currentUser?.email, setReminders]);
 
   // Sort reminders whenever sort option or reminders change
   const sortedReminders = [...reminders].sort((a, b) => {
@@ -285,7 +374,7 @@ export function RemindersContainer({
                 : undefined,
             userEmail: currentUser?.email || null,
           }),
-          retries: 2,
+          retries: 0, // No retries for POST - prevents duplicate reminders on timeout
           timeout: 30000,
         });
 
@@ -382,29 +471,57 @@ export function RemindersContainer({
 
   const handleToggleComplete = async (id: string) => {
     const reminder = reminders.find((r) => r.id === id);
-    if (!reminder) return;
+    if (!reminder) {
+      console.warn("[UI] Reminder not found:", id);
+      return;
+    }
 
-    const newStatus = reminder.status === "pending" ? "done" : "pending";
+    // Determine current status based on whether user is creator or assignee
+    const isCreator = reminder.createdBy === currentUser?.email;
+    const currentStatus = isCreator
+      ? reminder.status
+      : reminder.myStatus || reminder.status;
+    const newStatus = currentStatus === "pending" ? "done" : "pending";
+
+    console.log("[UI] Toggle clicked:", {
+      id,
+      isCreator,
+      currentStatus,
+      newStatus,
+      reminder: {
+        status: reminder.status,
+        myStatus: reminder.myStatus,
+        createdBy: reminder.createdBy,
+        currentUserEmail: currentUser?.email,
+      },
+    });
 
     setTogglingId(id);
     try {
       const updatedReminder = await updateReminderStatus(id, newStatus);
+      console.log("[UI] Update response:", updatedReminder);
 
       // Update the reminder in the list (keep it visible with strikethrough)
       if (updatedReminder) {
+        console.log("[UI] Updating reminder in list with server data");
         setReminders((prev) =>
           prev.map((r) => (r.id === id ? updatedReminder : r))
         );
       } else {
         // Fallback: update locally if we can't get the updated reminder
+        console.warn("[UI] No updated reminder returned, updating locally");
         setReminders((prev) =>
-          prev.map((reminder) =>
-            reminder.id === id ? { ...reminder, status: newStatus } : reminder
-          )
+          prev.map((r) => {
+            if (r.id !== id) return r;
+            const isCreator = r.createdBy === currentUser?.email;
+            return isCreator
+              ? { ...r, status: newStatus }
+              : { ...r, myStatus: newStatus };
+          })
         );
       }
     } catch (error) {
-      console.error("Error updating reminder status:", error);
+      console.error("[UI] Error updating reminder status:", error);
       toast.error("Failed to update reminder", {
         description: error instanceof Error ? error.message : "Unknown error",
       });
@@ -777,167 +894,184 @@ export function RemindersContainer({
             <p className="text-xs mt-1">Click + to add one</p>
           </div>
         ) : (
-          sortedReminders.map((reminder) => (
-            <motion.div
-              key={reminder.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={`p-3 rounded-lg border ${
-                reminder.status === "done"
-                  ? "bg-gray-800/30 border-gray-700/50 opacity-60"
-                  : "bg-gray-800/50 border-gray-700/50"
-              }`}
-            >
-              <div className="flex items-start gap-2">
-                <button
-                  onClick={() => handleToggleComplete(reminder.id)}
-                  disabled={togglingId === reminder.id}
-                  className={`mt-0.5 w-4 h-4 rounded border-2 flex items-center justify-center transition disabled:opacity-50 disabled:cursor-not-allowed ${
-                    reminder.status === "done"
-                      ? "bg-purple-600 border-purple-600"
-                      : "border-gray-600 hover:border-purple-500"
-                  }`}
-                >
-                  {togglingId === reminder.id ? (
-                    <div className="w-2.5 h-2.5 border border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : reminder.status === "done" ? (
-                    <svg
-                      className="w-3 h-3 text-white"
-                      fill="none"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path d="M5 13l4 4L19 7" />
-                    </svg>
-                  ) : null}
-                </button>
-                <div className="flex-1 min-w-0">
-                  <h3
-                    className={`text-sm font-medium ${
-                      reminder.status === "done"
-                        ? "text-gray-500 line-through"
-                        : "text-white"
+          sortedReminders.map((reminder) => {
+            // Determine which status to display:
+            // - If user is creator: use reminder.status (overall status)
+            // - If user is assignee: use reminder.myStatus (their personal status)
+            const isCreator = reminder.createdBy === currentUser?.email;
+            const displayStatus = isCreator
+              ? reminder.status
+              : reminder.myStatus || reminder.status;
+
+            return (
+              <motion.div
+                key={reminder.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`p-3 rounded-lg border ${
+                  displayStatus === "done"
+                    ? "bg-gray-800/30 border-gray-700/50 opacity-60"
+                    : "bg-gray-800/50 border-gray-700/50"
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  <button
+                    onClick={() => handleToggleComplete(reminder.id)}
+                    disabled={togglingId === reminder.id}
+                    className={`mt-0.5 w-4 h-4 rounded border-2 flex items-center justify-center transition disabled:opacity-50 disabled:cursor-not-allowed ${
+                      displayStatus === "done"
+                        ? "bg-purple-600 border-purple-600"
+                        : "border-gray-600 hover:border-purple-500"
                     }`}
                   >
-                    {reminder.title}
-                  </h3>
-                  {reminder.description && (
-                    <p
-                      className={`text-xs mt-1 ${
-                        reminder.status === "done"
-                          ? "text-gray-600 line-through"
-                          : "text-gray-400"
+                    {togglingId === reminder.id ? (
+                      <div className="w-2.5 h-2.5 border border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : displayStatus === "done" ? (
+                      <svg
+                        className="w-3 h-3 text-white"
+                        fill="none"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : null}
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <h3
+                      className={`text-sm font-medium ${
+                        displayStatus === "done"
+                          ? "text-gray-500 line-through"
+                          : "text-white"
                       }`}
                     >
-                      {reminder.description}
-                    </p>
-                  )}
-                  {reminder.dueDate && (
-                    <div className="flex items-center gap-1 mt-2 text-xs text-gray-500">
-                      <Clock size={12} />
-                      <span>
-                        {new Date(reminder.dueDate).toLocaleString([], {
-                          month: "short",
-                          day: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    </div>
-                  )}
-                  {/* Creator and assigned users info */}
-                  <div className="mt-2 space-y-1">
-                    {reminder.createdBy && (
-                      <div className="flex items-center gap-1 text-xs text-gray-500">
-                        <span className="text-gray-600">Created by:</span>
-                        <span
-                          className={
-                            reminder.createdBy === currentUser?.email
-                              ? "text-purple-400 font-medium"
-                              : "text-gray-400"
-                          }
-                        >
-                          {reminder.createdBy === currentUser?.email
-                            ? "You"
-                            : reminder.createdBy}
+                      {reminder.title}
+                    </h3>
+                    {reminder.description && (
+                      <p
+                        className={`text-xs mt-1 ${
+                          displayStatus === "done"
+                            ? "text-gray-600 line-through"
+                            : "text-gray-400"
+                        }`}
+                      >
+                        {reminder.description}
+                      </p>
+                    )}
+                    {reminder.dueDate && (
+                      <div className="flex items-center gap-1 mt-2 text-xs text-gray-500">
+                        <Clock size={12} />
+                        <span>
+                          {new Date(reminder.dueDate).toLocaleString([], {
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
                         </span>
                       </div>
                     )}
-                    {reminder.assignedTo && reminder.assignedTo.length > 0 && (
-                      <div className="flex items-start gap-1 text-xs text-gray-500">
-                        <Users size={12} className="mt-0.5 text-purple-400" />
-                        <div className="flex-1">
-                          <span className="text-gray-600">Assigned to: </span>
-                          <div className="inline-flex flex-wrap gap-1.5 mt-0.5">
-                            {reminder.assignedTo.map((assignment) => {
-                              const { display, isTeam } =
-                                getAssignmentDisplay(assignment);
-                              const isCurrentUser =
-                                !isTeam && assignment === currentUser?.email;
-
-                              return (
-                                <span
-                                  key={assignment}
-                                  className={`px-1.5 py-0.5 rounded flex items-center gap-1 ${
-                                    isCurrentUser
-                                      ? "bg-purple-600/20 text-purple-300 font-medium"
-                                      : isTeam
-                                      ? "bg-blue-600/20 text-blue-300 font-medium"
-                                      : "bg-gray-700/50 text-gray-300"
-                                  }`}
-                                >
-                                  {isTeam ? (
-                                    <>
-                                      <Users size={10} />
-                                      {display}
-                                    </>
-                                  ) : (
-                                    <>
-                                      <User size={10} />
-                                      {isCurrentUser ? "You" : display}
-                                    </>
-                                  )}
-                                </span>
-                              );
-                            })}
-                          </div>
+                    {/* Creator and assigned users info */}
+                    <div className="mt-2 space-y-1">
+                      {reminder.createdBy && (
+                        <div className="flex items-center gap-1 text-xs text-gray-500">
+                          <span className="text-gray-600">Created by:</span>
+                          <span
+                            className={
+                              reminder.createdBy === currentUser?.email
+                                ? "text-purple-400 font-medium"
+                                : "text-gray-400"
+                            }
+                          >
+                            {reminder.createdBy === currentUser?.email
+                              ? "You"
+                              : reminder.createdBy}
+                          </span>
                         </div>
-                      </div>
+                      )}
+                      {reminder.assignedTo &&
+                        reminder.assignedTo.length > 0 && (
+                          <div className="flex items-start gap-1 text-xs text-gray-500">
+                            <Users
+                              size={12}
+                              className="mt-0.5 text-purple-400"
+                            />
+                            <div className="flex-1">
+                              <span className="text-gray-600">
+                                Assigned to:{" "}
+                              </span>
+                              <div className="inline-flex flex-wrap gap-1.5 mt-0.5">
+                                {reminder.assignedTo.map((assignment) => {
+                                  const { display, isTeam } =
+                                    getAssignmentDisplay(assignment);
+                                  const isCurrentUser =
+                                    !isTeam &&
+                                    assignment === currentUser?.email;
+
+                                  return (
+                                    <span
+                                      key={assignment}
+                                      className={`px-1.5 py-0.5 rounded flex items-center gap-1 ${
+                                        isCurrentUser
+                                          ? "bg-purple-600/20 text-purple-300 font-medium"
+                                          : isTeam
+                                          ? "bg-blue-600/20 text-blue-300 font-medium"
+                                          : "bg-gray-700/50 text-gray-300"
+                                      }`}
+                                    >
+                                      {isTeam ? (
+                                        <>
+                                          <Users size={10} />
+                                          {display}
+                                        </>
+                                      ) : (
+                                        <>
+                                          <User size={10} />
+                                          {isCurrentUser ? "You" : display}
+                                        </>
+                                      )}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {reminder.createdBy === currentUser?.email && (
+                      <button
+                        onClick={() => handleEditReminder(reminder)}
+                        disabled={isSaving || deletingId === reminder.id}
+                        className="p-1 hover:bg-gray-700/50 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Edit reminder"
+                      >
+                        <Edit size={14} className="text-gray-400" />
+                      </button>
+                    )}
+                    {reminder.createdBy === currentUser?.email && (
+                      <button
+                        onClick={() => handleDeleteReminder(reminder.id)}
+                        disabled={deletingId === reminder.id || isSaving}
+                        className="p-1 hover:bg-gray-700/50 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Delete reminder"
+                      >
+                        {deletingId === reminder.id ? (
+                          <div className="w-3.5 h-3.5 border-2 border-gray-400/30 border-t-gray-400 rounded-full animate-spin" />
+                        ) : (
+                          <X size={14} className="text-gray-400" />
+                        )}
+                      </button>
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  {reminder.createdBy === currentUser?.email && (
-                    <button
-                      onClick={() => handleEditReminder(reminder)}
-                      disabled={isSaving || deletingId === reminder.id}
-                      className="p-1 hover:bg-gray-700/50 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="Edit reminder"
-                    >
-                      <Edit size={14} className="text-gray-400" />
-                    </button>
-                  )}
-                  {reminder.createdBy === currentUser?.email && (
-                    <button
-                      onClick={() => handleDeleteReminder(reminder.id)}
-                      disabled={deletingId === reminder.id || isSaving}
-                      className="p-1 hover:bg-gray-700/50 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="Delete reminder"
-                    >
-                      {deletingId === reminder.id ? (
-                        <div className="w-3.5 h-3.5 border-2 border-gray-400/30 border-t-gray-400 rounded-full animate-spin" />
-                      ) : (
-                        <X size={14} className="text-gray-400" />
-                      )}
-                    </button>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          ))
+              </motion.div>
+            );
+          })
         )}
       </div>
     </div>
