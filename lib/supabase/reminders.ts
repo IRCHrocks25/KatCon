@@ -380,38 +380,73 @@ export async function updateReminder(
   if (reminder.assignedTo !== undefined) {
     // Expand team assignments to individual emails
     const expandedEmails = await expandTeamAssignments(reminder.assignedTo);
+    const normalizedNewEmails = expandedEmails.map(email => email.trim().toLowerCase());
 
-    // Delete existing assignments
-    const { error: deleteError } = await supabase
+    // Fetch existing assignments to preserve statuses
+    const { data: existingAssignments, error: fetchExistingError } = await supabase
       .from("reminder_assignments")
-      .delete()
+      .select("*")
       .eq("reminder_id", id);
 
-    if (deleteError) {
-      if (isDev) console.error("Error deleting assignments:", deleteError);
+    if (fetchExistingError) {
+      if (isDev) console.error("Error fetching existing assignments:", fetchExistingError);
+      throw new Error(`Failed to fetch existing assignments: ${fetchExistingError.message}`);
     }
 
-    // Create new assignments (using expanded emails)
-    if (expandedEmails.length > 0) {
-      const assignments = expandedEmails.map((email) => ({
+    const existingEmails = (existingAssignments || []).map(a => a.user_email?.toLowerCase() || '');
+    const existingStatuses = new Map(
+      (existingAssignments || []).map(a => [a.user_email?.toLowerCase() || '', a.status])
+    );
+
+    // Determine which assignments to add, keep, and remove
+    const emailsToAdd = normalizedNewEmails.filter(email => !existingEmails.includes(email));
+    const emailsToKeep = normalizedNewEmails.filter(email => existingEmails.includes(email));
+    const emailsToRemove = existingEmails.filter(email => !normalizedNewEmails.includes(email));
+
+    // Remove assignments that are no longer in the list
+    if (emailsToRemove.length > 0) {
+      const { error: deleteError } = await supabase
+        .from("reminder_assignments")
+        .delete()
+        .eq("reminder_id", id)
+        .in("user_email", emailsToRemove);
+
+      if (deleteError) {
+        if (isDev) console.error("Error deleting assignments:", deleteError);
+        throw new Error(`Failed to remove assignments: ${deleteError.message}`);
+      }
+    }
+
+    // Add new assignments (with pending status)
+    if (emailsToAdd.length > 0) {
+      const newAssignments = emailsToAdd.map((email) => ({
         reminder_id: id,
-        user_email: email.trim().toLowerCase(),
+        user_email: email,
         status: "pending" as const,
       }));
 
       const { error: insertError, data: insertedAssignments } = await supabase
         .from("reminder_assignments")
-        .insert(assignments)
+        .insert(newAssignments)
         .select();
 
       if (insertError) {
         if (isDev) console.error("Error inserting assignments:", insertError);
-        throw new Error(`Failed to update assignments: ${insertError.message}`);
+        throw new Error(`Failed to add assignments: ${insertError.message}`);
       }
 
       if (isDev && insertedAssignments) {
-        console.log("Updated assignments:", insertedAssignments);
+        console.log("Added new assignments:", insertedAssignments);
       }
+    }
+
+    // Existing assignments that remain in the list are preserved with their current statuses
+    // No update needed - they stay as-is, preserving "done" status if it was set
+    if (isDev && emailsToKeep.length > 0) {
+      console.log("Preserved existing assignments:", emailsToKeep.map(email => ({
+        email,
+        status: existingStatuses.get(email)
+      })));
     }
   }
 

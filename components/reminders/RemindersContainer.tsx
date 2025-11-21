@@ -226,6 +226,40 @@ export function RemindersContainer({
           }
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "*", // Listen to INSERT, UPDATE, DELETE
+          schema: "public",
+          table: "reminder_assignments",
+        },
+        async (payload) => {
+          console.log(
+            "[REMINDERS] 🔔 Assignment change received:",
+            payload.eventType,
+            payload
+          );
+
+          // When assignments change, refresh the affected reminder
+          const reminderId = payload.new?.reminder_id || payload.old?.reminder_id;
+          if (reminderId) {
+            const allReminders = await getReminders();
+            const updatedReminder = allReminders.find(
+              (r) => r.id === reminderId
+            );
+
+            if (updatedReminder) {
+              // Reminder is still visible to user, update it
+              setReminders((prev) =>
+                prev.map((r) => (r.id === reminderId ? updatedReminder : r))
+              );
+            } else {
+              // Reminder is no longer visible to user (they were unassigned), remove it
+              setReminders((prev) => prev.filter((r) => r.id !== reminderId));
+            }
+          }
+        }
+      )
       .subscribe((status) => {
         console.log("[REMINDERS] Realtime subscription status:", status);
       });
