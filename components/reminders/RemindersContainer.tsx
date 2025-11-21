@@ -240,24 +240,63 @@ export function RemindersContainer({
             payload
           );
 
-          // When assignments change, refresh the affected reminder
-          const reminderId = 
-            (payload.new as { reminder_id?: string })?.reminder_id ||
-            (payload.old as { reminder_id?: string })?.reminder_id;
-          if (reminderId) {
-            const allReminders = await getReminders();
-            const updatedReminder = allReminders.find(
-              (r) => r.id === reminderId
-            );
+          if (payload.eventType === "INSERT") {
+            // New assignment created - check if it's for the current user
+            const assignmentData = payload.new as {
+              reminder_id?: string;
+              user_email?: string;
+            };
+            const reminderId = assignmentData?.reminder_id;
+            const assignedUserEmail = assignmentData?.user_email?.toLowerCase();
+            const currentUserEmail = currentUser?.email?.toLowerCase();
 
-            if (updatedReminder) {
-              // Reminder is still visible to user, update it
-              setReminders((prev) =>
-                prev.map((r) => (r.id === reminderId ? updatedReminder : r))
+            // Check if this assignment is for the current user
+            if (
+              reminderId &&
+              assignedUserEmail &&
+              currentUserEmail &&
+              assignedUserEmail === currentUserEmail
+            ) {
+              // Fetch all reminders (which will include the newly assigned one)
+              const allReminders = await getReminders();
+              const newReminder = allReminders.find((r) => r.id === reminderId);
+
+              if (newReminder) {
+                setReminders((prev) => {
+                  // Check if already exists (prevent duplicates)
+                  if (prev.some((r) => r.id === newReminder.id)) return prev;
+                  return [newReminder, ...prev];
+                });
+
+                // Show toast if assigned by someone else
+                if (newReminder.createdBy !== currentUserEmail) {
+                  toast.info("New reminder assigned to you", {
+                    description: newReminder.title,
+                    duration: 5000,
+                  });
+                }
+              }
+            }
+          } else {
+            // For UPDATE/DELETE events, refresh the affected reminder
+            const reminderId =
+              (payload.new as { reminder_id?: string })?.reminder_id ||
+              (payload.old as { reminder_id?: string })?.reminder_id;
+            if (reminderId) {
+              const allReminders = await getReminders();
+              const updatedReminder = allReminders.find(
+                (r) => r.id === reminderId
               );
-            } else {
-              // Reminder is no longer visible to user (they were unassigned), remove it
-              setReminders((prev) => prev.filter((r) => r.id !== reminderId));
+
+              if (updatedReminder) {
+                // Reminder is still visible to user, update it
+                setReminders((prev) =>
+                  prev.map((r) => (r.id === reminderId ? updatedReminder : r))
+                );
+              } else {
+                // Reminder is no longer visible to user (they were unassigned), remove it
+                setReminders((prev) => prev.filter((r) => r.id !== reminderId));
+              }
             }
           }
         }
