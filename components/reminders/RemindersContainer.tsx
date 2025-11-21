@@ -241,7 +241,9 @@ export function RemindersContainer({
           );
 
           // When assignments change, refresh the affected reminder
-          const reminderId = payload.new?.reminder_id || payload.old?.reminder_id;
+          const reminderId = 
+            (payload.new as { reminder_id?: string })?.reminder_id ||
+            (payload.old as { reminder_id?: string })?.reminder_id;
           if (reminderId) {
             const allReminders = await getReminders();
             const updatedReminder = allReminders.find(
