@@ -82,7 +82,14 @@ export function ThreadPanel({
                 </span>
               </div>
               <div className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm">
-                {formatMentions(parentMessage.content, participants)}
+                {formatMentions(
+                  parentMessage.content,
+                  participants.map((p) => ({
+                    id: p.userId,
+                    email: p.email,
+                    fullname: p.fullname,
+                  }))
+                )}
               </div>
             </div>
           </div>
@@ -126,7 +133,14 @@ export function ThreadPanel({
                           : "bg-gray-800 text-gray-100 border border-gray-700"
                       }`}
                     >
-                      {formatMentions(message.content, participants)}
+                      {formatMentions(
+                        message.content,
+                        participants.map((p) => ({
+                          id: p.userId,
+                          email: p.email,
+                          fullname: p.fullname,
+                        }))
+                      )}
                     </div>
                   </div>
                 </div>

@@ -87,9 +87,9 @@ export function ConversationList({
                 </span>
                 {Number(conversation.unreadCount || 0) > 0 && (
                   <span className="bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full flex-shrink-0">
-                    {conversation.unreadCount > 99
+                    {(conversation.unreadCount || 0) > 99
                       ? "99+"
-                      : conversation.unreadCount}
+                      : conversation.unreadCount || 0}
                   </span>
                 )}
               </div>
@@ -129,9 +129,9 @@ export function ConversationList({
                 </span>
                 {Number(conversation.unreadCount || 0) > 0 && (
                   <span className="bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full flex-shrink-0">
-                    {conversation.unreadCount > 99
+                    {(conversation.unreadCount || 0) > 99
                       ? "99+"
-                      : conversation.unreadCount}
+                      : conversation.unreadCount || 0}
                   </span>
                 )}
               </div>

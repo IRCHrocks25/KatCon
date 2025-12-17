@@ -307,7 +307,7 @@ export async function POST(
           const mentionLower = mention.toLowerCase();
           if (
             emailPrefix === mentionLower ||
-            fullname.split(" ").some((part) => part === mentionLower || part.startsWith(mentionLower))
+            fullname.split(" ").some((part: string) => part === mentionLower || part.startsWith(mentionLower))
           ) {
             if (!mentionedUsers.includes(profile.email)) {
               mentionedUsers.push(profile.email);
