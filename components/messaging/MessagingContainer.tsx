@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Plus, MessageSquare, Hash } from "lucide-react";
+import { Plus, MessageSquare, Hash, FolderOpen, ListTodo } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase/client";
@@ -16,13 +16,18 @@ import {
   markAsRead,
   type Conversation,
   type Message,
+  type FileAttachment,
 } from "@/lib/supabase/messaging";
+import { uploadFile } from "@/lib/supabase/file-upload";
 import { ConversationList } from "./ConversationList";
 import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 import { ThreadPanel } from "./ThreadPanel";
 import { CreateChannelModal } from "./CreateChannelModal";
 import { ChannelSettingsDialog } from "./ChannelSettingsDialog";
+import { FilesModal } from "./FilesModal";
+import { RemindersModal } from "@/components/reminders/RemindersModal";
+import type { Reminder } from "@/lib/supabase/reminders";
 
 // Session cache for messages (persists until logout)
 // Module-level cache that survives component unmount/remount (e.g., tab switches)
@@ -33,7 +38,15 @@ interface MessageCacheEntry {
 const messagesCacheMap = new Map<string, MessageCacheEntry>();
 let conversationsCache: Conversation[] | null = null;
 
-export function MessagingContainer() {
+interface MessagingContainerProps {
+  reminders: Reminder[];
+  setReminders: React.Dispatch<React.SetStateAction<Reminder[]>>;
+}
+
+export function MessagingContainer({
+  reminders,
+  setReminders,
+}: MessagingContainerProps) {
   const { user: currentUser } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<
@@ -49,6 +62,8 @@ export function MessagingContainer() {
   const [showChannelSettingsForId, setShowChannelSettingsForId] = useState<
     string | null
   >(null);
+  const [showFilesModal, setShowFilesModal] = useState(false);
+  const [showRemindersModal, setShowRemindersModal] = useState(false);
 
   // Use refs to avoid dependency issues in realtime subscription
   const conversationsRef = useRef<Conversation[]>([]);
@@ -172,12 +187,9 @@ export function MessagingContainer() {
   }, [currentUser, fetchConversations]);
 
   // Helper to refresh conversations (and cache) after structural changes
-  const refreshConversations = useCallback(
-    async () => {
-      await fetchConversations(true);
-    },
-    [fetchConversations]
-  );
+  const refreshConversations = useCallback(async () => {
+    await fetchConversations(true);
+  }, [fetchConversations]);
 
   // Load messages when conversation is selected
   useEffect(() => {
@@ -254,6 +266,10 @@ export function MessagingContainer() {
             content: string;
             created_at: string;
             parent_message_id?: string | null;
+            file_url?: string | null;
+            file_name?: string | null;
+            file_type?: string | null;
+            file_size?: number | null;
           };
 
           // Fetch sender profile
@@ -287,7 +303,15 @@ export function MessagingContainer() {
             parentMessageId: newMessage.parent_message_id,
             threadReplyCount: 0,
             readBy: [],
+            fileUrl: newMessage.file_url || null,
+            fileName: newMessage.file_name || null,
+            fileType: newMessage.file_type || null,
+            fileSize: newMessage.file_size || null,
           };
+
+          // Skip cache updates for our own messages - they're handled via optimistic updates
+          const isOwnMessage =
+            newMessage.author_id === currentUserRef.current?.id;
 
           // Always update the cache for this conversation (even if not active)
           const cacheEntry = messagesCacheMap.get(newMessage.conversation_id);
@@ -296,7 +320,7 @@ export function MessagingContainer() {
             const messageExists = cacheEntry.messages.some(
               (msg) => msg.id === newMessage.id
             );
-            if (!messageExists) {
+            if (!messageExists && !isOwnMessage) {
               // Add to cache (append if top-level, or insert in thread if it's a thread reply)
               if (newMessage.parent_message_id) {
                 // Thread reply - we'll handle this separately when thread is open
@@ -318,9 +342,22 @@ export function MessagingContainer() {
                   messages: [...cacheEntry.messages, newMsg],
                 });
               }
+            } else if (newMessage.parent_message_id && !messageExists) {
+              // Still update thread reply count even for own messages
+              const updatedMessages = cacheEntry.messages.map((msg) =>
+                msg.id === newMessage.parent_message_id
+                  ? {
+                      ...msg,
+                      threadReplyCount: (msg.threadReplyCount || 0) + 1,
+                    }
+                  : msg
+              );
+              messagesCacheMap.set(newMessage.conversation_id, {
+                messages: updatedMessages,
+              });
             }
-          } else {
-            // No cache exists yet, create it with this message
+          } else if (!isOwnMessage) {
+            // No cache exists yet, create it with this message (only for other users)
             messagesCacheMap.set(newMessage.conversation_id, {
               messages: [newMsg],
             });
@@ -328,25 +365,27 @@ export function MessagingContainer() {
 
           // If it's the active conversation, also update the UI state
           if (newMessage.conversation_id === activeConversationIdRef.current) {
+            // Skip adding our own messages via realtime - we handle them via optimistic updates
+            // Only update thread reply counts for our own messages
+            const isOwnMessage =
+              newMessage.author_id === currentUserRef.current?.id;
+
             if (newMessage.parent_message_id) {
               // Thread reply
-              if (newMessage.parent_message_id === threadParentIdRef.current) {
-                // Update thread messages
+              if (
+                !isOwnMessage &&
+                newMessage.parent_message_id === threadParentIdRef.current
+              ) {
+                // Update thread messages (only for other users' messages)
                 setThreadMessages((prev) => {
                   const messageExists = prev.some(
-                    (msg) =>
-                      msg.id === newMessage.id ||
-                      (msg.content === newMessage.content &&
-                        Math.abs(
-                          new Date(msg.createdAt).getTime() -
-                            new Date(newMessage.created_at).getTime()
-                        ) < 2000)
+                    (msg) => msg.id === newMessage.id
                   );
                   if (messageExists) return prev;
                   return [...prev, newMsg];
                 });
               }
-              // Update thread reply count in main messages
+              // Update thread reply count in main messages (for all messages)
               setMessages((prev) =>
                 prev.map((msg) =>
                   msg.id === newMessage.parent_message_id
@@ -357,17 +396,11 @@ export function MessagingContainer() {
                     : msg
                 )
               );
-            } else {
-              // Top-level message
+            } else if (!isOwnMessage) {
+              // Top-level message from other users
               setMessages((prev) => {
                 const messageExists = prev.some(
-                  (msg) =>
-                    msg.id === newMessage.id ||
-                    (msg.content === newMessage.content &&
-                      Math.abs(
-                        new Date(msg.createdAt).getTime() -
-                          new Date(newMessage.created_at).getTime()
-                      ) < 2000)
+                  (msg) => msg.id === newMessage.id
                 );
                 if (messageExists) return prev;
                 return [...prev, newMsg];
@@ -375,10 +408,7 @@ export function MessagingContainer() {
             }
 
             // Mark as read if viewing (but don't refetch messages)
-            if (
-              newMessage.author_id !== currentUserRef.current?.id &&
-              newMessage.conversation_id
-            ) {
+            if (!isOwnMessage && newMessage.conversation_id) {
               markAsRead(newMessage.conversation_id).catch(console.error);
             }
           }
@@ -400,6 +430,10 @@ export function MessagingContainer() {
                           content: newMessage.content,
                           createdAt: new Date(newMessage.created_at),
                           readBy: [],
+                          fileUrl: newMessage.file_url || null,
+                          fileName: newMessage.file_name || null,
+                          fileType: newMessage.file_type || null,
+                          fileSize: newMessage.file_size || null,
                         },
                     updatedAt: new Date(newMessage.created_at),
                     unreadCount:
@@ -492,12 +526,18 @@ export function MessagingContainer() {
     };
   }, [currentUser?.id]);
 
-  // Handle sending message
-  const handleSendMessage = async (
+  // Handle sending a single message (internal)
+  const sendSingleMessage = async (
     content: string,
-    parentMessageId?: string
-  ) => {
-    if (!activeConversationId || !content.trim() || !currentUser) return;
+    parentMessageId?: string,
+    file?: File
+  ): Promise<boolean> => {
+    if (!activeConversationId || !currentUser) return false;
+
+    const hasContent = content.trim().length > 0;
+    const hasFile = file !== undefined;
+
+    if (!hasContent && !hasFile) return false;
 
     const messageContent = content.trim();
 
@@ -513,6 +553,11 @@ export function MessagingContainer() {
       parentMessageId: parentMessageId || null,
       threadReplyCount: 0,
       readBy: [],
+      // Add file info optimistically if file is present
+      fileUrl: file ? URL.createObjectURL(file) : null,
+      fileName: file?.name || null,
+      fileType: file?.type || null,
+      fileSize: file?.size || null,
     };
 
     if (parentMessageId) {
@@ -525,10 +570,44 @@ export function MessagingContainer() {
 
     try {
       setIsSendingMessage(true);
+
+      // Upload file if present
+      let fileAttachment: FileAttachment | undefined;
+      if (file) {
+        try {
+          const uploadResult = await uploadFile(
+            file,
+            currentUser.id,
+            activeConversationId
+          );
+          fileAttachment = {
+            url: uploadResult.url,
+            name: uploadResult.fileName,
+            type: uploadResult.fileType,
+            size: uploadResult.fileSize,
+          };
+        } catch (uploadError) {
+          console.error("File upload failed:", uploadError);
+          toast.error("Failed to upload file");
+          // Remove optimistic message on upload failure
+          if (parentMessageId) {
+            setThreadMessages((prev) =>
+              prev.filter((msg) => msg.id !== optimisticMessage.id)
+            );
+          } else {
+            setMessages((prev) =>
+              prev.filter((msg) => msg.id !== optimisticMessage.id)
+            );
+          }
+          return false;
+        }
+      }
+
       const sentMessage = await sendMessage(
         activeConversationId,
         messageContent,
-        parentMessageId
+        parentMessageId,
+        fileAttachment
       );
 
       if (sentMessage) {
@@ -588,6 +667,10 @@ export function MessagingContainer() {
                         content: sentMessage.content,
                         createdAt: sentMessage.createdAt,
                         readBy: [],
+                        fileUrl: sentMessage.fileUrl || null,
+                        fileName: sentMessage.fileName || null,
+                        fileType: sentMessage.fileType || null,
+                        fileSize: sentMessage.fileSize || null,
                       },
                   updatedAt: sentMessage.createdAt,
                 }
@@ -599,6 +682,7 @@ export function MessagingContainer() {
 
           return updated;
         });
+        return true;
       } else {
         // If send failed, remove optimistic message
         if (parentMessageId) {
@@ -610,6 +694,7 @@ export function MessagingContainer() {
             prev.filter((msg) => msg.id !== optimisticMessage.id)
           );
         }
+        return false;
       }
     } catch (error) {
       console.error("Error sending message:", error);
@@ -624,9 +709,48 @@ export function MessagingContainer() {
         );
       }
       toast.error("Failed to send message");
+      return false;
     } finally {
       setIsSendingMessage(false);
     }
+  };
+
+  // Handle sending message with multiple files (each file as separate message)
+  const handleSendMessage = async (
+    content: string,
+    parentMessageId?: string,
+    files?: File[]
+  ) => {
+    if (!activeConversationId || !currentUser) return;
+
+    const hasContent = content.trim().length > 0;
+    const hasFiles = files && files.length > 0;
+
+    if (!hasContent && !hasFiles) return;
+
+    // If no files, just send the text message
+    if (!hasFiles) {
+      await sendSingleMessage(content, parentMessageId);
+      return;
+    }
+
+    // If we have files, send each as a separate message
+    // First message gets the text content, subsequent messages are file-only
+    setIsSendingMessage(true);
+
+    for (let i = 0; i < files.length; i++) {
+      const isFirstMessage = i === 0;
+      const messageContent = isFirstMessage ? content : "";
+
+      await sendSingleMessage(messageContent, parentMessageId, files[i]);
+
+      // Small delay between messages to ensure order
+      if (i < files.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    }
+
+    setIsSendingMessage(false);
   };
 
   // Handle creating new channel
@@ -831,6 +955,35 @@ export function MessagingContainer() {
                   )}
                 </div>
               </div>
+              {/* Header Buttons */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowFilesModal(true)}
+                  className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition flex items-center gap-2"
+                  title="View shared files"
+                >
+                  <FolderOpen size={20} />
+                  <span className="text-sm hidden sm:inline">Files</span>
+                </button>
+                <button
+                  onClick={() => setShowRemindersModal(true)}
+                  className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition flex items-center gap-2 relative"
+                  title="View tasks"
+                >
+                  <ListTodo size={20} />
+                  <span className="text-sm hidden sm:inline">Tasks</span>
+                  {reminders.filter((r) => r.status === "pending").length >
+                    0 && (
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-purple-600 rounded-full text-white text-xs flex items-center justify-center font-semibold">
+                      {reminders.filter((r) => r.status === "pending").length >
+                      9
+                        ? "9+"
+                        : reminders.filter((r) => r.status === "pending")
+                            .length}
+                    </span>
+                  )}
+                </button>
+              </div>
             </div>
 
             {/* Messages */}
@@ -852,7 +1005,9 @@ export function MessagingContainer() {
             {/* Message Input */}
             <div className="flex-shrink-0">
               <MessageInput
-                onSend={(content) => handleSendMessage(content)}
+                onSend={(content, files) =>
+                  handleSendMessage(content, undefined, files)
+                }
                 isLoading={isSendingMessage}
                 participants={activeConversation.participants}
               />
@@ -879,8 +1034,8 @@ export function MessagingContainer() {
               setThreadParentId(null);
               setThreadMessages([]);
             }}
-            onSendReply={(content) =>
-              handleSendMessage(content, threadParentId)
+            onSendReply={(content, files) =>
+              handleSendMessage(content, threadParentId, files)
             }
             isLoading={isSendingMessage}
           />
@@ -907,6 +1062,24 @@ export function MessagingContainer() {
           onCreateDM={handleCreateDM}
         />
       )}
+
+      {/* Files Modal */}
+      {activeConversation && (
+        <FilesModal
+          isOpen={showFilesModal}
+          onClose={() => setShowFilesModal(false)}
+          conversationId={activeConversation.id}
+          conversationName={getConversationDisplayName(activeConversation)}
+        />
+      )}
+
+      {/* Reminders Modal */}
+      <RemindersModal
+        isOpen={showRemindersModal}
+        onClose={() => setShowRemindersModal(false)}
+        reminders={reminders}
+        setReminders={setReminders}
+      />
     </div>
   );
 }

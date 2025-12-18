@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { AIChatInput } from "@/components/ui/ai-chat-input";
 import {
   CheckSquare,
@@ -15,15 +15,11 @@ import { motion, AnimatePresence } from "motion/react";
 import { MessageLoading } from "@/components/ui/message-loading";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import {
-  RemindersContainer,
-  type Reminder,
-} from "@/components/reminders/RemindersContainer";
+import { TasksSummaryWidget } from "@/components/reminders/TasksSummaryWidget";
+import { RemindersModal } from "@/components/reminders/RemindersModal";
+import type { Reminder } from "@/lib/supabase/reminders";
 import { robustFetch } from "@/lib/utils/fetch";
-import {
-  getStorageItem,
-  setStorageItem,
-} from "@/lib/utils/storage";
+import { getStorageItem, setStorageItem } from "@/lib/utils/storage";
 
 interface Message {
   id: string;
@@ -45,6 +41,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
   const [sessionId, setSessionId] = useState<string | null>(() => {
     return getStorageItem("chatSessionId");
   });
+  const [showRemindersModal, setShowRemindersModal] = useState(false);
 
   // Get or generate sessionId
   const getSessionId = (): string => {
@@ -315,24 +312,28 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
       <div className="absolute inset-0 bg-gradient-to-b from-purple-950/40 via-black to-black" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-purple-600/15 via-pink-500/10 via-blue-500/10 to-orange-500/10" />
 
-      {/* Reminders Section - 1/3 width (Left) */}
-      <div className="relative z-10 w-1/3 h-full">
-        <RemindersContainer reminders={reminders} setReminders={setReminders} />
+      {/* Tasks Summary Widget - Collapsible (Left) */}
+      <div className="relative z-10 h-full">
+        <TasksSummaryWidget
+          reminders={reminders}
+          setReminders={setReminders}
+          onOpenModal={() => setShowRemindersModal(true)}
+        />
       </div>
 
-      {/* Chat Section - 2/3 width (Right) */}
-      <div className="relative z-10 w-2/3 flex flex-col items-center justify-center px-4 py-4 overflow-hidden">
-        <div className="w-full max-w-4xl flex flex-col items-center justify-center space-y-4 py-8">
+      {/* Chat Section - Flex grow (Right) */}
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 py-6 overflow-hidden">
+        <div className="w-full max-w-5xl flex flex-col items-center justify-center space-y-6 py-8">
           {/* Header Section */}
-          <div className="text-center space-y-2 shrink-0 mt-8">
-            <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">
+          <div className="text-center space-y-3 shrink-0 mt-4">
+            <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight">
               Katalyst Concierge
             </h1>
-            <p className="text-sm md:text-base text-gray-400 font-light">
+            <p className="text-base md:text-lg text-gray-400 font-light">
               Ask me about tasks, deadlines, or team updates — just start typing
               below.
             </p>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-sm text-gray-500 mt-2">
               Logged in as: {user?.fullname || user?.email}
               {user?.accountType && (
                 <span className="ml-2 text-gray-400">({user.accountType})</span>
@@ -346,11 +347,11 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.2 }}
-              className="w-full max-w-3xl mx-auto h-[400px] overflow-y-auto px-2 custom-scrollbar"
+              className="w-full max-w-4xl mx-auto h-[450px] overflow-y-auto px-4 custom-scrollbar"
             >
-              <div className="flex flex-col justify-end min-h-full py-2">
+              <div className="flex flex-col justify-end min-h-full py-3">
                 <AnimatePresence>
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {messages.map((message) => (
                       <motion.div
                         key={message.id}
@@ -365,11 +366,11 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
                         }`}
                       >
                         {message.type === "user" ? (
-                          <div className="bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 text-white px-4 py-2.5 rounded-2xl rounded-tr-sm max-w-[80%] shadow-lg">
-                            <p className="text-sm font-medium break-words">
+                          <div className="bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 text-white px-5 py-3 rounded-2xl rounded-tr-sm max-w-[75%] shadow-lg">
+                            <p className="text-base font-medium break-words">
                               {message.text}
                             </p>
-                            <p className="text-xs text-white/70 mt-1 text-right">
+                            <p className="text-xs text-white/70 mt-1.5 text-right">
                               {message.timestamp.toLocaleTimeString([], {
                                 hour: "2-digit",
                                 minute: "2-digit",
@@ -377,11 +378,11 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
                             </p>
                           </div>
                         ) : (
-                          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 text-gray-300 px-4 py-2.5 rounded-2xl rounded-tl-sm max-w-[80%] shadow-lg">
-                            <p className="text-sm font-medium break-words">
+                          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 text-gray-300 px-5 py-3 rounded-2xl rounded-tl-sm max-w-[75%] shadow-lg">
+                            <p className="text-base font-medium break-words">
                               {message.text}
                             </p>
-                            <p className="text-xs text-gray-400 mt-1 text-left">
+                            <p className="text-sm text-gray-400 mt-1.5 text-left">
                               {message.timestamp.toLocaleTimeString([], {
                                 hour: "2-digit",
                                 minute: "2-digit",
@@ -399,9 +400,9 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
                         transition={{ duration: 0.2 }}
                         className="flex justify-start"
                       >
-                        <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 text-gray-300 px-4 py-3 rounded-2xl rounded-tl-sm max-w-[80%] shadow-lg flex items-center gap-2">
+                        <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 text-gray-300 px-5 py-3.5 rounded-2xl rounded-tl-sm max-w-[75%] shadow-lg flex items-center gap-3">
                           <MessageLoading />
-                          <span className="text-sm">Thinking...</span>
+                          <span className="text-base">Thinking...</span>
                         </div>
                       </motion.div>
                     )}
@@ -422,7 +423,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
           </div>
 
           {/* Quick Action Buttons */}
-          <div className="flex flex-wrap justify-center gap-3 mt-2 mb-4 shrink-0">
+          <div className="flex flex-wrap justify-center gap-4 mt-4 mb-6 shrink-0">
             {quickActions.map((action, index) => {
               const Icon = action.icon;
               return (
@@ -432,19 +433,27 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
                     setChatInputValue(action.message);
                     setTimeout(() => setChatInputValue(null), 0);
                   }}
-                  className={`group relative flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-900/50 backdrop-blur-sm border border-gray-800/50 text-gray-300 hover:text-white hover:border-gray-700 transition-all duration-200 hover:scale-105 ${action.color} hover:bg-gradient-to-r cursor-pointer`}
+                  className={`group relative flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-gray-900/50 backdrop-blur-sm border border-gray-800/50 text-gray-300 hover:text-white hover:border-gray-700 transition-all duration-200 hover:scale-105 ${action.color} hover:bg-gradient-to-r cursor-pointer`}
                 >
                   <Icon
-                    size={16}
+                    size={18}
                     className="opacity-70 group-hover:opacity-100 transition-opacity"
                   />
-                  <span className="text-sm font-medium">{action.label}</span>
+                  <span className="text-base font-medium">{action.label}</span>
                 </button>
               );
             })}
           </div>
         </div>
       </div>
+
+      {/* Reminders Modal - Same modal as Messages tab */}
+      <RemindersModal
+        isOpen={showRemindersModal}
+        onClose={() => setShowRemindersModal(false)}
+        reminders={reminders}
+        setReminders={setReminders}
+      />
     </div>
   );
 }

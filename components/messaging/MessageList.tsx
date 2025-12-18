@@ -1,18 +1,151 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { Download, FileText, Image as ImageIcon, Archive, File, X } from "lucide-react";
 import type {
   Message,
   ConversationParticipant,
 } from "@/lib/supabase/messaging";
 import { formatMentions } from "@/lib/utils/mentions";
+import { formatFileSize, isImageFile } from "@/lib/supabase/file-upload";
 
 interface MessageListProps {
   messages: Message[];
   participants: ConversationParticipant[];
   currentUserId: string;
   onMessageClick: (messageId: string) => void;
+}
+
+// Image lightbox component
+function ImageLightbox({
+  src,
+  alt,
+  onClose,
+}: {
+  src: string;
+  alt: string;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
+  }, [onClose]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 p-2 bg-gray-800 rounded-full text-white hover:bg-gray-700 transition"
+      >
+        <X size={24} />
+      </button>
+      <img
+        src={src}
+        alt={alt}
+        className="max-w-full max-h-full object-contain rounded-lg"
+        onClick={(e) => e.stopPropagation()}
+      />
+    </motion.div>
+  );
+}
+
+// File attachment display component
+function FileAttachment({
+  fileUrl,
+  fileName,
+  fileType,
+  fileSize,
+  isOwnMessage,
+}: {
+  fileUrl: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  isOwnMessage: boolean;
+}) {
+  const [showLightbox, setShowLightbox] = useState(false);
+  const isImage = isImageFile(fileType);
+
+  const getFileIcon = () => {
+    if (isImage) return <ImageIcon size={20} className="text-blue-400" />;
+    if (fileType.includes("pdf") || fileType.includes("word") || fileType.includes("text"))
+      return <FileText size={20} className="text-orange-400" />;
+    if (fileType.includes("zip") || fileType.includes("rar") || fileType.includes("7z"))
+      return <Archive size={20} className="text-yellow-400" />;
+    return <File size={20} className="text-gray-400" />;
+  };
+
+  if (isImage) {
+    return (
+      <>
+        <div className="mt-2 relative group">
+          <img
+            src={fileUrl}
+            alt={fileName}
+            className="max-w-[300px] max-h-[200px] object-cover rounded-lg cursor-pointer hover:opacity-90 transition"
+            onClick={() => setShowLightbox(true)}
+          />
+          <a
+            href={fileUrl}
+            download={fileName}
+            onClick={(e) => e.stopPropagation()}
+            className="absolute top-2 right-2 p-1.5 bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition hover:bg-black/80"
+            title="Download"
+          >
+            <Download size={16} className="text-white" />
+          </a>
+        </div>
+        <AnimatePresence>
+          {showLightbox && (
+            <ImageLightbox
+              src={fileUrl}
+              alt={fileName}
+              onClose={() => setShowLightbox(false)}
+            />
+          )}
+        </AnimatePresence>
+      </>
+    );
+  }
+
+  // Non-image file
+  return (
+    <div
+      className={`mt-2 p-3 rounded-lg flex items-center gap-3 ${
+        isOwnMessage
+          ? "bg-white/10"
+          : "bg-gray-700/50 border border-gray-600"
+      }`}
+    >
+      <div className="flex-shrink-0">{getFileIcon()}</div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium truncate">{fileName}</p>
+        <p className="text-xs opacity-70">{formatFileSize(fileSize)}</p>
+      </div>
+      <a
+        href={fileUrl}
+        download={fileName}
+        className={`p-2 rounded-full transition flex-shrink-0 ${
+          isOwnMessage
+            ? "hover:bg-white/20 text-white"
+            : "hover:bg-gray-600 text-gray-300"
+        }`}
+        title="Download"
+      >
+        <Download size={18} />
+      </a>
+    </div>
+  );
 }
 
 export function MessageList({
@@ -61,6 +194,9 @@ export function MessageList({
           const prevMessage = index > 0 ? messages[index - 1] : null;
           const showAvatar =
             !prevMessage || prevMessage.authorId !== message.authorId;
+
+          const hasFile = message.fileUrl && message.fileName;
+          const hasContent = message.content && message.content.trim().length > 0;
 
           return (
             <motion.div
@@ -111,16 +247,30 @@ export function MessageList({
                   }`}
                   onClick={() => onMessageClick(message.id)}
                 >
-                  <div className="text-sm whitespace-pre-wrap break-words">
-                    {formatMentions(
-                      message.content,
-                      participants.map((p) => ({
-                        id: p.userId,
-                        email: p.email,
-                        fullname: p.fullname,
-                      }))
-                    )}
-                  </div>
+                  {/* Text content */}
+                  {hasContent && (
+                    <div className="text-sm whitespace-pre-wrap break-words">
+                      {formatMentions(
+                        message.content,
+                        participants.map((p) => ({
+                          id: p.userId,
+                          email: p.email,
+                          fullname: p.fullname,
+                        }))
+                      )}
+                    </div>
+                  )}
+
+                  {/* File attachment */}
+                  {hasFile && (
+                    <FileAttachment
+                      fileUrl={message.fileUrl!}
+                      fileName={message.fileName!}
+                      fileType={message.fileType || "application/octet-stream"}
+                      fileSize={message.fileSize || 0}
+                      isOwnMessage={isOwnMessage}
+                    />
+                  )}
                 </div>
 
                 {/* Timestamp */}

@@ -101,7 +101,7 @@ const AIChatInput = ({
 
   const containerVariants = {
     collapsed: {
-      height: 66,
+      height: 72,
 
       boxShadow: "0 2px 8px 0 rgba(0,0,0,0.08)",
 
@@ -109,7 +109,7 @@ const AIChatInput = ({
     },
 
     expanded: {
-      height: 120,
+      height: 140,
 
       boxShadow: "0 8px 32px 0 rgba(0,0,0,0.16)",
 
@@ -171,7 +171,7 @@ const AIChatInput = ({
     <div className="w-full flex justify-center items-center">
       <motion.div
         ref={wrapperRef}
-        className="w-full max-w-3xl"
+        className="w-full max-w-4xl"
         variants={containerVariants as Variants}
         animate="collapsed"
         initial="collapsed"
@@ -187,7 +187,7 @@ const AIChatInput = ({
         <div className="flex flex-col items-stretch w-full h-full">
           {/* Input Row */}
 
-          <div className="flex items-center gap-2 px-6 py-3 rounded-xl max-w-3xl w-full">
+          <div className="flex items-center gap-3 px-6 py-4 rounded-xl max-w-4xl w-full">
             {/* Text Input & Placeholder */}
 
             <div className="relative flex-1">
@@ -243,7 +243,7 @@ const AIChatInput = ({
             </div>
 
             <button
-              className="flex items-center gap-1 bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 hover:from-purple-500 hover:via-pink-400 hover:to-orange-400 text-white p-2.5 rounded-full font-medium justify-center transition-all shadow-lg shadow-purple-500/30 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-1 bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 hover:from-purple-500 hover:via-pink-400 hover:to-orange-400 text-white p-3 rounded-full font-medium justify-center transition-all shadow-lg shadow-purple-500/30 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               title="Send"
               type="button"
               onClick={handleSend}
@@ -251,9 +251,9 @@ const AIChatInput = ({
               tabIndex={-1}
             >
               {isLoading ? (
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
-                <Send size={16} />
+                <Send size={20} />
               )}
             </button>
           </div>

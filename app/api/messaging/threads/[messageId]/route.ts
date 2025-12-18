@@ -127,6 +127,10 @@ export async function GET(
         parent_message_id: msg.parent_message_id,
         thread_reply_count: 0,
         read_by: readByMap.get(msg.id) || [],
+        file_url: msg.file_url || null,
+        file_name: msg.file_name || null,
+        file_type: msg.file_type || null,
+        file_size: msg.file_size || null,
       };
     });
 
@@ -139,6 +143,7 @@ export async function GET(
     );
   }
 }
+
 
 
 

@@ -60,6 +60,11 @@ export interface Message {
   parentMessageId?: string | null;
   threadReplyCount?: number;
   readBy: string[];
+  // File attachment fields
+  fileUrl?: string | null;
+  fileName?: string | null;
+  fileType?: string | null;
+  fileSize?: number | null;
 }
 
 /**
@@ -106,6 +111,10 @@ export async function getConversations(): Promise<Conversation[]> {
             content: conv.last_message.content,
             createdAt: new Date(conv.last_message.created_at),
             readBy: [],
+            fileUrl: conv.last_message.file_url || null,
+            fileName: conv.last_message.file_name || null,
+            fileType: conv.last_message.file_type || null,
+            fileSize: conv.last_message.file_size || null,
           }
         : undefined,
       unreadCount: conv.unread_count || 0,
@@ -153,6 +162,10 @@ export async function getMessages(
       parentMessageId: msg.parent_message_id,
       threadReplyCount: msg.thread_reply_count || 0,
       readBy: msg.read_by || [],
+      fileUrl: msg.file_url || null,
+      fileName: msg.file_name || null,
+      fileType: msg.file_type || null,
+      fileSize: msg.file_size || null,
     }));
   } catch (error) {
     if (isDev) console.error("Error in getMessages:", error);
@@ -195,11 +208,22 @@ export async function getThreadMessages(
       parentMessageId: msg.parent_message_id,
       threadReplyCount: 0,
       readBy: msg.read_by || [],
+      fileUrl: msg.file_url || null,
+      fileName: msg.file_name || null,
+      fileType: msg.file_type || null,
+      fileSize: msg.file_size || null,
     }));
   } catch (error) {
     if (isDev) console.error("Error in getThreadMessages:", error);
     throw error;
   }
+}
+
+export interface FileAttachment {
+  url: string;
+  name: string;
+  type: string;
+  size: number;
 }
 
 /**
@@ -208,7 +232,8 @@ export async function getThreadMessages(
 export async function sendMessage(
   conversationId: string,
   content: string,
-  parentMessageId?: string
+  parentMessageId?: string,
+  fileAttachment?: FileAttachment
 ): Promise<Message | null> {
   try {
     const headers = await getAuthHeaders();
@@ -220,6 +245,10 @@ export async function sendMessage(
         body: JSON.stringify({
           content: content.trim(),
           parent_message_id: parentMessageId || null,
+          file_url: fileAttachment?.url || null,
+          file_name: fileAttachment?.name || null,
+          file_type: fileAttachment?.type || null,
+          file_size: fileAttachment?.size || null,
         }),
         retries: 0, // No retries for POST to prevent duplicates
         timeout: 15000,
@@ -245,6 +274,10 @@ export async function sendMessage(
       parentMessageId: data.message.parent_message_id,
       threadReplyCount: 0,
       readBy: [],
+      fileUrl: data.message.file_url || null,
+      fileName: data.message.file_name || null,
+      fileType: data.message.file_type || null,
+      fileSize: data.message.file_size || null,
     };
   } catch (error) {
     if (isDev) console.error("Error in sendMessage:", error);
