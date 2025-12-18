@@ -146,7 +146,6 @@ export function MessageInput({
             scrollbarColor: "rgba(107, 114, 128, 0.3) transparent",
           }}
           rows={1}
-          disabled={isLoading}
         />
         <button
           onClick={handleSend}
