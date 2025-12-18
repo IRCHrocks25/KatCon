@@ -61,11 +61,6 @@ export function MessageList({
           const prevMessage = index > 0 ? messages[index - 1] : null;
           const showAvatar =
             !prevMessage || prevMessage.authorId !== message.authorId;
-          const showTimestamp =
-            !prevMessage ||
-            new Date(message.createdAt).getTime() -
-              new Date(prevMessage.createdAt).getTime() >
-              300000; // 5 minutes
 
           return (
             <motion.div
@@ -129,18 +124,16 @@ export function MessageList({
                 </div>
 
                 {/* Timestamp */}
-                {showTimestamp && (
-                  <div
-                    className={`text-xs text-gray-500 mt-1 px-2 ${
-                      isOwnMessage ? "text-right" : "text-left"
-                    }`}
-                  >
-                    {new Date(message.createdAt).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </div>
-                )}
+                <div
+                  className={`text-[10px] text-gray-500 mt-1 px-2 ${
+                    isOwnMessage ? "text-right" : "text-left"
+                  }`}
+                >
+                  {new Date(message.createdAt).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </div>
 
                 {/* Thread replies count */}
                 {(message.threadReplyCount || 0) > 0 && (

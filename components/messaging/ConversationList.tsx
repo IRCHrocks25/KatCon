@@ -6,15 +6,17 @@ import type { Conversation } from "@/lib/supabase/messaging";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface ConversationListProps {
-  conversations: Conversation[];
-  activeConversationId: string | null;
-  onSelectConversation: (conversationId: string) => void;
+  readonly conversations: Conversation[];
+  readonly activeConversationId: string | null;
+  readonly onSelectConversation: (conversationId: string) => void;
+  readonly onOpenChannelSettings?: (conversationId: string) => void;
 }
 
 export function ConversationList({
   conversations,
   activeConversationId,
   onSelectConversation,
+  onOpenChannelSettings,
 }: ConversationListProps) {
   const { user: currentUser } = useAuth();
 
@@ -81,12 +83,45 @@ export function ConversationList({
               whileTap={{ scale: 0.98 }}
             >
               <div className="flex items-center gap-2 mb-1">
-                <Hash size={16} className="text-gray-400 flex-shrink-0" />
+                <Hash size={16} className="text-gray-400 shrink-0" />
                 <span className="text-white font-medium truncate flex-1">
                   {getConversationName(conversation)}
                 </span>
+                {onOpenChannelSettings && (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    className="text-gray-500 hover:text-gray-300 px-1 text-xs cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenChannelSettings(conversation.id);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onOpenChannelSettings(conversation.id);
+                      }
+                    }}
+                    title="Channel settings"
+                  >
+                    ⋯
+                  </span>
+                )}
+                {/* Visibility / join badges */}
+                {!conversation.isPrivate && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full border border-purple-500/60 text-purple-300 mr-1">
+                    Public
+                  </span>
+                )}
+                {conversation.type === "channel" &&
+                  conversation.isJoined === false && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-600 text-white mr-1">
+                      Not joined
+                    </span>
+                  )}
                 {Number(conversation.unreadCount || 0) > 0 && (
-                  <span className="bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full flex-shrink-0">
+                  <span className="bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full shrink-0">
                     {(conversation.unreadCount || 0) > 99
                       ? "99+"
                       : conversation.unreadCount || 0}
@@ -123,12 +158,12 @@ export function ConversationList({
               whileTap={{ scale: 0.98 }}
             >
               <div className="flex items-center gap-2 mb-1">
-                <Users size={16} className="text-gray-400 flex-shrink-0" />
+                <Users size={16} className="text-gray-400 shrink-0" />
                 <span className="text-white font-medium truncate flex-1">
                   {getConversationName(conversation)}
                 </span>
                 {Number(conversation.unreadCount || 0) > 0 && (
-                  <span className="bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full flex-shrink-0">
+                  <span className="bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full shrink-0">
                     {(conversation.unreadCount || 0) > 99
                       ? "99+"
                       : conversation.unreadCount || 0}

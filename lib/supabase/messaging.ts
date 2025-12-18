@@ -31,6 +31,17 @@ export interface Conversation {
   description?: string | null;
   type: "channel" | "dm";
   isPrivate: boolean;
+  /**
+   * Whether the current user is a participant in this conversation.
+   * For DMs and private channels this will almost always be true.
+   * For public channels, this can be false when the user has not joined yet.
+   */
+  isJoined?: boolean;
+  /**
+   * User ID of the creator/owner of the conversation (if available).
+   * Only the creator is allowed to manage channel membership.
+   */
+  createdBy?: string;
   createdAt: Date;
   updatedAt: Date;
   participants: ConversationParticipant[];
@@ -74,8 +85,14 @@ export async function getConversations(): Promise<Conversation[]> {
       id: conv.id,
       name: conv.name,
       description: conv.description,
-      type: conv.type,
-      isPrivate: conv.is_private,
+      type: conv.type as "channel" | "dm",
+      isPrivate: Boolean(conv.is_private),
+      isJoined:
+        typeof conv.is_joined === "boolean"
+          ? conv.is_joined
+          : // For backwards compatibility, assume joined unless explicitly false
+            true,
+      createdBy: conv.created_by || undefined,
       createdAt: new Date(conv.created_at),
       updatedAt: new Date(conv.updated_at),
       participants: conv.participants || [],
@@ -273,8 +290,10 @@ export async function createChannel(
       id: conv.id,
       name: conv.name,
       description: conv.description,
-      type: conv.type,
-      isPrivate: conv.is_private,
+      type: conv.type as "channel" | "dm",
+      isPrivate: Boolean(conv.is_private),
+      isJoined: true,
+      createdBy: conv.created_by || undefined,
       createdAt: new Date(conv.created_at),
       updatedAt: new Date(conv.updated_at),
       participants: conv.participants || [],
@@ -316,8 +335,10 @@ export async function createDM(userId: string): Promise<Conversation | null> {
       id: conv.id,
       name: conv.name,
       description: conv.description,
-      type: conv.type,
-      isPrivate: conv.is_private,
+      type: conv.type as "channel" | "dm",
+      isPrivate: Boolean(conv.is_private),
+      isJoined: true,
+      createdBy: conv.created_by || undefined,
       createdAt: new Date(conv.created_at),
       updatedAt: new Date(conv.updated_at),
       participants: conv.participants || [],
@@ -397,6 +418,147 @@ export async function getUnreadCount(
   } catch (error) {
     if (isDev) console.error("Error in getUnreadCount:", error);
     return 0;
+  }
+}
+
+/**
+ * Join a channel as the current user.
+ * Typically used for public channels where the user is not yet a participant.
+ */
+export async function joinChannel(conversationId: string): Promise<void> {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await robustFetch(
+      `/api/messaging/conversations/${conversationId}/participants`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({}),
+        retries: 0,
+        timeout: 10000,
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to join channel");
+    }
+  } catch (error) {
+    if (isDev) console.error("Error in joinChannel:", error);
+    throw error;
+  }
+}
+
+/**
+ * Leave a channel as the current user.
+ */
+export async function leaveChannel(conversationId: string): Promise<void> {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await robustFetch(
+      `/api/messaging/conversations/${conversationId}/participants`,
+      {
+        method: "DELETE",
+        headers,
+        body: JSON.stringify({}),
+        retries: 0,
+        timeout: 10000,
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to leave channel");
+    }
+  } catch (error) {
+    if (isDev) console.error("Error in leaveChannel:", error);
+    throw error;
+  }
+}
+
+/**
+ * Add a participant to a channel (admin/owner only).
+ */
+export async function addChannelParticipant(
+  conversationId: string,
+  userId: string
+): Promise<void> {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await robustFetch(
+      `/api/messaging/conversations/${conversationId}/participants`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ user_id: userId }),
+        retries: 0,
+        timeout: 10000,
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to add participant");
+    }
+  } catch (error) {
+    if (isDev) console.error("Error in addChannelParticipant:", error);
+    throw error;
+  }
+}
+
+/**
+ * Remove a participant from a channel (admin/owner only, or self-remove).
+ */
+export async function removeChannelParticipant(
+  conversationId: string,
+  userId: string
+): Promise<void> {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await robustFetch(
+      `/api/messaging/conversations/${conversationId}/participants`,
+      {
+        method: "DELETE",
+        headers,
+        body: JSON.stringify({ user_id: userId }),
+        retries: 0,
+        timeout: 10000,
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to remove participant");
+    }
+  } catch (error) {
+    if (isDev) console.error("Error in removeChannelParticipant:", error);
+    throw error;
+  }
+}
+
+/**
+ * Delete a channel (creator only). Removes all participants and messages.
+ */
+export async function deleteChannel(conversationId: string): Promise<void> {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await robustFetch(
+      `/api/messaging/conversations/${conversationId}`,
+      {
+        method: "DELETE",
+        headers,
+        retries: 0,
+        timeout: 15000,
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to delete channel");
+    }
+  } catch (error) {
+    if (isDev) console.error("Error in deleteChannel:", error);
+    throw error;
   }
 }
 
