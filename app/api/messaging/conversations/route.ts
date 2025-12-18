@@ -25,6 +25,15 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    // Service-role client for reading conversations (bypassing RLS) while still
+    // enforcing access rules in this API layer.
+    const adminSupabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+
     const {
       data: { user },
       error: userError,
@@ -38,7 +47,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get all conversations where user is a participant
-    const { data: participants, error: participantsError } = await supabase
+    const { data: participantRows, error: participantsError } = await supabase
       .from("conversation_participants")
       .select("conversation_id")
       .eq("user_id", user.id);
@@ -51,15 +60,46 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const conversationIds =
-      participants?.map((p) => p.conversation_id) || [];
+    const joinedConversationIds = new Set(
+      (participantRows || []).map((p) => p.conversation_id)
+    );
 
-    if (conversationIds.length === 0) {
+    // Get all public channels (visible to everyone).
+    // Use service role so RLS on conversations does not hide them.
+    const { data: publicChannels, error: publicChannelsError } =
+      await adminSupabase
+      .from("conversations")
+      .select("id")
+      .eq("type", "channel")
+      .eq("is_private", false);
+
+    if (publicChannelsError) {
+      console.error("Error fetching public channels:", publicChannelsError);
+      return NextResponse.json(
+        { error: "Failed to fetch conversations", conversations: [] },
+        { status: 500 }
+      );
+    }
+
+    const publicConversationIds = new Set(
+      (publicChannels || []).map((c) => c.id)
+    );
+
+    // Union of joined conversations and public channels
+    const allConversationIds = new Set<string>([
+      ...joinedConversationIds,
+      ...publicConversationIds,
+    ]);
+
+    if (allConversationIds.size === 0) {
       return NextResponse.json({ conversations: [] });
     }
 
-    // Get conversations
-    const { data: conversations, error: conversationsError } = await supabase
+    const conversationIds = Array.from(allConversationIds);
+
+    // Get conversations (both joined and public) with service role.
+    const { data: conversations, error: conversationsError } =
+      await adminSupabase
       .from("conversations")
       .select("*")
       .in("id", conversationIds)
@@ -73,7 +113,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get participants for each conversation
+    // Get participants for each conversation (for joined conversations only)
     const { data: allParticipants, error: allParticipantsError } =
       await supabase
         .from("conversation_participants")
@@ -157,8 +197,12 @@ export async function GET(request: NextRequest) {
 
     // Format response
     const formattedConversations = (conversations || []).map((conv) => {
-      const convParticipants =
-        allParticipants?.filter((p) => p.conversation_id === conv.id) || [];
+      const isJoined = joinedConversationIds.has(conv.id);
+
+      const convParticipants = isJoined
+        ? allParticipants?.filter((p) => p.conversation_id === conv.id) || []
+        : [];
+
       const participantProfiles = convParticipants
         .map((p) => {
           const profile = profileMap.get(p.user_id);
@@ -181,8 +225,10 @@ export async function GET(request: NextRequest) {
         description: conv.description,
         type: conv.type,
         is_private: conv.is_private,
+        is_joined: isJoined,
         created_at: conv.created_at,
         updated_at: conv.updated_at,
+        created_by: conv.created_by ?? null,
         participants: participantProfiles,
         last_message: lastMsg
           ? {
@@ -280,6 +326,7 @@ export async function POST(request: NextRequest) {
           name: name.trim(),
           description: description?.trim() || null,
           is_private: is_private || false,
+          created_by: user.id,
         })
         .select()
         .single();
@@ -325,6 +372,7 @@ export async function POST(request: NextRequest) {
           is_private: conversation.is_private,
           created_at: conversation.created_at,
           updated_at: conversation.updated_at,
+          created_by: conversation.created_by ?? user.id,
           participants:
             participantProfiles?.map((p) => ({
               userId: p.id,
@@ -403,6 +451,7 @@ export async function POST(request: NextRequest) {
                 is_private: conv?.is_private,
                 created_at: conv?.created_at,
                 updated_at: conv?.updated_at,
+                created_by: conv?.created_by ?? user.id,
                 participants:
                   profiles?.map((p) => ({
                     userId: p.id,
@@ -430,6 +479,7 @@ export async function POST(request: NextRequest) {
           name: null,
           description: null,
           is_private: true,
+          created_by: user.id,
         })
         .select()
         .single();
@@ -469,6 +519,7 @@ export async function POST(request: NextRequest) {
           is_private: conversation.is_private,
           created_at: conversation.created_at,
           updated_at: conversation.updated_at,
+          created_by: conversation.created_by ?? user.id,
           participants:
             participantProfiles?.map((p) => ({
               userId: p.id,

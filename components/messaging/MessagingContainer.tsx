@@ -12,6 +12,7 @@ import {
   sendMessage,
   createChannel,
   createDM,
+  joinChannel,
   markAsRead,
   type Conversation,
   type Message,
@@ -21,11 +22,16 @@ import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 import { ThreadPanel } from "./ThreadPanel";
 import { CreateChannelModal } from "./CreateChannelModal";
+import { ChannelSettingsDialog } from "./ChannelSettingsDialog";
 
 // Session cache for messages (persists until logout)
+// Module-level cache that survives component unmount/remount (e.g., tab switches)
 interface MessageCacheEntry {
   messages: Message[];
 }
+
+const messagesCacheMap = new Map<string, MessageCacheEntry>();
+let conversationsCache: Conversation[] | null = null;
 
 export function MessagingContainer() {
   const { user: currentUser } = useAuth();
@@ -40,10 +46,9 @@ export function MessagingContainer() {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [showCreateChannel, setShowCreateChannel] = useState(false);
-
-  // Session cache for messages (persists until logout)
-  const messagesCacheRef = useRef<Map<string, MessageCacheEntry>>(new Map());
-  const conversationsCacheRef = useRef<Conversation[] | null>(null);
+  const [showChannelSettingsForId, setShowChannelSettingsForId] = useState<
+    string | null
+  >(null);
 
   // Use refs to avoid dependency issues in realtime subscription
   const conversationsRef = useRef<Conversation[]>([]);
@@ -72,8 +77,8 @@ export function MessagingContainer() {
   useEffect(() => {
     if (!currentUser) {
       console.log("[MESSAGING] Clearing cache on logout");
-      messagesCacheRef.current.clear();
-      conversationsCacheRef.current = null;
+      messagesCacheMap.clear();
+      conversationsCache = null;
       setConversations([]);
       setMessages([]);
       setThreadMessages([]);
@@ -84,12 +89,10 @@ export function MessagingContainer() {
 
   // Fetch conversations with caching (only fetch if cache is empty)
   const fetchConversations = useCallback(async (forceRefresh = false) => {
-    const cache = conversationsCacheRef.current;
-
-    // Check cache first - use it if exists and not forcing refresh
-    if (!forceRefresh && cache && cache.length > 0) {
+    // Check module-level cache first - use it if exists and not forcing refresh
+    if (!forceRefresh && conversationsCache && conversationsCache.length > 0) {
       console.log("[MESSAGING] Using cached conversations");
-      setConversations(cache);
+      setConversations(conversationsCache);
       setIsLoadingConversations(false);
       return;
     }
@@ -99,8 +102,8 @@ export function MessagingContainer() {
       const fetchedConversations = await getConversations();
       setConversations(fetchedConversations);
 
-      // Update cache (persists until logout)
-      conversationsCacheRef.current = fetchedConversations;
+      // Update module-level cache (persists across tab switches)
+      conversationsCache = fetchedConversations;
     } catch (error) {
       console.error("Error fetching conversations:", error);
       toast.error("Failed to load conversations");
@@ -112,9 +115,9 @@ export function MessagingContainer() {
   // Fetch messages for active conversation with caching (only fetch if cache is empty)
   const fetchMessages = useCallback(
     async (conversationId: string, forceRefresh = false) => {
-      const cacheEntry = messagesCacheRef.current.get(conversationId);
+      const cacheEntry = messagesCacheMap.get(conversationId);
 
-      // Check cache first - use it if exists and not forcing refresh
+      // Check module-level cache first - use it if exists and not forcing refresh
       if (!forceRefresh && cacheEntry && cacheEntry.messages.length > 0) {
         console.log(
           "[MESSAGING] Using cached messages for conversation:",
@@ -133,8 +136,8 @@ export function MessagingContainer() {
         const fetchedMessages = await getMessages(conversationId);
         setMessages(fetchedMessages);
 
-        // Update cache (persists until logout)
-        messagesCacheRef.current.set(conversationId, {
+        // Update module-level cache (persists across tab switches)
+        messagesCacheMap.set(conversationId, {
           messages: fetchedMessages,
         });
 
@@ -168,6 +171,14 @@ export function MessagingContainer() {
     }
   }, [currentUser, fetchConversations]);
 
+  // Helper to refresh conversations (and cache) after structural changes
+  const refreshConversations = useCallback(
+    async () => {
+      await fetchConversations(true);
+    },
+    [fetchConversations]
+  );
+
   // Load messages when conversation is selected
   useEffect(() => {
     if (activeConversationId) {
@@ -178,6 +189,35 @@ export function MessagingContainer() {
       setMessages([]);
     }
   }, [activeConversationId, fetchMessages]);
+
+  const handleSelectConversation = async (conversationId: string) => {
+    const conversation = conversations.find((c) => c.id === conversationId);
+    if (!conversation) {
+      setActiveConversationId(conversationId);
+      return;
+    }
+
+    // For public channels where the user is not joined yet, join first
+    if (
+      conversation.type === "channel" &&
+      !conversation.isPrivate &&
+      conversation.isJoined === false
+    ) {
+      try {
+        toast.info("Joining channel...");
+        await joinChannel(conversation.id);
+        await refreshConversations();
+      } catch (error) {
+        console.error("Error joining channel:", error);
+        toast.error(
+          error instanceof Error ? error.message : "Failed to join channel"
+        );
+        return;
+      }
+    }
+
+    setActiveConversationId(conversationId);
+  };
 
   // Load thread messages when thread is opened
   useEffect(() => {
@@ -250,9 +290,7 @@ export function MessagingContainer() {
           };
 
           // Always update the cache for this conversation (even if not active)
-          const cacheEntry = messagesCacheRef.current.get(
-            newMessage.conversation_id
-          );
+          const cacheEntry = messagesCacheMap.get(newMessage.conversation_id);
           if (cacheEntry) {
             // Check if message already exists in cache
             const messageExists = cacheEntry.messages.some(
@@ -271,19 +309,19 @@ export function MessagingContainer() {
                       }
                     : msg
                 );
-                messagesCacheRef.current.set(newMessage.conversation_id, {
+                messagesCacheMap.set(newMessage.conversation_id, {
                   messages: updatedMessages,
                 });
               } else {
                 // Top-level message
-                messagesCacheRef.current.set(newMessage.conversation_id, {
+                messagesCacheMap.set(newMessage.conversation_id, {
                   messages: [...cacheEntry.messages, newMsg],
                 });
               }
             }
           } else {
             // No cache exists yet, create it with this message
-            messagesCacheRef.current.set(newMessage.conversation_id, {
+            messagesCacheMap.set(newMessage.conversation_id, {
               messages: [newMsg],
             });
           }
@@ -374,8 +412,8 @@ export function MessagingContainer() {
                 : conv
             );
 
-            // Update conversations cache
-            conversationsCacheRef.current = updated;
+            // Update module-level conversations cache
+            conversationsCache = updated;
 
             return updated;
           });
@@ -410,18 +448,15 @@ export function MessagingContainer() {
                   : msg
               );
 
-              // Update cache
+              // Update module-level cache
               if (activeConversationIdRef.current) {
-                const cacheEntry = messagesCacheRef.current.get(
+                const cacheEntry = messagesCacheMap.get(
                   activeConversationIdRef.current
                 );
                 if (cacheEntry) {
-                  messagesCacheRef.current.set(
-                    activeConversationIdRef.current,
-                    {
-                      messages: updated,
-                    }
-                  );
+                  messagesCacheMap.set(activeConversationIdRef.current, {
+                    messages: updated,
+                  });
                 }
               }
 
@@ -512,8 +547,8 @@ export function MessagingContainer() {
           );
         }
 
-        // Update cache
-        const cacheEntry = messagesCacheRef.current.get(activeConversationId);
+        // Update module-level cache
+        const cacheEntry = messagesCacheMap.get(activeConversationId);
         if (cacheEntry) {
           if (parentMessageId) {
             // Update thread reply count in parent message
@@ -522,7 +557,7 @@ export function MessagingContainer() {
                 ? { ...msg, threadReplyCount: (msg.threadReplyCount || 0) + 1 }
                 : msg
             );
-            messagesCacheRef.current.set(activeConversationId, {
+            messagesCacheMap.set(activeConversationId, {
               messages: updatedMessages,
             });
           } else {
@@ -530,7 +565,7 @@ export function MessagingContainer() {
             const updatedMessages = cacheEntry.messages.map((msg) =>
               msg.id === optimisticMessage.id ? sentMessage : msg
             );
-            messagesCacheRef.current.set(activeConversationId, {
+            messagesCacheMap.set(activeConversationId, {
               messages: updatedMessages,
             });
           }
@@ -559,8 +594,8 @@ export function MessagingContainer() {
               : conv
           );
 
-          // Update conversations cache
-          conversationsCacheRef.current = updated;
+          // Update module-level conversations cache
+          conversationsCache = updated;
 
           return updated;
         });
@@ -614,7 +649,7 @@ export function MessagingContainer() {
       if (conversation) {
         setConversations((prev) => {
           const updated = [conversation, ...prev];
-          conversationsCacheRef.current = updated;
+          conversationsCache = updated;
           return updated;
         });
         setActiveConversationId(conversation.id);
@@ -655,7 +690,7 @@ export function MessagingContainer() {
       if (conversation) {
         setConversations((prev) => {
           const updated = [conversation, ...prev];
-          conversationsCacheRef.current = updated;
+          conversationsCache = updated;
           return updated;
         });
         setActiveConversationId(conversation.id);
@@ -754,7 +789,10 @@ export function MessagingContainer() {
           <ConversationList
             conversations={conversations}
             activeConversationId={activeConversationId}
-            onSelectConversation={setActiveConversationId}
+            onSelectConversation={handleSelectConversation}
+            onOpenChannelSettings={(conversationId) =>
+              setShowChannelSettingsForId(conversationId)
+            }
           />
         )}
       </div>
@@ -848,6 +886,18 @@ export function MessagingContainer() {
           />
         )}
       </div>
+
+      {/* Channel Settings Dialog */}
+      <ChannelSettingsDialog
+        open={Boolean(showChannelSettingsForId)}
+        conversation={
+          conversations.find((c) => c.id === showChannelSettingsForId) || null
+        }
+        onClose={() => setShowChannelSettingsForId(null)}
+        onParticipantsChanged={async () => {
+          await refreshConversations();
+        }}
+      />
 
       {/* Create Channel Modal */}
       {showCreateChannel && (

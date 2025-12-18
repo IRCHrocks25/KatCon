@@ -115,17 +115,9 @@ export function ThreadPanel({
                   <div
                     className={`flex flex-col max-w-[80%] ${isOwnMessage ? "items-end" : "items-start"}`}
                   >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-white text-xs font-medium">
-                        {getParticipantName(message.authorId)}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {new Date(message.createdAt).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    </div>
+                    <span className="text-white text-xs font-medium mb-1">
+                      {getParticipantName(message.authorId)}
+                    </span>
                     <div
                       className={`px-3 py-2 rounded-lg text-sm ${
                         isOwnMessage
@@ -142,6 +134,12 @@ export function ThreadPanel({
                         }))
                       )}
                     </div>
+                    <span className={`text-[10px] text-gray-500 mt-1 ${isOwnMessage ? "text-right" : "text-left"}`}>
+                      {new Date(message.createdAt).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
                   </div>
                 </div>
               );
