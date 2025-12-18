@@ -322,21 +322,23 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
       </div>
 
       {/* Chat Section - Flex grow (Right) */}
-      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 py-6 overflow-hidden">
-        <div className="w-full max-w-5xl flex flex-col items-center justify-center space-y-6 py-8">
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-3 py-3 overflow-hidden">
+        <div className="w-full max-w-[700px] flex flex-col items-center justify-center space-y-3.5 py-5">
           {/* Header Section */}
-          <div className="text-center space-y-3 shrink-0 mt-4">
-            <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight">
+          <div className="text-center space-y-1.5 shrink-0 mt-5">
+            <h1 className="text-[1.65rem] md:text-[2rem] font-bold text-white tracking-tight">
               Katalyst Concierge
             </h1>
-            <p className="text-base md:text-lg text-gray-400 font-light">
+            <p className="text-[13px] text-gray-400 font-light">
               Ask me about tasks, deadlines, or team updates — just start typing
               below.
             </p>
-            <p className="text-sm text-gray-500 mt-2">
+            <p className="text-[11px] text-gray-500 mt-1">
               Logged in as: {user?.fullname || user?.email}
               {user?.accountType && (
-                <span className="ml-2 text-gray-400">({user.accountType})</span>
+                <span className="ml-1.5 text-gray-400">
+                  ({user.accountType})
+                </span>
               )}
             </p>
           </div>
@@ -347,11 +349,11 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.2 }}
-              className="w-full max-w-4xl mx-auto h-[450px] overflow-y-auto px-4 custom-scrollbar"
+              className="w-full max-w-[600px] mx-auto h-[320px] overflow-y-auto px-2 custom-scrollbar"
             >
-              <div className="flex flex-col justify-end min-h-full py-3">
+              <div className="flex flex-col justify-end min-h-full py-2">
                 <AnimatePresence>
-                  <div className="space-y-4">
+                  <div className="space-y-2.5">
                     {messages.map((message) => (
                       <motion.div
                         key={message.id}
@@ -366,11 +368,11 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
                         }`}
                       >
                         {message.type === "user" ? (
-                          <div className="bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 text-white px-5 py-3 rounded-2xl rounded-tr-sm max-w-[75%] shadow-lg">
-                            <p className="text-base font-medium break-words">
+                          <div className="bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 text-white px-3.5 py-2 rounded-xl rounded-tr-sm max-w-[80%] shadow-lg">
+                            <p className="text-[13px] font-medium break-words">
                               {message.text}
                             </p>
-                            <p className="text-xs text-white/70 mt-1.5 text-right">
+                            <p className="text-[10px] text-white/70 mt-0.5 text-right">
                               {message.timestamp.toLocaleTimeString([], {
                                 hour: "2-digit",
                                 minute: "2-digit",
@@ -378,11 +380,11 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
                             </p>
                           </div>
                         ) : (
-                          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 text-gray-300 px-5 py-3 rounded-2xl rounded-tl-sm max-w-[75%] shadow-lg">
-                            <p className="text-base font-medium break-words">
+                          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 text-gray-300 px-3.5 py-2 rounded-xl rounded-tl-sm max-w-[80%] shadow-lg">
+                            <p className="text-[13px] font-medium break-words">
                               {message.text}
                             </p>
-                            <p className="text-sm text-gray-400 mt-1.5 text-left">
+                            <p className="text-[10px] text-gray-400 mt-0.5 text-left">
                               {message.timestamp.toLocaleTimeString([], {
                                 hour: "2-digit",
                                 minute: "2-digit",
@@ -400,9 +402,9 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
                         transition={{ duration: 0.2 }}
                         className="flex justify-start"
                       >
-                        <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 text-gray-300 px-5 py-3.5 rounded-2xl rounded-tl-sm max-w-[75%] shadow-lg flex items-center gap-3">
+                        <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 text-gray-300 px-3.5 py-2.5 rounded-xl rounded-tl-sm max-w-[80%] shadow-lg flex items-center gap-2">
                           <MessageLoading />
-                          <span className="text-base">Thinking...</span>
+                          <span className="text-[13px]">Thinking...</span>
                         </div>
                       </motion.div>
                     )}
@@ -423,7 +425,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
           </div>
 
           {/* Quick Action Buttons */}
-          <div className="flex flex-wrap justify-center gap-4 mt-4 mb-6 shrink-0">
+          <div className="flex flex-wrap justify-center gap-2.5 mt-2 mb-3 shrink-0">
             {quickActions.map((action, index) => {
               const Icon = action.icon;
               return (
@@ -433,13 +435,15 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
                     setChatInputValue(action.message);
                     setTimeout(() => setChatInputValue(null), 0);
                   }}
-                  className={`group relative flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-gray-900/50 backdrop-blur-sm border border-gray-800/50 text-gray-300 hover:text-white hover:border-gray-700 transition-all duration-200 hover:scale-105 ${action.color} hover:bg-gradient-to-r cursor-pointer`}
+                  className={`group relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-900/50 backdrop-blur-sm border border-gray-800/50 text-gray-300 hover:text-white hover:border-gray-700 transition-all duration-200 hover:scale-105 ${action.color} hover:bg-gradient-to-r cursor-pointer`}
                 >
                   <Icon
-                    size={18}
+                    size={15}
                     className="opacity-70 group-hover:opacity-100 transition-opacity"
                   />
-                  <span className="text-base font-medium">{action.label}</span>
+                  <span className="text-[13px] font-medium">
+                    {action.label}
+                  </span>
                 </button>
               );
             })}

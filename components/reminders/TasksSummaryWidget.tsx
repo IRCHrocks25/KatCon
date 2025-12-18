@@ -15,6 +15,8 @@ import {
   MoreVertical,
   Edit,
   Trash2,
+  User,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Reminder } from "@/lib/supabase/reminders";
@@ -269,6 +271,17 @@ export function TasksSummaryWidget({
     },
   };
 
+  // Get assignment display helper
+  const getAssignmentDisplay = (assignment: string) => {
+    if (assignment.startsWith("team:")) {
+      return { display: `${assignment.replace("team:", "")} Team`, isTeam: true, isCurrentUser: false };
+    }
+    if (assignment === currentUser?.email) {
+      return { display: "You", isTeam: false, isCurrentUser: true };
+    }
+    return { display: assignment.split("@")[0], isTeam: false, isCurrentUser: false };
+  };
+
   // Collapsed state
   if (!isExpanded) {
     return (
@@ -342,7 +355,7 @@ export function TasksSummaryWidget({
       </div>
 
       {/* Task List */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-2">
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3">
         {visibleTasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-500 py-8">
             <ListTodo size={40} className="mb-3 opacity-40" />
@@ -365,44 +378,106 @@ export function TasksSummaryWidget({
               return (
                 <motion.div
                   key={reminder.id}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className={`group bg-gray-800/40 rounded-lg border-l-4 ${styles.border} p-3 hover:bg-gray-800/60 transition`}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`
+                    relative bg-gray-800/60 rounded-lg border-l-4 ${styles.border}
+                    hover:bg-gray-800/80 transition-colors group
+                  `}
                 >
-                  <div className="flex items-start gap-3">
+                  <div className="p-4 flex gap-3">
                     {/* Checkbox */}
                     <button
                       onClick={() => handleToggleComplete(reminder.id)}
                       disabled={isToggling}
-                      className="mt-0.5 w-5 h-5 rounded-full border-2 border-gray-500 hover:border-purple-500 flex items-center justify-center transition flex-shrink-0 disabled:opacity-50"
+                      className={`
+                        mt-0.5 w-5 h-5 rounded-full border-2 flex-shrink-0
+                        flex items-center justify-center transition
+                        ${isToggling ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
+                        border-gray-500 hover:border-purple-500
+                      `}
                     >
                       {isToggling && (
-                        <div className="w-2.5 h-2.5 border border-gray-400 border-t-transparent rounded-full animate-spin" />
+                        <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                       )}
                     </button>
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-base text-white leading-tight line-clamp-2">
+                      <h3 className="text-sm font-medium leading-tight text-white">
                         {reminder.title}
-                      </p>
-                      {reminder.dueDate && (
-                        <div className={`flex items-center gap-1 mt-1.5 text-sm ${styles.text}`}>
-                          {styles.icon}
-                          <span>{formatDueDate(new Date(reminder.dueDate), priority)}</span>
+                      </h3>
+
+                      {reminder.description && (
+                        <p className="text-xs mt-1 line-clamp-2 text-gray-400">
+                          {reminder.description}
+                        </p>
+                      )}
+
+                      {/* Meta info */}
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2">
+                        {/* Due date */}
+                        {reminder.dueDate && (
+                          <div className={`flex items-center gap-1 text-xs ${styles.text}`}>
+                            {priority === "overdue" ? (
+                              <AlertCircle size={12} />
+                            ) : (
+                              <Clock size={12} />
+                            )}
+                            <span>{formatDueDate(new Date(reminder.dueDate), priority)}</span>
+                          </div>
+                        )}
+
+                        {/* Created by (if not creator) */}
+                        {!isCreator && reminder.createdBy && (
+                          <div className="flex items-center gap-1 text-xs text-gray-500">
+                            <span>by {reminder.createdBy.split("@")[0]}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Assignees */}
+                      {reminder.assignedTo && reminder.assignedTo.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {reminder.assignedTo.slice(0, 3).map((assignment) => {
+                            const { display, isTeam, isCurrentUser } = getAssignmentDisplay(assignment);
+                            return (
+                              <span
+                                key={assignment}
+                                className={`
+                                  inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px]
+                                  ${
+                                    isCurrentUser
+                                      ? "bg-purple-600/30 text-purple-300"
+                                      : isTeam
+                                      ? "bg-blue-600/30 text-blue-300"
+                                      : "bg-gray-700/50 text-gray-400"
+                                  }
+                                `}
+                              >
+                                {isTeam ? <Users size={10} /> : <User size={10} />}
+                                {display}
+                              </span>
+                            );
+                          })}
+                          {reminder.assignedTo.length > 3 && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-gray-700/50 text-gray-400">
+                              +{reminder.assignedTo.length - 3} more
+                            </span>
+                          )}
                         </div>
                       )}
                     </div>
 
                     {/* Menu Button */}
                     {isCreator && (
-                      <div className="relative self-start flex-shrink-0">
+                      <div className="relative flex-shrink-0 self-start">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             setMenuOpenId(menuOpenId === reminder.id ? null : reminder.id);
                           }}
-                          className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-gray-700 transition-all"
+                          className="p-1.5 rounded-lg opacity-50 group-hover:opacity-100 hover:bg-gray-700 transition-all"
                         >
                           <MoreVertical size={16} className="text-gray-400" />
                         </button>
@@ -413,7 +488,7 @@ export function TasksSummaryWidget({
                               className="fixed inset-0 z-[100]"
                               onClick={() => setMenuOpenId(null)}
                             />
-                            <div className="absolute right-0 top-7 z-[101] bg-gray-800 border border-gray-700 rounded-lg shadow-2xl py-1 min-w-[120px]">
+                            <div className="absolute right-0 top-8 z-[101] bg-gray-800 border border-gray-700 rounded-lg shadow-2xl py-1 min-w-[120px]">
                               <button
                                 onClick={() => {
                                   setMenuOpenId(null);
