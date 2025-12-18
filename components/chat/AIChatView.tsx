@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { AIChatInput } from "@/components/ui/ai-chat-input";
 import {
   CheckSquare,
@@ -15,15 +15,11 @@ import { motion, AnimatePresence } from "motion/react";
 import { MessageLoading } from "@/components/ui/message-loading";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import {
-  RemindersContainer,
-  type Reminder,
-} from "@/components/reminders/RemindersContainer";
+import { TasksSummaryWidget } from "@/components/reminders/TasksSummaryWidget";
+import { RemindersModal } from "@/components/reminders/RemindersModal";
+import type { Reminder } from "@/lib/supabase/reminders";
 import { robustFetch } from "@/lib/utils/fetch";
-import {
-  getStorageItem,
-  setStorageItem,
-} from "@/lib/utils/storage";
+import { getStorageItem, setStorageItem } from "@/lib/utils/storage";
 
 interface Message {
   id: string;
@@ -45,6 +41,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
   const [sessionId, setSessionId] = useState<string | null>(() => {
     return getStorageItem("chatSessionId");
   });
+  const [showRemindersModal, setShowRemindersModal] = useState(false);
 
   // Get or generate sessionId
   const getSessionId = (): string => {
@@ -315,13 +312,17 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
       <div className="absolute inset-0 bg-gradient-to-b from-purple-950/40 via-black to-black" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-purple-600/15 via-pink-500/10 via-blue-500/10 to-orange-500/10" />
 
-      {/* Reminders Section - 1/3 width (Left) */}
-      <div className="relative z-10 w-1/3 h-full">
-        <RemindersContainer reminders={reminders} setReminders={setReminders} />
+      {/* Tasks Summary Widget - Collapsible (Left) */}
+      <div className="relative z-10 h-full">
+        <TasksSummaryWidget
+          reminders={reminders}
+          setReminders={setReminders}
+          onOpenModal={() => setShowRemindersModal(true)}
+        />
       </div>
 
-      {/* Chat Section - 2/3 width (Right) */}
-      <div className="relative z-10 w-2/3 flex flex-col items-center justify-center px-4 py-4 overflow-hidden">
+      {/* Chat Section - Flex grow (Right) */}
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 py-4 overflow-hidden">
         <div className="w-full max-w-4xl flex flex-col items-center justify-center space-y-4 py-8">
           {/* Header Section */}
           <div className="text-center space-y-2 shrink-0 mt-8">
@@ -445,6 +446,14 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
           </div>
         </div>
       </div>
+
+      {/* Reminders Modal - Same modal as Messages tab */}
+      <RemindersModal
+        isOpen={showRemindersModal}
+        onClose={() => setShowRemindersModal(false)}
+        reminders={reminders}
+        setReminders={setReminders}
+      />
     </div>
   );
 }

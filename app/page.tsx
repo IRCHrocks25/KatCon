@@ -5,7 +5,7 @@ import { MessageSquare, Users, LogOut } from "lucide-react";
 import { motion } from "motion/react";
 import { useAuth } from "@/contexts/AuthContext";
 import { LoginForm } from "@/components/auth/LoginForm";
-import type { Reminder } from "@/components/reminders/RemindersContainer";
+import type { Reminder } from "@/lib/supabase/reminders";
 import { NotificationCenter } from "@/components/notifications/NotificationCenter";
 import {
   getStorageItem,
