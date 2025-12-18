@@ -85,7 +85,7 @@ export default function Home() {
   return (
     <div className="relative h-screen w-full overflow-hidden bg-black flex flex-col">
       {/* Top Bar */}
-      <div className="relative z-30 border-b border-gray-800/50 bg-black/50 backdrop-blur-sm">
+      <div className="relative z-30 border-b border-gray-800/50 bg-gray-950/95 backdrop-blur-sm">
         <div className="flex items-center justify-between px-4 py-3">
           {/* Tabs */}
           <div className="flex items-center gap-2">

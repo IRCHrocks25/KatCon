@@ -8,17 +8,20 @@ import {
   ChevronRight,
   ExternalLink,
   Plus,
-  Check,
   AlertCircle,
   Clock,
   Calendar,
   RefreshCw,
+  MoreVertical,
+  Edit,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Reminder } from "@/lib/supabase/reminders";
 import {
   getReminders,
   updateReminderStatus,
+  deleteReminder,
 } from "@/lib/supabase/reminders";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase/client";
@@ -46,6 +49,8 @@ export function TasksSummaryWidget({
   const [isExpanded, setIsExpanded] = useState(true);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Fetch reminders
   const fetchReminders = useCallback(
@@ -185,6 +190,28 @@ export function TasksSummaryWidget({
     }
   };
 
+  // Handle delete
+  const handleDelete = async (id: string) => {
+    const reminder = reminders.find((r) => r.id === id);
+    if (!reminder || reminder.createdBy !== currentUser?.email) {
+      toast.error("Only the creator can delete this task");
+      return;
+    }
+
+    setDeletingId(id);
+    setMenuOpenId(null);
+    try {
+      await deleteReminder(id);
+      setReminders((prev) => prev.filter((r) => r.id !== id));
+      toast.success("Task deleted");
+    } catch (error) {
+      console.error("Error deleting task:", error);
+      toast.error("Failed to delete task");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   // Format due date
   const formatDueDate = (date: Date, priority: Priority) => {
     const dueDate = new Date(date);
@@ -222,17 +249,17 @@ export function TasksSummaryWidget({
   const priorityStyles: Record<Priority, { border: string; icon: React.ReactNode; text: string }> = {
     overdue: {
       border: "border-l-red-500",
-      icon: <AlertCircle size={12} className="text-red-400" />,
+      icon: <AlertCircle size={14} className="text-red-400" />,
       text: "text-red-400",
     },
     today: {
       border: "border-l-amber-500",
-      icon: <Clock size={12} className="text-amber-400" />,
+      icon: <Clock size={14} className="text-amber-400" />,
       text: "text-amber-400",
     },
     upcoming: {
       border: "border-l-green-500",
-      icon: <Calendar size={12} className="text-green-400" />,
+      icon: <Calendar size={14} className="text-green-400" />,
       text: "text-green-400",
     },
     "no-date": {
@@ -268,18 +295,18 @@ export function TasksSummaryWidget({
   // Expanded state
   return (
     <motion.div
-      initial={{ width: 280 }}
-      animate={{ width: 280 }}
+      initial={{ width: 320 }}
+      animate={{ width: 320 }}
       className="h-full flex flex-col bg-gray-900/50 backdrop-blur-sm border-r border-gray-800/50"
     >
       {/* Header */}
       <div className="p-4 border-b border-gray-800/50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <ListTodo size={20} className="text-purple-400" />
-            <h2 className="text-base font-semibold text-white">Tasks</h2>
+            <ListTodo size={24} className="text-purple-400" />
+            <h2 className="text-lg font-bold text-white">Tasks</h2>
             {pendingCount > 0 && (
-              <span className="px-1.5 py-0.5 bg-purple-600/20 text-purple-400 text-xs rounded font-medium">
+              <span className="px-2 py-0.5 bg-purple-600/20 text-purple-400 text-sm rounded font-medium">
                 {pendingCount}
               </span>
             )}
@@ -292,7 +319,7 @@ export function TasksSummaryWidget({
               title="Refresh"
             >
               <RefreshCw
-                size={14}
+                size={16}
                 className={isRefreshing ? "animate-spin" : ""}
               />
             </button>
@@ -301,28 +328,28 @@ export function TasksSummaryWidget({
               className="p-1.5 rounded-lg hover:bg-gray-700/50 text-gray-400 hover:text-white transition"
               title="Collapse"
             >
-              <ChevronLeft size={16} />
+              <ChevronLeft size={18} />
             </button>
             <button
               onClick={onOpenModal}
               className="p-1.5 rounded-lg hover:bg-gray-700/50 text-gray-400 hover:text-white transition"
               title="View all tasks"
             >
-              <ExternalLink size={14} />
+              <ExternalLink size={16} />
             </button>
           </div>
         </div>
       </div>
 
       {/* Task List */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2">
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-2">
         {visibleTasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-500 py-8">
-            <ListTodo size={32} className="mb-3 opacity-40" />
-            <p className="text-sm">No pending tasks</p>
+            <ListTodo size={40} className="mb-3 opacity-40" />
+            <p className="text-base">No pending tasks</p>
             <button
               onClick={onOpenModal}
-              className="mt-3 text-xs text-purple-400 hover:text-purple-300 transition"
+              className="mt-3 text-sm text-purple-400 hover:text-purple-300 transition"
             >
               + Add a task
             </button>
@@ -332,38 +359,88 @@ export function TasksSummaryWidget({
             {visibleTasks.map(({ reminder, priority }) => {
               const styles = priorityStyles[priority];
               const isToggling = togglingId === reminder.id;
+              const isCreator = reminder.createdBy === currentUser?.email;
+              const isDeleting = deletingId === reminder.id;
 
               return (
                 <motion.div
                   key={reminder.id}
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className={`group bg-gray-800/40 rounded-lg border-l-4 ${styles.border} p-2.5 hover:bg-gray-800/60 transition`}
+                  className={`group bg-gray-800/40 rounded-lg border-l-4 ${styles.border} p-3 hover:bg-gray-800/60 transition`}
                 >
-                  <div className="flex items-start gap-2">
+                  <div className="flex items-start gap-3">
                     {/* Checkbox */}
                     <button
                       onClick={() => handleToggleComplete(reminder.id)}
                       disabled={isToggling}
-                      className="mt-0.5 w-4 h-4 rounded-full border-2 border-gray-500 hover:border-purple-500 flex items-center justify-center transition flex-shrink-0 disabled:opacity-50"
+                      className="mt-0.5 w-5 h-5 rounded-full border-2 border-gray-500 hover:border-purple-500 flex items-center justify-center transition flex-shrink-0 disabled:opacity-50"
                     >
                       {isToggling && (
-                        <div className="w-2 h-2 border border-gray-400 border-t-transparent rounded-full animate-spin" />
+                        <div className="w-2.5 h-2.5 border border-gray-400 border-t-transparent rounded-full animate-spin" />
                       )}
                     </button>
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-white leading-tight line-clamp-2">
+                      <p className="text-base text-white leading-tight line-clamp-2">
                         {reminder.title}
                       </p>
                       {reminder.dueDate && (
-                        <div className={`flex items-center gap-1 mt-1 text-xs ${styles.text}`}>
+                        <div className={`flex items-center gap-1 mt-1.5 text-sm ${styles.text}`}>
                           {styles.icon}
                           <span>{formatDueDate(new Date(reminder.dueDate), priority)}</span>
                         </div>
                       )}
                     </div>
+
+                    {/* Menu Button */}
+                    {isCreator && (
+                      <div className="relative self-start flex-shrink-0">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMenuOpenId(menuOpenId === reminder.id ? null : reminder.id);
+                          }}
+                          className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-gray-700 transition-all"
+                        >
+                          <MoreVertical size={16} className="text-gray-400" />
+                        </button>
+
+                        {menuOpenId === reminder.id && (
+                          <>
+                            <div
+                              className="fixed inset-0 z-[100]"
+                              onClick={() => setMenuOpenId(null)}
+                            />
+                            <div className="absolute right-0 top-7 z-[101] bg-gray-800 border border-gray-700 rounded-lg shadow-2xl py-1 min-w-[120px]">
+                              <button
+                                onClick={() => {
+                                  setMenuOpenId(null);
+                                  onOpenModal();
+                                }}
+                                className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2"
+                              >
+                                <Edit size={14} />
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDelete(reminder.id)}
+                                disabled={isDeleting}
+                                className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-gray-700 flex items-center gap-2 disabled:opacity-50"
+                              >
+                                {isDeleting ? (
+                                  <div className="w-3.5 h-3.5 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
+                                ) : (
+                                  <Trash2 size={14} />
+                                )}
+                                Delete
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               );
@@ -373,20 +450,20 @@ export function TasksSummaryWidget({
       </div>
 
       {/* Footer */}
-      <div className="p-3 border-t border-gray-800/50 space-y-2">
+      <div className="p-4 border-t border-gray-800/50 space-y-2">
         {remainingCount > 0 && (
           <button
             onClick={onOpenModal}
-            className="w-full text-sm text-purple-400 hover:text-purple-300 transition py-1"
+            className="w-full text-base text-purple-400 hover:text-purple-300 transition py-1"
           >
             View {remainingCount} more task{remainingCount > 1 ? "s" : ""}...
           </button>
         )}
         <button
           onClick={onOpenModal}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 rounded-lg text-sm font-medium transition"
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 rounded-lg text-base font-medium transition"
         >
-          <Plus size={16} />
+          <Plus size={18} />
           Add Task
         </button>
       </div>
