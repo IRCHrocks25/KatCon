@@ -146,7 +146,7 @@ export function NotificationCenter() {
           event: "INSERT",
           schema: "public",
           table: "notifications",
-          filter: `user_email=eq.${user.email}`,
+          filter: `user_email=eq.${user.email.toLowerCase()}`,
         },
         (payload) => {
           console.log("[NOTIFICATIONS] 🔔 New notification received:", payload);

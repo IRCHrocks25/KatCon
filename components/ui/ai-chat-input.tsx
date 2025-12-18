@@ -101,7 +101,7 @@ const AIChatInput = ({
 
   const containerVariants = {
     collapsed: {
-      height: 72,
+      height: 56,
 
       boxShadow: "0 2px 8px 0 rgba(0,0,0,0.08)",
 
@@ -109,7 +109,7 @@ const AIChatInput = ({
     },
 
     expanded: {
-      height: 140,
+      height: 105,
 
       boxShadow: "0 8px 32px 0 rgba(0,0,0,0.16)",
 
@@ -171,13 +171,13 @@ const AIChatInput = ({
     <div className="w-full flex justify-center items-center">
       <motion.div
         ref={wrapperRef}
-        className="w-full max-w-4xl"
+        className="w-full max-w-[600px]"
         variants={containerVariants as Variants}
         animate="collapsed"
         initial="collapsed"
         style={{
           overflow: "hidden",
-          borderRadius: 16,
+          borderRadius: 14,
           background: "rgba(17, 24, 39, 0.8)",
           backdropFilter: "blur(12px)",
           border: "1px solid rgba(75, 85, 99, 0.3)",
@@ -187,7 +187,7 @@ const AIChatInput = ({
         <div className="flex flex-col items-stretch w-full h-full">
           {/* Input Row */}
 
-          <div className="flex items-center gap-3 px-6 py-4 rounded-xl max-w-4xl w-full">
+          <div className="flex items-center gap-2 px-5 py-2.5 rounded-lg max-w-[600px] w-full">
             {/* Text Input & Placeholder */}
 
             <div className="relative flex-1">
@@ -196,16 +196,16 @@ const AIChatInput = ({
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyPress}
-                className="flex-1 border-0 outline-0 rounded-md py-2 text-base bg-transparent w-full font-normal text-white placeholder:text-gray-500"
+                className="flex-1 border-0 outline-0 rounded-md py-1.5 text-[14px] bg-transparent w-full font-normal text-white placeholder:text-gray-500"
                 style={{ position: "relative", zIndex: 1 }}
               />
 
-              <div className="absolute left-0 top-0 w-full h-full pointer-events-none flex items-center px-6 py-2">
+              <div className="absolute left-0 top-0 w-full h-full pointer-events-none flex items-center px-5 py-1.5">
                 <AnimatePresence mode="wait">
                   {showPlaceholder && !inputValue && (
                     <motion.span
                       key={placeholderIndex}
-                      className="absolute left-0 top-1/2 -translate-y-1/2 text-gray-500 select-none pointer-events-none text-base"
+                      className="absolute left-0 top-1/2 -translate-y-1/2 text-gray-500 select-none pointer-events-none text-[14px]"
                       style={{
                         whiteSpace: "nowrap",
 
@@ -243,7 +243,7 @@ const AIChatInput = ({
             </div>
 
             <button
-              className="flex items-center gap-1 bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 hover:from-purple-500 hover:via-pink-400 hover:to-orange-400 text-white p-3 rounded-full font-medium justify-center transition-all shadow-lg shadow-purple-500/30 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-1 bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 hover:from-purple-500 hover:via-pink-400 hover:to-orange-400 text-white p-2.5 rounded-full font-medium justify-center transition-all shadow-lg shadow-purple-500/30 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
               title="Send"
               type="button"
               onClick={handleSend}
@@ -251,9 +251,9 @@ const AIChatInput = ({
               tabIndex={-1}
             >
               {isLoading ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
-                <Send size={20} />
+                <Send size={15} />
               )}
             </button>
           </div>
