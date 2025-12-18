@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import {
   ListTodo,
   ChevronLeft,
@@ -32,6 +32,8 @@ interface TasksSummaryWidgetProps {
   reminders: Reminder[];
   setReminders: React.Dispatch<React.SetStateAction<Reminder[]>>;
   onOpenModal: () => void;
+  onOpenModalWithForm?: () => void;
+  onEditTask?: (reminder: Reminder) => void;
 }
 
 type Priority = "overdue" | "today" | "upcoming" | "no-date";
@@ -46,6 +48,8 @@ export function TasksSummaryWidget({
   reminders,
   setReminders,
   onOpenModal,
+  onOpenModalWithForm,
+  onEditTask,
 }: TasksSummaryWidgetProps) {
   const { user: currentUser } = useAuth();
   const [isExpanded, setIsExpanded] = useState(true);
@@ -120,11 +124,17 @@ export function TasksSummaryWidget({
     tomorrow.setDate(tomorrow.getDate() + 1);
 
     // Overdue: highest priority
-    if (dueDate < now) return 1000 - Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60));
+    if (dueDate < now)
+      return (
+        1000 -
+        Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60))
+      );
     // Today: high priority
     if (dueDate >= today && dueDate < tomorrow) return 500;
     // Upcoming: medium priority (closer = higher)
-    const daysUntil = Math.floor((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const daysUntil = Math.floor(
+      (dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+    );
     return Math.max(100 - daysUntil, 1);
   };
 
@@ -248,7 +258,10 @@ export function TasksSummaryWidget({
   };
 
   // Priority styles
-  const priorityStyles: Record<Priority, { border: string; icon: React.ReactNode; text: string }> = {
+  const priorityStyles: Record<
+    Priority,
+    { border: string; icon: React.ReactNode; text: string }
+  > = {
     overdue: {
       border: "border-l-red-500",
       icon: <AlertCircle size={14} className="text-red-400" />,
@@ -274,12 +287,20 @@ export function TasksSummaryWidget({
   // Get assignment display helper
   const getAssignmentDisplay = (assignment: string) => {
     if (assignment.startsWith("team:")) {
-      return { display: `${assignment.replace("team:", "")} Team`, isTeam: true, isCurrentUser: false };
+      return {
+        display: `${assignment.replace("team:", "")} Team`,
+        isTeam: true,
+        isCurrentUser: false,
+      };
     }
     if (assignment === currentUser?.email) {
       return { display: "You", isTeam: false, isCurrentUser: true };
     }
-    return { display: assignment.split("@")[0], isTeam: false, isCurrentUser: false };
+    return {
+      display: assignment.split("@")[0],
+      isTeam: false,
+      isCurrentUser: false,
+    };
   };
 
   // Collapsed state
@@ -361,7 +382,7 @@ export function TasksSummaryWidget({
             <ListTodo size={40} className="mb-3 opacity-40" />
             <p className="text-base">No pending tasks</p>
             <button
-              onClick={onOpenModal}
+              onClick={onOpenModalWithForm || onOpenModal}
               className="mt-3 text-sm text-purple-400 hover:text-purple-300 transition"
             >
               + Add a task
@@ -393,7 +414,11 @@ export function TasksSummaryWidget({
                       className={`
                         mt-0.5 w-5 h-5 rounded-full border-2 flex-shrink-0
                         flex items-center justify-center transition
-                        ${isToggling ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
+                        ${
+                          isToggling
+                            ? "opacity-50 cursor-not-allowed"
+                            : "cursor-pointer"
+                        }
                         border-gray-500 hover:border-purple-500
                       `}
                     >
@@ -418,13 +443,20 @@ export function TasksSummaryWidget({
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2">
                         {/* Due date */}
                         {reminder.dueDate && (
-                          <div className={`flex items-center gap-1 text-xs ${styles.text}`}>
+                          <div
+                            className={`flex items-center gap-1 text-xs ${styles.text}`}
+                          >
                             {priority === "overdue" ? (
                               <AlertCircle size={12} />
                             ) : (
                               <Clock size={12} />
                             )}
-                            <span>{formatDueDate(new Date(reminder.dueDate), priority)}</span>
+                            <span>
+                              {formatDueDate(
+                                new Date(reminder.dueDate),
+                                priority
+                              )}
+                            </span>
                           </div>
                         )}
 
@@ -437,14 +469,18 @@ export function TasksSummaryWidget({
                       </div>
 
                       {/* Assignees */}
-                      {reminder.assignedTo && reminder.assignedTo.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mt-2">
-                          {reminder.assignedTo.slice(0, 3).map((assignment) => {
-                            const { display, isTeam, isCurrentUser } = getAssignmentDisplay(assignment);
-                            return (
-                              <span
-                                key={assignment}
-                                className={`
+                      {reminder.assignedTo &&
+                        reminder.assignedTo.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {reminder.assignedTo
+                              .slice(0, 3)
+                              .map((assignment) => {
+                                const { display, isTeam, isCurrentUser } =
+                                  getAssignmentDisplay(assignment);
+                                return (
+                                  <span
+                                    key={assignment}
+                                    className={`
                                   inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px]
                                   ${
                                     isCurrentUser
@@ -454,19 +490,23 @@ export function TasksSummaryWidget({
                                       : "bg-gray-700/50 text-gray-400"
                                   }
                                 `}
-                              >
-                                {isTeam ? <Users size={10} /> : <User size={10} />}
-                                {display}
+                                  >
+                                    {isTeam ? (
+                                      <Users size={10} />
+                                    ) : (
+                                      <User size={10} />
+                                    )}
+                                    {display}
+                                  </span>
+                                );
+                              })}
+                            {reminder.assignedTo.length > 3 && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-gray-700/50 text-gray-400">
+                                +{reminder.assignedTo.length - 3} more
                               </span>
-                            );
-                          })}
-                          {reminder.assignedTo.length > 3 && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-gray-700/50 text-gray-400">
-                              +{reminder.assignedTo.length - 3} more
-                            </span>
-                          )}
-                        </div>
-                      )}
+                            )}
+                          </div>
+                        )}
                     </div>
 
                     {/* Menu Button */}
@@ -475,7 +515,9 @@ export function TasksSummaryWidget({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setMenuOpenId(menuOpenId === reminder.id ? null : reminder.id);
+                            setMenuOpenId(
+                              menuOpenId === reminder.id ? null : reminder.id
+                            );
                           }}
                           className="p-1.5 rounded-lg opacity-50 group-hover:opacity-100 hover:bg-gray-700 transition-all"
                         >
@@ -492,7 +534,11 @@ export function TasksSummaryWidget({
                               <button
                                 onClick={() => {
                                   setMenuOpenId(null);
-                                  onOpenModal();
+                                  if (onEditTask) {
+                                    onEditTask(reminder);
+                                  } else {
+                                    onOpenModal();
+                                  }
                                 }}
                                 className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2"
                               >
@@ -535,7 +581,7 @@ export function TasksSummaryWidget({
           </button>
         )}
         <button
-          onClick={onOpenModal}
+          onClick={onOpenModalWithForm || onOpenModal}
           className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 rounded-lg text-base font-medium transition"
         >
           <Plus size={18} />
@@ -545,4 +591,3 @@ export function TasksSummaryWidget({
     </motion.div>
   );
 }
-

@@ -42,6 +42,8 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
     return getStorageItem("chatSessionId");
   });
   const [showRemindersModal, setShowRemindersModal] = useState(false);
+  const [showFormOnOpen, setShowFormOnOpen] = useState(false);
+  const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
 
   // Get or generate sessionId
   const getSessionId = (): string => {
@@ -318,6 +320,14 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
           reminders={reminders}
           setReminders={setReminders}
           onOpenModal={() => setShowRemindersModal(true)}
+          onOpenModalWithForm={() => {
+            setShowFormOnOpen(true);
+            setShowRemindersModal(true);
+          }}
+          onEditTask={(reminder) => {
+            setEditingReminder(reminder);
+            setShowRemindersModal(true);
+          }}
         />
       </div>
 
@@ -454,9 +464,15 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
       {/* Reminders Modal - Same modal as Messages tab */}
       <RemindersModal
         isOpen={showRemindersModal}
-        onClose={() => setShowRemindersModal(false)}
+        onClose={() => {
+          setShowRemindersModal(false);
+          setShowFormOnOpen(false);
+          setEditingReminder(null);
+        }}
         reminders={reminders}
         setReminders={setReminders}
+        initialShowForm={showFormOnOpen}
+        initialEditingReminder={editingReminder}
       />
     </div>
   );

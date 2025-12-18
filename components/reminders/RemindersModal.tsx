@@ -32,6 +32,8 @@ interface RemindersModalProps {
   onClose: () => void;
   reminders: Reminder[];
   setReminders: React.Dispatch<React.SetStateAction<Reminder[]>>;
+  initialShowForm?: boolean;
+  initialEditingReminder?: Reminder | null;
 }
 
 type TabType = "my-tasks" | "assigned-by-me" | "completed";
@@ -48,6 +50,8 @@ export function RemindersModal({
   onClose,
   reminders,
   setReminders,
+  initialShowForm = false,
+  initialEditingReminder = null,
 }: RemindersModalProps) {
   const { user: currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>("my-tasks");
@@ -58,6 +62,18 @@ export function RemindersModal({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Show form immediately when modal opens with initialShowForm or initialEditingReminder
+  useEffect(() => {
+    if (isOpen) {
+      if (initialEditingReminder) {
+        setEditingReminder(initialEditingReminder);
+        setShowForm(true);
+      } else if (initialShowForm) {
+        setShowForm(true);
+      }
+    }
+  }, [isOpen, initialShowForm, initialEditingReminder]);
 
   // Fetch reminders
   const fetchReminders = useCallback(
