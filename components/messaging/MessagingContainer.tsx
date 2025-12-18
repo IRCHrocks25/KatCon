@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Plus, MessageSquare, Hash } from "lucide-react";
+import { Plus, MessageSquare, Hash, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase/client";
@@ -16,13 +16,16 @@ import {
   markAsRead,
   type Conversation,
   type Message,
+  type FileAttachment,
 } from "@/lib/supabase/messaging";
+import { uploadFile } from "@/lib/supabase/file-upload";
 import { ConversationList } from "./ConversationList";
 import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 import { ThreadPanel } from "./ThreadPanel";
 import { CreateChannelModal } from "./CreateChannelModal";
 import { ChannelSettingsDialog } from "./ChannelSettingsDialog";
+import { FilesModal } from "./FilesModal";
 
 // Session cache for messages (persists until logout)
 // Module-level cache that survives component unmount/remount (e.g., tab switches)
@@ -49,6 +52,7 @@ export function MessagingContainer() {
   const [showChannelSettingsForId, setShowChannelSettingsForId] = useState<
     string | null
   >(null);
+  const [showFilesModal, setShowFilesModal] = useState(false);
 
   // Use refs to avoid dependency issues in realtime subscription
   const conversationsRef = useRef<Conversation[]>([]);
@@ -254,6 +258,10 @@ export function MessagingContainer() {
             content: string;
             created_at: string;
             parent_message_id?: string | null;
+            file_url?: string | null;
+            file_name?: string | null;
+            file_type?: string | null;
+            file_size?: number | null;
           };
 
           // Fetch sender profile
@@ -287,6 +295,10 @@ export function MessagingContainer() {
             parentMessageId: newMessage.parent_message_id,
             threadReplyCount: 0,
             readBy: [],
+            fileUrl: newMessage.file_url || null,
+            fileName: newMessage.file_name || null,
+            fileType: newMessage.file_type || null,
+            fileSize: newMessage.file_size || null,
           };
 
           // Always update the cache for this conversation (even if not active)
@@ -400,6 +412,10 @@ export function MessagingContainer() {
                           content: newMessage.content,
                           createdAt: new Date(newMessage.created_at),
                           readBy: [],
+                          fileUrl: newMessage.file_url || null,
+                          fileName: newMessage.file_name || null,
+                          fileType: newMessage.file_type || null,
+                          fileSize: newMessage.file_size || null,
                         },
                     updatedAt: new Date(newMessage.created_at),
                     unreadCount:
@@ -492,12 +508,18 @@ export function MessagingContainer() {
     };
   }, [currentUser?.id]);
 
-  // Handle sending message
-  const handleSendMessage = async (
+  // Handle sending a single message (internal)
+  const sendSingleMessage = async (
     content: string,
-    parentMessageId?: string
-  ) => {
-    if (!activeConversationId || !content.trim() || !currentUser) return;
+    parentMessageId?: string,
+    file?: File
+  ): Promise<boolean> => {
+    if (!activeConversationId || !currentUser) return false;
+    
+    const hasContent = content.trim().length > 0;
+    const hasFile = file !== undefined;
+    
+    if (!hasContent && !hasFile) return false;
 
     const messageContent = content.trim();
 
@@ -513,6 +535,11 @@ export function MessagingContainer() {
       parentMessageId: parentMessageId || null,
       threadReplyCount: 0,
       readBy: [],
+      // Add file info optimistically if file is present
+      fileUrl: file ? URL.createObjectURL(file) : null,
+      fileName: file?.name || null,
+      fileType: file?.type || null,
+      fileSize: file?.size || null,
     };
 
     if (parentMessageId) {
@@ -525,10 +552,44 @@ export function MessagingContainer() {
 
     try {
       setIsSendingMessage(true);
+      
+      // Upload file if present
+      let fileAttachment: FileAttachment | undefined;
+      if (file) {
+        try {
+          const uploadResult = await uploadFile(
+            file,
+            currentUser.id,
+            activeConversationId
+          );
+          fileAttachment = {
+            url: uploadResult.url,
+            name: uploadResult.fileName,
+            type: uploadResult.fileType,
+            size: uploadResult.fileSize,
+          };
+        } catch (uploadError) {
+          console.error("File upload failed:", uploadError);
+          toast.error("Failed to upload file");
+          // Remove optimistic message on upload failure
+          if (parentMessageId) {
+            setThreadMessages((prev) =>
+              prev.filter((msg) => msg.id !== optimisticMessage.id)
+            );
+          } else {
+            setMessages((prev) =>
+              prev.filter((msg) => msg.id !== optimisticMessage.id)
+            );
+          }
+          return false;
+        }
+      }
+      
       const sentMessage = await sendMessage(
         activeConversationId,
         messageContent,
-        parentMessageId
+        parentMessageId,
+        fileAttachment
       );
 
       if (sentMessage) {
@@ -588,6 +649,10 @@ export function MessagingContainer() {
                         content: sentMessage.content,
                         createdAt: sentMessage.createdAt,
                         readBy: [],
+                        fileUrl: sentMessage.fileUrl || null,
+                        fileName: sentMessage.fileName || null,
+                        fileType: sentMessage.fileType || null,
+                        fileSize: sentMessage.fileSize || null,
                       },
                   updatedAt: sentMessage.createdAt,
                 }
@@ -599,6 +664,7 @@ export function MessagingContainer() {
 
           return updated;
         });
+        return true;
       } else {
         // If send failed, remove optimistic message
         if (parentMessageId) {
@@ -610,6 +676,7 @@ export function MessagingContainer() {
             prev.filter((msg) => msg.id !== optimisticMessage.id)
           );
         }
+        return false;
       }
     } catch (error) {
       console.error("Error sending message:", error);
@@ -624,9 +691,48 @@ export function MessagingContainer() {
         );
       }
       toast.error("Failed to send message");
+      return false;
     } finally {
       setIsSendingMessage(false);
     }
+  };
+
+  // Handle sending message with multiple files (each file as separate message)
+  const handleSendMessage = async (
+    content: string,
+    parentMessageId?: string,
+    files?: File[]
+  ) => {
+    if (!activeConversationId || !currentUser) return;
+    
+    const hasContent = content.trim().length > 0;
+    const hasFiles = files && files.length > 0;
+    
+    if (!hasContent && !hasFiles) return;
+
+    // If no files, just send the text message
+    if (!hasFiles) {
+      await sendSingleMessage(content, parentMessageId);
+      return;
+    }
+
+    // If we have files, send each as a separate message
+    // First message gets the text content, subsequent messages are file-only
+    setIsSendingMessage(true);
+    
+    for (let i = 0; i < files.length; i++) {
+      const isFirstMessage = i === 0;
+      const messageContent = isFirstMessage ? content : "";
+      
+      await sendSingleMessage(messageContent, parentMessageId, files[i]);
+      
+      // Small delay between messages to ensure order
+      if (i < files.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+    
+    setIsSendingMessage(false);
   };
 
   // Handle creating new channel
@@ -831,6 +937,15 @@ export function MessagingContainer() {
                   )}
                 </div>
               </div>
+              {/* Files Button */}
+              <button
+                onClick={() => setShowFilesModal(true)}
+                className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition flex items-center gap-2"
+                title="View shared files"
+              >
+                <FolderOpen size={20} />
+                <span className="text-sm hidden sm:inline">Files</span>
+              </button>
             </div>
 
             {/* Messages */}
@@ -852,7 +967,7 @@ export function MessagingContainer() {
             {/* Message Input */}
             <div className="flex-shrink-0">
               <MessageInput
-                onSend={(content) => handleSendMessage(content)}
+                onSend={(content, files) => handleSendMessage(content, undefined, files)}
                 isLoading={isSendingMessage}
                 participants={activeConversation.participants}
               />
@@ -879,8 +994,8 @@ export function MessagingContainer() {
               setThreadParentId(null);
               setThreadMessages([]);
             }}
-            onSendReply={(content) =>
-              handleSendMessage(content, threadParentId)
+            onSendReply={(content, files) =>
+              handleSendMessage(content, threadParentId, files)
             }
             isLoading={isSendingMessage}
           />
@@ -905,6 +1020,16 @@ export function MessagingContainer() {
           onClose={() => setShowCreateChannel(false)}
           onCreate={handleCreateChannel}
           onCreateDM={handleCreateDM}
+        />
+      )}
+
+      {/* Files Modal */}
+      {activeConversation && (
+        <FilesModal
+          isOpen={showFilesModal}
+          onClose={() => setShowFilesModal(false)}
+          conversationId={activeConversation.id}
+          conversationName={getConversationDisplayName(activeConversation)}
         />
       )}
     </div>

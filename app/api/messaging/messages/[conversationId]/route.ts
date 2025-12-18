@@ -149,6 +149,10 @@ export async function GET(
           parent_message_id: msg.parent_message_id,
           thread_reply_count: threadCountMap.get(msg.id) || 0,
           read_by: readByMap.get(msg.id) || [],
+          file_url: msg.file_url || null,
+          file_name: msg.file_name || null,
+          file_type: msg.file_type || null,
+          file_size: msg.file_size || null,
         };
       });
 
@@ -199,11 +203,15 @@ export async function POST(
 
     const { conversationId } = await params;
     const body = await request.json();
-    const { content, parent_message_id } = body;
+    const { content, parent_message_id, file_url, file_name, file_type, file_size } = body;
 
-    if (!content || typeof content !== "string" || content.trim().length === 0) {
+    // Content is required unless a file is attached
+    const hasContent = content && typeof content === "string" && content.trim().length > 0;
+    const hasFile = file_url && file_name;
+
+    if (!hasContent && !hasFile) {
       return NextResponse.json(
-        { error: "Message content is required" },
+        { error: "Message content or file attachment is required" },
         { status: 400 }
       );
     }
@@ -245,8 +253,12 @@ export async function POST(
       .insert({
         conversation_id: conversationId,
         author_id: user.id,
-        content: content.trim(),
+        content: hasContent ? content.trim() : "",
         parent_message_id: parent_message_id || null,
+        file_url: file_url || null,
+        file_name: file_name || null,
+        file_type: file_type || null,
+        file_size: file_size || null,
       })
       .select()
       .single();
@@ -353,6 +365,10 @@ export async function POST(
         parent_message_id: message.parent_message_id,
         thread_reply_count: 0,
         read_by: [],
+        file_url: message.file_url || null,
+        file_name: message.file_name || null,
+        file_type: message.file_type || null,
+        file_size: message.file_size || null,
       },
     });
   } catch (error) {
