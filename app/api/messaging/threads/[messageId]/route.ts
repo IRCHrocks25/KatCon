@@ -105,7 +105,7 @@ export async function GET(
     ];
     const { data: profiles } = await supabase
       .from("profiles")
-      .select("id, email, fullname")
+      .select("id, email, fullname, username, avatar_url")
       .in("id", senderIds);
 
     const profileMap = new Map<string, any>();
@@ -122,6 +122,8 @@ export async function GET(
         author_id: msg.author_id,
         author_email: profile?.email || "",
         author_fullname: profile?.fullname || null,
+        author_username: profile?.username || null,
+        author_avatar_url: profile?.avatar_url || null,
         content: msg.content,
         created_at: msg.created_at,
         parent_message_id: msg.parent_message_id,

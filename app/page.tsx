@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { MessageSquare, Users, LogOut } from "lucide-react";
+import { MessageSquare, Users, LogOut, User } from "lucide-react";
 import { motion } from "motion/react";
 import { useAuth } from "@/contexts/AuthContext";
 import { LoginForm } from "@/components/auth/LoginForm";
@@ -14,8 +14,9 @@ import {
 } from "@/lib/utils/storage";
 import { AIChatView } from "@/components/chat/AIChatView";
 import { MessagesView } from "@/components/messaging/MessagesView";
+import { ProfileView } from "@/components/profile/ProfileView";
 
-type TabType = "chat" | "messages";
+type TabType = "chat" | "messages" | "profile";
 
 export default function Home() {
   const { user, loading: authLoading, logout } = useAuth();
@@ -24,7 +25,7 @@ export default function Home() {
   // Tab state with session storage persistence
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     const saved = getStorageItem("activeTab");
-    return saved === "chat" || saved === "messages"
+    return saved === "chat" || saved === "messages" || saved === "profile"
       ? (saved as TabType)
       : "chat";
   });
@@ -111,6 +112,17 @@ export default function Home() {
               <Users size={18} />
               <span className="font-medium">Messages</span>
             </button>
+            <button
+              onClick={() => setActiveTab("profile")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                activeTab === "profile"
+                  ? "bg-gradient-to-r from-purple-600/20 via-pink-500/20 to-orange-500/20 text-white border-b-2 border-purple-500"
+                  : "text-gray-400 hover:text-white hover:bg-gray-800/50"
+              }`}
+            >
+              <User size={18} />
+              <span className="font-medium">Profile</span>
+            </button>
           </div>
 
           {/* Right Actions */}
@@ -140,16 +152,18 @@ export default function Home() {
       <div className="flex-1 relative overflow-hidden">
         <motion.div
           key={activeTab}
-          initial={{ opacity: 0, x: activeTab === "chat" ? -20 : 20 }}
+          initial={{ opacity: 0, x: activeTab === "chat" ? -20 : activeTab === "messages" ? 20 : 0 }}
           animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: activeTab === "chat" ? 20 : -20 }}
+          exit={{ opacity: 0, x: activeTab === "chat" ? 20 : activeTab === "messages" ? -20 : 0 }}
           transition={{ duration: 0.2 }}
           className="w-full h-full"
         >
           {activeTab === "chat" ? (
             <AIChatView reminders={reminders} setReminders={setReminders} />
-          ) : (
+          ) : activeTab === "messages" ? (
             <MessagesView reminders={reminders} setReminders={setReminders} />
+          ) : (
+            <ProfileView reminders={reminders} setReminders={setReminders} />
           )}
         </motion.div>
       </div>

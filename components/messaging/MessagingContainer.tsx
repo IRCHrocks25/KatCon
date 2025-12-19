@@ -28,6 +28,7 @@ import { ChannelSettingsDialog } from "./ChannelSettingsDialog";
 import { FilesModal } from "./FilesModal";
 import { RemindersModal } from "@/components/reminders/RemindersModal";
 import type { Reminder } from "@/lib/supabase/reminders";
+import { Avatar } from "@/components/ui/avatar";
 
 // Session cache for messages (persists until logout)
 // Module-level cache that survives component unmount/remount (e.g., tab switches)
@@ -1135,9 +1136,17 @@ export function MessagingContainer({
                     <Hash size={20} className="text-white" />
                   </div>
                 ) : (
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center text-white text-sm font-medium">
-                    {getConversationInitials(activeConversation)}
-                  </div>
+                  (() => {
+                    const other = getOtherParticipant(activeConversation);
+                    return (
+                      <Avatar
+                        src={other?.avatarUrl || null}
+                        name={other?.username || other?.fullname || undefined}
+                        email={other?.email || undefined}
+                        size="lg"
+                      />
+                    );
+                  })()
                 )}
                 <div>
                   <h3 className="text-white font-semibold text-lg">

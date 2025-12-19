@@ -19,11 +19,15 @@ export interface AuthUser {
   email: string;
   accountType?: AccountType;
   fullname?: string;
+  username?: string;
+  avatarUrl?: string;
 }
 
 interface ProfileData {
   account_type: string;
   fullname?: string;
+  username?: string;
+  avatar_url?: string;
   approved?: boolean;
 }
 
@@ -57,7 +61,7 @@ export async function fetchUserProfile(
 
     const fetchPromise = supabase
       .from("profiles")
-      .select("account_type, fullname, approved")
+      .select("account_type, fullname, username, avatar_url, approved")
       .eq("id", userId)
       .single();
 
@@ -131,6 +135,8 @@ export function buildAuthUser(
     email: sessionUser.email || "",
     accountType: profile?.account_type as AccountType | undefined,
     fullname: profile?.fullname || undefined,
+    username: profile?.username || undefined,
+    avatarUrl: profile?.avatar_url || undefined,
   };
 }
 

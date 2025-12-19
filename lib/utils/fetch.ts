@@ -44,8 +44,16 @@ export async function robustFetch(
     }
   }
 
+  // Check if body is FormData - if so, browser must set Content-Type with boundary
+  const isFormData = fetchOptions.body instanceof FormData;
+  
   // Preserve existing headers (especially auth headers from Supabase)
   const existingHeaders = new Headers(fetchOptions.headers);
+  
+  // If body is FormData, remove Content-Type to let browser set it with boundary
+  if (isFormData && existingHeaders.has('Content-Type')) {
+    existingHeaders.delete('Content-Type');
+  }
   
   // Add connection management headers (but don't override existing ones)
   // Only force Connection: close for unreliable external endpoints

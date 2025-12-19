@@ -9,6 +9,7 @@ import type {
 } from "@/lib/supabase/messaging";
 import { formatMentions } from "@/lib/utils/mentions";
 import { formatFileSize, isImageFile } from "@/lib/supabase/file-upload";
+import { Avatar } from "@/components/ui/avatar";
 
 interface MessageListProps {
   messages: Message[];
@@ -160,19 +161,13 @@ export function MessageList({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const getParticipantName = (userId: string) => {
-    const participant = participants.find((p) => p.userId === userId);
-    return participant?.fullname || participant?.email || "Unknown";
+  const getParticipant = (userId: string) => {
+    return participants.find((p) => p.userId === userId);
   };
 
-  const getParticipantInitials = (userId: string) => {
-    const name = getParticipantName(userId);
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
+  const getParticipantName = (userId: string) => {
+    const participant = getParticipant(userId);
+    return participant?.username || participant?.fullname || participant?.email || "Unknown";
   };
 
   if (messages.length === 0) {
@@ -210,11 +205,29 @@ export function MessageList({
             >
               {/* Avatar */}
               {showAvatar ? (
-                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center text-white text-xs font-medium flex-shrink-0 mt-5">
-                  {getParticipantInitials(message.authorId)}
+                <div className="mt-5">
+                  <Avatar
+                    src={
+                      message.authorAvatarUrl ||
+                      getParticipant(message.authorId)?.avatarUrl ||
+                      null
+                    }
+                    name={
+                      message.authorUsername ||
+                      message.authorFullname ||
+                      getParticipant(message.authorId)?.fullname ||
+                      undefined
+                    }
+                    email={
+                      message.authorEmail ||
+                      getParticipant(message.authorId)?.email ||
+                      undefined
+                    }
+                    size="sm"
+                  />
                 </div>
               ) : (
-                <div className="w-8 flex-shrink-0" />
+                <div className="w-6 flex-shrink-0" />
               )}
 
               {/* Message Content */}
