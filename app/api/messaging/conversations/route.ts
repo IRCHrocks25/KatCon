@@ -398,68 +398,104 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Check if DM already exists
-      const { data: existingDMs } = await supabase
+      // Check if DM already exists between these two specific users
+      // Strategy: Find all DMs where current user is a participant,
+      // then check if any of those also have the other user and exactly 2 participants total
+      
+      // Get all conversations where current user is a participant
+      const { data: userParticipations, error: userPartError } = await supabase
         .from("conversation_participants")
         .select("conversation_id")
         .eq("user_id", user.id);
 
-      const existingConvIds = existingDMs?.map((d) => d.conversation_id) || [];
+      if (userPartError) {
+        console.error("Error fetching user participations:", userPartError);
+      }
 
-      if (existingConvIds.length > 0) {
-        const { data: existingConv } = await supabase
+      const userConvIds = userParticipations?.map((p) => p.conversation_id) || [];
+
+      if (userConvIds.length > 0) {
+        // Get all DM conversations where current user participates
+        const { data: userDMs, error: dmsError } = await supabase
           .from("conversations")
-          .select("id, type")
-          .in("id", existingConvIds)
-          .eq("type", "dm")
-          .single();
+          .select("id")
+          .in("id", userConvIds)
+          .eq("type", "dm");
 
-        if (existingConv) {
-          // Check if other user is also participant
-          const { data: otherParticipant } = await supabase
-            .from("conversation_participants")
-            .select("conversation_id")
-            .eq("conversation_id", existingConv.id)
-            .eq("user_id", otherUserId)
-            .single();
+        if (dmsError) {
+          console.error("Error fetching user DMs:", dmsError);
+        }
 
-          if (otherParticipant) {
-            // DM already exists, return it
-            const { data: conv } = await supabase
-              .from("conversations")
-              .select("*")
-              .eq("id", existingConv.id)
-              .single();
+        const userDMIds = userDMs?.map((dm) => dm.id) || [];
 
-            const { data: participants } = await supabase
+        if (userDMIds.length > 0) {
+          // Check if any of these DMs also have the other user as a participant
+          const { data: otherUserParticipations, error: otherPartError } =
+            await supabase
+              .from("conversation_participants")
+              .select("conversation_id")
+              .eq("user_id", otherUserId)
+              .in("conversation_id", userDMIds);
+
+          if (otherPartError) {
+            console.error("Error fetching other user participations:", otherPartError);
+          }
+
+          const sharedDMIds =
+            otherUserParticipations?.map((p) => p.conversation_id) || [];
+
+          // For each shared DM, verify it has exactly 2 participants
+          // This ensures it's a DM between just these two users (not a group DM)
+          for (const dmId of sharedDMIds) {
+            const { data: participants, error: partError } = await supabase
               .from("conversation_participants")
               .select("user_id")
-              .eq("conversation_id", existingConv.id);
+              .eq("conversation_id", dmId);
 
-            const participantIds = participants?.map((p) => p.user_id) || [];
-            const { data: profiles } = await supabase
-              .from("profiles")
-              .select("id, email, fullname")
-              .in("id", participantIds);
+            if (partError) {
+              console.error("Error checking participants:", partError);
+              continue;
+            }
 
-            return NextResponse.json({
-              conversation: {
-                id: conv?.id,
-                name: conv?.name,
-                description: conv?.description,
-                type: conv?.type,
-                is_private: conv?.is_private,
-                created_at: conv?.created_at,
-                updated_at: conv?.updated_at,
-                created_by: conv?.created_by ?? user.id,
-                participants:
-                  profiles?.map((p) => ({
-                    userId: p.id,
-                    email: p.email || "",
-                    fullname: p.fullname || null,
-                  })) || [],
-              },
-            });
+            // If exactly 2 participants (current user + other user), DM exists
+            if (participants && participants.length === 2) {
+              // Verify both participants are the expected users
+              const participantIds = new Set(participants.map((p) => p.user_id));
+              if (participantIds.has(user.id) && participantIds.has(otherUserId)) {
+                // DM already exists, return it
+                const { data: conv } = await supabase
+                  .from("conversations")
+                  .select("*")
+                  .eq("id", dmId)
+                  .single();
+
+                if (conv) {
+                  const { data: profiles } = await supabase
+                    .from("profiles")
+                    .select("id, email, fullname")
+                    .in("id", Array.from(participantIds));
+
+                  return NextResponse.json({
+                    conversation: {
+                      id: conv.id,
+                      name: conv.name,
+                      description: conv.description,
+                      type: conv.type,
+                      is_private: conv.is_private,
+                      created_at: conv.created_at,
+                      updated_at: conv.updated_at,
+                      created_by: conv.created_by ?? user.id,
+                      participants:
+                        profiles?.map((p) => ({
+                          userId: p.id,
+                          email: p.email || "",
+                          fullname: p.fullname || null,
+                        })) || [],
+                    },
+                  });
+                }
+              }
+            }
           }
         }
       }

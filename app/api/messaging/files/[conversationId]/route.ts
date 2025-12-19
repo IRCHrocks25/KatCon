@@ -41,7 +41,7 @@ export async function GET(
 
     const { conversationId } = await params;
     const { searchParams } = new URL(request.url);
-    
+
     // Query params for filtering and sorting
     const typeFilter = searchParams.get("type"); // 'images' | 'documents' | 'other' | null (all)
     const searchQuery = searchParams.get("search"); // filename search
@@ -65,7 +65,9 @@ export async function GET(
     // Build query for messages with files
     let query = supabase
       .from("messages")
-      .select("id, file_url, file_name, file_type, file_size, author_id, created_at")
+      .select(
+        "id, file_url, file_name, file_type, file_size, author_id, created_at"
+      )
       .eq("conversation_id", conversationId)
       .not("file_url", "is", null)
       .order("created_at", { ascending: sortOrder === "asc" });
@@ -104,13 +106,18 @@ export async function GET(
     }
 
     // Get author profiles
-    const authorIds = [...new Set((messagesWithFiles || []).map((m) => m.author_id))];
+    const authorIds = [
+      ...new Set((messagesWithFiles || []).map((m) => m.author_id)),
+    ];
     const { data: profiles } = await supabase
       .from("profiles")
       .select("id, email, fullname")
       .in("id", authorIds);
 
-    const profileMap = new Map<string, { email: string; fullname: string | null }>();
+    const profileMap = new Map<
+      string,
+      { email: string; fullname: string | null }
+    >();
     (profiles || []).forEach((p) => {
       profileMap.set(p.id, { email: p.email || "", fullname: p.fullname });
     });
@@ -142,4 +149,3 @@ export async function GET(
     );
   }
 }
-

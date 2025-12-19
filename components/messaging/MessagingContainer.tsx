@@ -37,6 +37,8 @@ interface MessageCacheEntry {
 
 const messagesCacheMap = new Map<string, MessageCacheEntry>();
 let conversationsCache: Conversation[] | null = null;
+// Track which user the cache belongs to
+let cachedUserId: string | null = null;
 
 interface MessagingContainerProps {
   reminders: Reminder[];
@@ -71,6 +73,13 @@ export function MessagingContainer({
   const threadParentIdRef = useRef<string | null>(null);
   const currentUserRef = useRef(currentUser);
 
+  // Track markAsRead calls to prevent duplicates
+  const lastMarkedAsReadRef = useRef<{
+    conversationId: string;
+    timestamp: number;
+  } | null>(null);
+  const markAsReadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // Keep refs in sync
   useEffect(() => {
     conversationsRef.current = conversations;
@@ -88,48 +97,121 @@ export function MessagingContainer({
     currentUserRef.current = currentUser;
   }, [currentUser]);
 
-  // Clear cache on logout
+  // Clear cache on logout OR when user changes
   useEffect(() => {
     if (!currentUser) {
       console.log("[MESSAGING] Clearing cache on logout");
       messagesCacheMap.clear();
       conversationsCache = null;
+      cachedUserId = null;
       setConversations([]);
       setMessages([]);
       setThreadMessages([]);
       setActiveConversationId(null);
       setThreadParentId(null);
+    } else if (cachedUserId && cachedUserId !== currentUser.id) {
+      // User changed (different user logged in) - clear cache
+      console.log("[MESSAGING] Clearing cache - user changed");
+      messagesCacheMap.clear();
+      conversationsCache = null;
+      cachedUserId = currentUser.id;
+      setConversations([]);
+      setMessages([]);
+      setThreadMessages([]);
+      setActiveConversationId(null);
+      setThreadParentId(null);
+    } else if (!cachedUserId && currentUser) {
+      // First time setting user
+      cachedUserId = currentUser.id;
     }
   }, [currentUser]);
 
   // Fetch conversations with caching (only fetch if cache is empty)
-  const fetchConversations = useCallback(async (forceRefresh = false) => {
-    // Check module-level cache first - use it if exists and not forcing refresh
-    if (!forceRefresh && conversationsCache && conversationsCache.length > 0) {
-      console.log("[MESSAGING] Using cached conversations");
-      setConversations(conversationsCache);
-      setIsLoadingConversations(false);
+  const fetchConversations = useCallback(
+    async (forceRefresh = false) => {
+      // Check if cache belongs to current user
+      if (cachedUserId !== currentUser?.id) {
+        console.log("[MESSAGING] Cache user mismatch, forcing refresh");
+        forceRefresh = true;
+        messagesCacheMap.clear();
+        conversationsCache = null;
+      }
+
+      // Check module-level cache first - use it if exists and not forcing refresh
+      // Accept empty arrays too (user might have no conversations)
+      if (!forceRefresh && conversationsCache !== null) {
+        console.log("[MESSAGING] Using cached conversations");
+        setConversations(conversationsCache);
+        setIsLoadingConversations(false);
+        return;
+      }
+
+      try {
+        setIsLoadingConversations(true);
+        const fetchedConversations = await getConversations();
+        setConversations(fetchedConversations);
+
+        // Update module-level cache (persists across tab switches)
+        conversationsCache = fetchedConversations;
+        cachedUserId = currentUser?.id || null;
+      } catch (error) {
+        console.error("Error fetching conversations:", error);
+        toast.error("Failed to load conversations");
+      } finally {
+        setIsLoadingConversations(false);
+      }
+    },
+    [currentUser]
+  );
+
+  // Optimized markAsRead with debouncing and deduplication
+  const debouncedMarkAsRead = useCallback((conversationId: string) => {
+    const lastMarked = lastMarkedAsReadRef.current;
+    const now = Date.now();
+
+    // Skip if we marked this conversation within the last 2 seconds
+    if (
+      lastMarked &&
+      lastMarked.conversationId === conversationId &&
+      now - lastMarked.timestamp < 2000
+    ) {
       return;
     }
 
-    try {
-      setIsLoadingConversations(true);
-      const fetchedConversations = await getConversations();
-      setConversations(fetchedConversations);
-
-      // Update module-level cache (persists across tab switches)
-      conversationsCache = fetchedConversations;
-    } catch (error) {
-      console.error("Error fetching conversations:", error);
-      toast.error("Failed to load conversations");
-    } finally {
-      setIsLoadingConversations(false);
+    // Clear any pending timeout for this conversation
+    if (markAsReadTimeoutRef.current) {
+      clearTimeout(markAsReadTimeoutRef.current);
+      markAsReadTimeoutRef.current = null;
     }
+
+    // Debounce by 300ms to batch rapid calls
+    markAsReadTimeoutRef.current = setTimeout(() => {
+      markAsRead(conversationId)
+        .then(() => {
+          lastMarkedAsReadRef.current = {
+            conversationId,
+            timestamp: Date.now(),
+          };
+        })
+        .catch((error) => {
+          console.error("[MESSAGING] Error marking as read:", error);
+        })
+        .finally(() => {
+          markAsReadTimeoutRef.current = null;
+        });
+    }, 300);
   }, []);
 
   // Fetch messages for active conversation with caching (only fetch if cache is empty)
   const fetchMessages = useCallback(
     async (conversationId: string, forceRefresh = false) => {
+      // Check if cache belongs to current user
+      if (cachedUserId !== currentUser?.id) {
+        console.log("[MESSAGING] Cache user mismatch, forcing refresh");
+        forceRefresh = true;
+        messagesCacheMap.clear();
+      }
+
       const cacheEntry = messagesCacheMap.get(conversationId);
 
       // Check module-level cache first - use it if exists and not forcing refresh
@@ -141,8 +223,8 @@ export function MessagingContainer({
         setMessages(cacheEntry.messages);
         setIsLoadingMessages(false);
 
-        // Mark as read in background (don't wait)
-        markAsRead(conversationId).catch(console.error);
+        // Mark as read with debouncing
+        debouncedMarkAsRead(conversationId);
         return;
       }
 
@@ -155,9 +237,10 @@ export function MessagingContainer({
         messagesCacheMap.set(conversationId, {
           messages: fetchedMessages,
         });
+        cachedUserId = currentUser?.id || null;
 
-        // Mark conversation as read when viewing
-        await markAsRead(conversationId);
+        // Mark conversation as read when viewing (with debouncing)
+        debouncedMarkAsRead(conversationId);
       } catch (error) {
         console.error("Error fetching messages:", error);
         toast.error("Failed to load messages");
@@ -165,7 +248,7 @@ export function MessagingContainer({
         setIsLoadingMessages(false);
       }
     },
-    []
+    [currentUser, debouncedMarkAsRead]
   );
 
   // Fetch thread messages
@@ -179,12 +262,41 @@ export function MessagingContainer({
     }
   }, []);
 
-  // Initial load
+  // Initial load - only fetch once per user, use ref to prevent duplicate calls
+  const hasFetchedRef = useRef<{ userId: string | null; fetched: boolean }>({
+    userId: null,
+    fetched: false,
+  });
+
   useEffect(() => {
-    if (currentUser) {
+    if (!currentUser) {
+      hasFetchedRef.current = { userId: null, fetched: false };
+      return;
+    }
+
+    // Only fetch if we haven't fetched for this user yet, or if cache is invalid
+    const shouldFetch =
+      !hasFetchedRef.current.fetched ||
+      hasFetchedRef.current.userId !== currentUser.id ||
+      conversationsCache === null;
+
+    if (shouldFetch) {
+      hasFetchedRef.current = { userId: currentUser.id, fetched: true };
       fetchConversations();
     }
-  }, [currentUser, fetchConversations]);
+  }, [currentUser?.id, fetchConversations]);
+
+  // Cleanup markAsRead timeout on unmount or user change
+  useEffect(() => {
+    return () => {
+      if (markAsReadTimeoutRef.current) {
+        clearTimeout(markAsReadTimeoutRef.current);
+        markAsReadTimeoutRef.current = null;
+      }
+      // Reset last marked when user changes
+      lastMarkedAsReadRef.current = null;
+    };
+  }, [currentUser?.id]);
 
   // Helper to refresh conversations (and cache) after structural changes
   const refreshConversations = useCallback(async () => {
@@ -313,6 +425,12 @@ export function MessagingContainer({
           const isOwnMessage =
             newMessage.author_id === currentUserRef.current?.id;
 
+          // Safety check: ensure we're still the same user
+          if (currentUserRef.current?.id !== cachedUserId) {
+            console.log("[MESSAGING] User changed, ignoring realtime message");
+            return;
+          }
+
           // Always update the cache for this conversation (even if not active)
           const cacheEntry = messagesCacheMap.get(newMessage.conversation_id);
           if (cacheEntry) {
@@ -365,8 +483,6 @@ export function MessagingContainer({
 
           // If it's the active conversation, also update the UI state
           if (newMessage.conversation_id === activeConversationIdRef.current) {
-            // Skip adding our own messages via realtime - we handle them via optimistic updates
-            // Only update thread reply counts for our own messages
             const isOwnMessage =
               newMessage.author_id === currentUserRef.current?.id;
 
@@ -384,6 +500,24 @@ export function MessagingContainer({
                   if (messageExists) return prev;
                   return [...prev, newMsg];
                 });
+              } else if (isOwnMessage) {
+                // For own messages, replace any optimistic message with the real one
+                setThreadMessages((prev) => {
+                  // Check if there's an optimistic message (temp ID) to replace
+                  const optimisticIndex = prev.findIndex(
+                    (msg) =>
+                      msg.id.startsWith("temp-") &&
+                      msg.authorId === newMessage.author_id
+                  );
+                  if (optimisticIndex >= 0) {
+                    const updated = [...prev];
+                    updated[optimisticIndex] = newMsg;
+                    return updated;
+                  }
+                  // If no optimistic message, check if real message already exists
+                  const exists = prev.some((msg) => msg.id === newMessage.id);
+                  return exists ? prev : [...prev, newMsg];
+                });
               }
               // Update thread reply count in main messages (for all messages)
               setMessages((prev) =>
@@ -396,20 +530,45 @@ export function MessagingContainer({
                     : msg
                 )
               );
-            } else if (!isOwnMessage) {
-              // Top-level message from other users
-              setMessages((prev) => {
-                const messageExists = prev.some(
-                  (msg) => msg.id === newMessage.id
-                );
-                if (messageExists) return prev;
-                return [...prev, newMsg];
-              });
+            } else {
+              // Top-level message
+              if (isOwnMessage) {
+                // For own messages, replace any optimistic message with the real one
+                setMessages((prev) => {
+                  // Check if there's an optimistic message (temp ID) to replace
+                  const optimisticIndex = prev.findIndex(
+                    (msg) =>
+                      msg.id.startsWith("temp-") &&
+                      msg.authorId === newMessage.author_id
+                  );
+                  if (optimisticIndex >= 0) {
+                    const updated = [...prev];
+                    updated[optimisticIndex] = newMsg;
+                    return updated;
+                  }
+                  // If no optimistic message, check if real message already exists
+                  const exists = prev.some((msg) => msg.id === newMessage.id);
+                  return exists ? prev : [...prev, newMsg];
+                });
+              } else {
+                // Other users' messages
+                setMessages((prev) => {
+                  const messageExists = prev.some(
+                    (msg) => msg.id === newMessage.id
+                  );
+                  if (messageExists) return prev;
+                  return [...prev, newMsg];
+                });
+              }
             }
 
             // Mark as read if viewing (but don't refetch messages)
-            if (!isOwnMessage && newMessage.conversation_id) {
-              markAsRead(newMessage.conversation_id).catch(console.error);
+            // Only mark if this is the active conversation
+            if (
+              !isOwnMessage &&
+              newMessage.conversation_id === activeConversationIdRef.current
+            ) {
+              debouncedMarkAsRead(newMessage.conversation_id);
             }
           }
 
@@ -448,6 +607,7 @@ export function MessagingContainer({
 
             // Update module-level conversations cache
             conversationsCache = updated;
+            cachedUserId = currentUser?.id || null;
 
             return updated;
           });
@@ -523,8 +683,13 @@ export function MessagingContainer({
     return () => {
       console.log("[MESSAGING] Cleaning up realtime subscriptions");
       supabase.removeChannel(messagesChannel);
+      // Clear any pending markAsRead timeout
+      if (markAsReadTimeoutRef.current) {
+        clearTimeout(markAsReadTimeoutRef.current);
+        markAsReadTimeoutRef.current = null;
+      }
     };
-  }, [currentUser?.id]);
+  }, [currentUser?.id, debouncedMarkAsRead]);
 
   // Handle sending a single message (internal)
   const sendSingleMessage = async (
@@ -613,17 +778,39 @@ export function MessagingContainer({
       if (sentMessage) {
         // Replace optimistic message with real one
         if (parentMessageId) {
-          setThreadMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === optimisticMessage.id ? sentMessage : msg
-            )
-          );
+          setThreadMessages((prev) => {
+            const optimisticIndex = prev.findIndex(
+              (msg) => msg.id === optimisticMessage.id
+            );
+            if (optimisticIndex >= 0) {
+              // Replace optimistic message
+              const updated = [...prev];
+              updated[optimisticIndex] = sentMessage;
+              return updated;
+            } else {
+              // Optimistic message not found, just add the real one
+              // Check if real message already exists to avoid duplicates
+              const exists = prev.some((msg) => msg.id === sentMessage.id);
+              return exists ? prev : [...prev, sentMessage];
+            }
+          });
         } else {
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === optimisticMessage.id ? sentMessage : msg
-            )
-          );
+          setMessages((prev) => {
+            const optimisticIndex = prev.findIndex(
+              (msg) => msg.id === optimisticMessage.id
+            );
+            if (optimisticIndex >= 0) {
+              // Replace optimistic message
+              const updated = [...prev];
+              updated[optimisticIndex] = sentMessage;
+              return updated;
+            } else {
+              // Optimistic message not found, just add the real one
+              // Check if real message already exists to avoid duplicates
+              const exists = prev.some((msg) => msg.id === sentMessage.id);
+              return exists ? prev : [...prev, sentMessage];
+            }
+          });
         }
 
         // Update module-level cache
@@ -640,13 +827,27 @@ export function MessagingContainer({
               messages: updatedMessages,
             });
           } else {
-            // Replace optimistic message in cache
-            const updatedMessages = cacheEntry.messages.map((msg) =>
-              msg.id === optimisticMessage.id ? sentMessage : msg
+            // Replace optimistic message in cache or add if not found
+            const optimisticIndex = cacheEntry.messages.findIndex(
+              (msg) => msg.id === optimisticMessage.id
             );
-            messagesCacheMap.set(activeConversationId, {
-              messages: updatedMessages,
-            });
+            if (optimisticIndex >= 0) {
+              const updatedMessages = [...cacheEntry.messages];
+              updatedMessages[optimisticIndex] = sentMessage;
+              messagesCacheMap.set(activeConversationId, {
+                messages: updatedMessages,
+              });
+            } else {
+              // Optimistic message not found in cache, add the real one
+              const exists = cacheEntry.messages.some(
+                (msg) => msg.id === sentMessage.id
+              );
+              if (!exists) {
+                messagesCacheMap.set(activeConversationId, {
+                  messages: [...cacheEntry.messages, sentMessage],
+                });
+              }
+            }
           }
         }
 
@@ -679,6 +880,7 @@ export function MessagingContainer({
 
           // Update module-level conversations cache
           conversationsCache = updated;
+          cachedUserId = currentUser?.id || null;
 
           return updated;
         });
@@ -793,33 +995,32 @@ export function MessagingContainer({
     if (!currentUser) return;
 
     try {
-      // Check if DM already exists
-      const existingDM = conversations.find(
-        (conv) =>
-          conv.type === "dm" &&
-          conv.participants.some((p) => p.userId === userId) &&
-          conv.participants.length === 2
-      );
-
-      if (existingDM) {
-        // Open existing DM
-        setActiveConversationId(existingDM.id);
-        setShowCreateChannel(false);
-        return;
-      }
-
-      // Create new DM
+      // The API will return existing DM if one exists, or create a new one
+      // No need to check client-side - let the API handle duplicate prevention
       const conversation = await createDM(userId);
 
       if (conversation) {
-        setConversations((prev) => {
-          const updated = [conversation, ...prev];
-          conversationsCache = updated;
-          return updated;
-        });
-        setActiveConversationId(conversation.id);
-        setShowCreateChannel(false);
-        toast.success("Conversation started");
+        // Check if conversation already exists in our list
+        const existingIndex = conversations.findIndex(
+          (conv) => conv.id === conversation.id
+        );
+
+        if (existingIndex >= 0) {
+          // Conversation already exists, just switch to it
+          setActiveConversationId(conversation.id);
+          setShowCreateChannel(false);
+          toast.success("Opened existing conversation");
+        } else {
+          // New conversation, add it to the list
+          setConversations((prev) => {
+            const updated = [conversation, ...prev];
+            conversationsCache = updated;
+            return updated;
+          });
+          setActiveConversationId(conversation.id);
+          setShowCreateChannel(false);
+          toast.success("Conversation started");
+        }
       }
     } catch (error) {
       console.error("Error creating DM:", error);
