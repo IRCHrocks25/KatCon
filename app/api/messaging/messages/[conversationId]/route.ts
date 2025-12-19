@@ -42,6 +42,7 @@ export async function GET(
     const { conversationId } = await params;
     const { searchParams } = new URL(request.url);
     const beforeMessageId = searchParams.get("before");
+    const limit = Math.min(parseInt(searchParams.get("limit") || "30", 10), 100);
 
     // Verify user is a participant
     const { data: participant } = await supabase
@@ -65,7 +66,7 @@ export async function GET(
       .eq("conversation_id", conversationId)
       .is("parent_message_id", null) // Only top-level messages
       .order("created_at", { ascending: false })
-      .limit(50);
+      .limit(limit);
 
     // If beforeMessageId is provided, get messages before that
     if (beforeMessageId) {
@@ -125,7 +126,7 @@ export async function GET(
     const senderIds = [...new Set((messages || []).map((m) => m.author_id))];
     const { data: profiles } = await supabase
       .from("profiles")
-      .select("id, email, fullname")
+      .select("id, email, fullname, username, avatar_url")
       .in("id", senderIds);
 
     const profileMap = new Map<string, any>();
@@ -144,6 +145,8 @@ export async function GET(
           author_id: msg.author_id,
           author_email: profile?.email || "",
           author_fullname: profile?.fullname || null,
+          author_username: profile?.username || null,
+          author_avatar_url: profile?.avatar_url || null,
           content: msg.content,
           created_at: msg.created_at,
           parent_message_id: msg.parent_message_id,
@@ -156,7 +159,13 @@ export async function GET(
         };
       });
 
-    return NextResponse.json({ messages: formattedMessages });
+    // Check if there are more messages (if we got exactly the limit, there might be more)
+    const hasMore = (messages || []).length === limit;
+
+    return NextResponse.json({ 
+      messages: formattedMessages,
+      hasMore 
+    });
   } catch (error) {
     console.error("Error in messages/[conversationId] GET API route:", error);
     return NextResponse.json(
@@ -280,7 +289,7 @@ export async function POST(
     // Get sender profile
     const { data: profile } = await supabase
       .from("profiles")
-      .select("email, fullname")
+      .select("email, fullname, username, avatar_url")
       .eq("id", user.id)
       .single();
 
@@ -360,6 +369,8 @@ export async function POST(
         author_id: message.author_id,
         author_email: profile?.email || "",
         author_fullname: profile?.fullname || null,
+        author_username: profile?.username || null,
+        author_avatar_url: profile?.avatar_url || null,
         content: message.content,
         created_at: message.created_at,
         parent_message_id: message.parent_message_id,

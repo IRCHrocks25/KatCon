@@ -33,6 +33,7 @@ interface AuthContextType {
   ) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -75,6 +76,8 @@ export function AuthProvider({
           // Profile data will be lazy-loaded later if needed
           accountType: undefined,
           fullname: undefined,
+          username: undefined,
+          avatarUrl: undefined,
         });
       } else {
         setUser(null);
@@ -93,6 +96,8 @@ export function AuthProvider({
           email: session.user.email || "",
           accountType: undefined,
           fullname: undefined,
+          username: undefined,
+          avatarUrl: undefined,
         });
       } else {
         setUser(null);
@@ -116,6 +121,8 @@ export function AuthProvider({
                   ...prev,
                   accountType: profile.account_type as AccountType,
                   fullname: profile.fullname,
+                  username: profile.username,
+                  avatarUrl: profile.avatar_url,
                 }
               : null
           );
@@ -207,6 +214,29 @@ export function AuthProvider({
     }
   }, []);
 
+  const handleRefreshProfile = useCallback(async () => {
+    if (!user?.id) return;
+
+    try {
+      const profile = await fetchUserProfile(user.id);
+      if (profile) {
+        setUser((prev) =>
+          prev
+            ? {
+                ...prev,
+                accountType: profile.account_type as AccountType,
+                fullname: profile.fullname,
+                username: profile.username,
+                avatarUrl: profile.avatar_url,
+              }
+            : null
+        );
+      }
+    } catch (error) {
+      console.error("Error refreshing profile:", error);
+    }
+  }, [user?.id]);
+
   // Memoize context value before any early returns
   const contextValue = useMemo(
     () => ({
@@ -216,8 +246,9 @@ export function AuthProvider({
       signUp: handleSignUp,
       signIn: handleSignIn,
       logout: handleLogout,
+      refreshProfile: handleRefreshProfile,
     }),
-    [user, session, loading, handleSignUp, handleSignIn, handleLogout]
+    [user, session, loading, handleSignUp, handleSignIn, handleLogout, handleRefreshProfile]
   );
 
   if (loading) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   X,
@@ -41,6 +41,89 @@ interface FilesModalProps {
 
 type FilterType = "all" | "images" | "documents" | "other";
 
+// ============================================================
+// MODULE-LEVEL FILE CACHE
+// ============================================================
+interface FileCacheEntry {
+  files: FileItem[];
+  timestamp: number;
+  params: string; // Stringified URLSearchParams for cache key
+}
+
+// Cache TTL: 5 minutes (files don't change frequently)
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
+// Cache by conversationId -> { params -> entry }
+const filesCache = new Map<string, Map<string, FileCacheEntry>>();
+
+// Function to get cache key from params
+function getCacheKey(filterType: FilterType, searchQuery: string, sortOrder: string): string {
+  const params = new URLSearchParams();
+  if (filterType !== "all") params.set("type", filterType);
+  if (searchQuery) params.set("search", searchQuery);
+  params.set("sort", sortOrder);
+  return params.toString();
+}
+
+// Function to get cached files
+function getCachedFiles(
+  conversationId: string,
+  cacheKey: string
+): FileItem[] | null {
+  const convCache = filesCache.get(conversationId);
+  if (!convCache) return null;
+
+  const entry = convCache.get(cacheKey);
+  if (!entry) return null;
+
+  const age = Date.now() - entry.timestamp;
+  if (age > CACHE_TTL_MS) {
+    console.log(`[FILES CACHE] Cache expired for conversation ${conversationId}`);
+    convCache.delete(cacheKey);
+    return null;
+  }
+
+  console.log(`[FILES CACHE] Cache hit for conversation ${conversationId}, age: ${Math.round(age / 1000)}s`);
+  return entry.files;
+}
+
+// Function to set cached files
+function setCachedFiles(
+  conversationId: string,
+  cacheKey: string,
+  files: FileItem[]
+): void {
+  let convCache = filesCache.get(conversationId);
+  if (!convCache) {
+    convCache = new Map();
+    filesCache.set(conversationId, convCache);
+  }
+
+  convCache.set(cacheKey, {
+    files,
+    timestamp: Date.now(),
+    params: cacheKey,
+  });
+
+  console.log(`[FILES CACHE] Cached ${files.length} files for conversation ${conversationId}`);
+}
+
+// Function to invalidate cache for a conversation (call when new file uploaded)
+export function invalidateFilesCache(conversationId: string): void {
+  filesCache.delete(conversationId);
+  console.log(`[FILES CACHE] Invalidated cache for conversation ${conversationId}`);
+}
+
+// Function to invalidate all file caches
+export function invalidateAllFilesCache(): void {
+  filesCache.clear();
+  console.log("[FILES CACHE] Invalidated all file caches");
+}
+
+// ============================================================
+// END CACHE LAYER
+// ============================================================
+
 async function getAuthHeaders(): Promise<HeadersInit> {
   const {
     data: { session },
@@ -69,9 +152,25 @@ export function FilesModal({
   const [filterType, setFilterType] = useState<FilterType>("all");
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  
+  // Track if we've already loaded from cache for this conversation
+  const hasLoadedRef = useRef(false);
+  const lastConversationIdRef = useRef<string>("");
 
-  const fetchFiles = useCallback(async () => {
+  const fetchFiles = useCallback(async (forceRefresh = false) => {
     if (!conversationId) return;
+
+    const cacheKey = getCacheKey(filterType, searchQuery, sortOrder);
+
+    // Check cache first (unless forcing refresh)
+    if (!forceRefresh) {
+      const cached = getCachedFiles(conversationId, cacheKey);
+      if (cached !== null) {
+        setFiles(cached);
+        setIsLoading(false);
+        return;
+      }
+    }
 
     try {
       setIsLoading(true);
@@ -84,6 +183,7 @@ export function FilesModal({
 
       const url = `/api/messaging/files/${conversationId}?${params.toString()}`;
       
+      console.log(`[FILES] Fetching files for conversation ${conversationId} with params: ${cacheKey}`);
       const response = await robustFetch(url, {
         method: "GET",
         headers,
@@ -93,7 +193,11 @@ export function FilesModal({
 
       if (response.ok) {
         const data = await response.json();
-        setFiles(data.files || []);
+        const fetchedFiles = data.files || [];
+        setFiles(fetchedFiles);
+        
+        // Cache the results
+        setCachedFiles(conversationId, cacheKey, fetchedFiles);
       } else {
         console.error("Failed to fetch files");
         setFiles([]);
@@ -106,15 +210,53 @@ export function FilesModal({
     }
   }, [conversationId, filterType, searchQuery, sortOrder]);
 
+  // Load files when modal opens or conversation changes
   useEffect(() => {
     if (isOpen) {
-      fetchFiles();
+      // Check if conversation changed
+      const conversationChanged = lastConversationIdRef.current !== conversationId;
+      
+      if (conversationChanged) {
+        // Reset state for new conversation
+        hasLoadedRef.current = false;
+        lastConversationIdRef.current = conversationId;
+        setSearchQuery("");
+        setFilterType("all");
+        setSortOrder("desc");
+      }
+
+      // Only fetch if we haven't loaded yet or conversation changed
+      if (!hasLoadedRef.current || conversationChanged) {
+        fetchFiles();
+        hasLoadedRef.current = true;
+      } else {
+        // Already loaded, try to use cache
+        const cacheKey = getCacheKey(filterType, searchQuery, sortOrder);
+        const cached = getCachedFiles(conversationId, cacheKey);
+        if (cached !== null) {
+          setFiles(cached);
+          setIsLoading(false);
+        } else {
+          // Cache miss, fetch
+          fetchFiles();
+        }
+      }
+    } else {
+      // Reset when modal closes
+      hasLoadedRef.current = false;
     }
-  }, [isOpen, fetchFiles]);
+  }, [isOpen, conversationId]);
+
+  // Handle filter/sort changes (immediate fetch)
+  useEffect(() => {
+    if (!isOpen || !hasLoadedRef.current) return;
+    
+    fetchFiles();
+  }, [filterType, sortOrder]);
 
   // Debounced search
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !hasLoadedRef.current) return;
     
     const timer = setTimeout(() => {
       fetchFiles();

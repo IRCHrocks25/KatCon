@@ -6,6 +6,7 @@ import { X, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase/client";
+import { Avatar } from "@/components/ui/avatar";
 
 interface CreateChannelModalProps {
   onClose: () => void;
@@ -30,7 +31,13 @@ export function CreateChannelModal({
   const [isPrivate, setIsPrivate] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [availableUsers, setAvailableUsers] = useState<
-    Array<{ id: string; email: string; fullname?: string }>
+    Array<{
+      id: string;
+      email: string;
+      fullname?: string;
+      username?: string;
+      avatarUrl?: string;
+    }>
   >([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -47,7 +54,7 @@ export function CreateChannelModal({
       try {
         const { data: profiles, error } = await supabase
           .from("profiles")
-          .select("id, email, fullname, approved")
+          .select("id, email, fullname, username, avatar_url, approved")
           .neq("id", currentUser?.id || "")
           .eq("approved", true)
           .order("fullname", { ascending: true });
@@ -55,11 +62,15 @@ export function CreateChannelModal({
         if (error) throw error;
 
         setAvailableUsers(
-          (profiles || []).filter((p) => p.email) as Array<{
-            id: string;
-            email: string;
-            fullname?: string;
-          }>
+          (profiles || [])
+            .filter((p) => p.email)
+            .map((p) => ({
+              id: p.id,
+              email: p.email || "",
+              fullname: p.fullname || undefined,
+              username: p.username || undefined,
+              avatarUrl: p.avatar_url || undefined,
+            }))
         );
       } catch (error) {
         console.error("Error fetching users:", error);
@@ -99,6 +110,7 @@ export function CreateChannelModal({
       (user) =>
         user.email.toLowerCase().includes(query) ||
         user.fullname?.toLowerCase().includes(query) ||
+        user.username?.toLowerCase().includes(query) ||
         user.email.split("@")[0].toLowerCase().includes(query)
     );
   }, [availableUsers, searchQuery]);
@@ -260,9 +272,17 @@ export function CreateChannelModal({
                           onChange={() => handleToggleUser(user.id)}
                           className="w-4 h-4 text-purple-600 bg-gray-800 border-gray-700 rounded focus:ring-purple-500"
                         />
+                        <Avatar
+                          src={user.avatarUrl || null}
+                          name={user.username || user.fullname || undefined}
+                          email={user.email || undefined}
+                          size="sm"
+                        />
                         <div className="flex-1">
                           <div className="text-white text-sm">
-                            {user.fullname || user.email.split("@")[0]}
+                            {user.username ||
+                              user.fullname ||
+                              user.email.split("@")[0]}
                           </div>
                           <div className="text-gray-400 text-xs">
                             {user.email}
@@ -317,17 +337,17 @@ export function CreateChannelModal({
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center text-white text-sm font-medium flex-shrink-0">
-                          {(user.fullname || user.email)
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")
-                            .toUpperCase()
-                            .slice(0, 2)}
-                        </div>
+                        <Avatar
+                          src={user.avatarUrl || null}
+                          name={user.username || user.fullname || undefined}
+                          email={user.email || undefined}
+                          size="md"
+                        />
                         <div className="flex-1">
                           <div className="text-white text-sm font-medium">
-                            {user.fullname || user.email.split("@")[0]}
+                            {user.username ||
+                              user.fullname ||
+                              user.email.split("@")[0]}
                           </div>
                           <div className="text-gray-400 text-xs">
                             {user.email}

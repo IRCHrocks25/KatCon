@@ -68,10 +68,10 @@ export async function GET(request: NextRequest) {
     // Use service role so RLS on conversations does not hide them.
     const { data: publicChannels, error: publicChannelsError } =
       await adminSupabase
-      .from("conversations")
-      .select("id")
-      .eq("type", "channel")
-      .eq("is_private", false);
+        .from("conversations")
+        .select("id")
+        .eq("type", "channel")
+        .eq("is_private", false);
 
     if (publicChannelsError) {
       console.error("Error fetching public channels:", publicChannelsError);
@@ -100,10 +100,10 @@ export async function GET(request: NextRequest) {
     // Get conversations (both joined and public) with service role.
     const { data: conversations, error: conversationsError } =
       await adminSupabase
-      .from("conversations")
-      .select("*")
-      .in("id", conversationIds)
-      .order("updated_at", { ascending: false });
+        .from("conversations")
+        .select("*")
+        .in("id", conversationIds)
+        .order("updated_at", { ascending: false });
 
     if (conversationsError) {
       console.error("Error fetching conversations:", conversationsError);
@@ -130,7 +130,7 @@ export async function GET(request: NextRequest) {
     ];
     const { data: profiles } = await supabase
       .from("profiles")
-      .select("id, email, fullname")
+      .select("id, email, fullname, username, avatar_url")
       .in("id", participantUserIds);
 
     const profileMap = new Map<string, any>();
@@ -175,7 +175,9 @@ export async function GET(request: NextRequest) {
         .eq("user_id", user.id)
         .in("message_id", unreadMessageIds);
 
-      const readMessageIds = new Set(readMessages?.map((r) => r.message_id) || []);
+      const readMessageIds = new Set(
+        readMessages?.map((r) => r.message_id) || []
+      );
 
       // Count unread per conversation
       unreadMessages.forEach((msg) => {
@@ -210,14 +212,14 @@ export async function GET(request: NextRequest) {
             userId: p.user_id,
             email: profile?.email || "",
             fullname: profile?.fullname || null,
+            username: profile?.username || null,
+            avatarUrl: profile?.avatar_url || null,
           };
         })
         .filter((p) => p.email); // Only include users with profiles
 
       const lastMsg = lastMessageMap.get(conv.id);
-      const lastMsgProfile = lastMsg
-        ? profileMap.get(lastMsg.author_id)
-        : null;
+      const lastMsgProfile = lastMsg ? profileMap.get(lastMsg.author_id) : null;
 
       return {
         id: conv.id,
@@ -260,10 +262,7 @@ export async function POST(request: NextRequest) {
   try {
     const authHeader = request.headers.get("authorization");
     if (!authHeader) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const token = authHeader.replace("Bearer ", "");
@@ -281,10 +280,7 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (userError || !user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = await request.json();
@@ -307,16 +303,12 @@ export async function POST(request: NextRequest) {
       }
 
       // Use service role to create channel (bypass RLS)
-      const adminSupabase = createClient(
-        supabaseUrl,
-        supabaseServiceRoleKey,
-        {
-          auth: {
-            autoRefreshToken: false,
-            persistSession: false,
-          },
-        }
-      );
+      const adminSupabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      });
 
       // Create channel (allow all users)
       const { data: conversation, error: convError } = await adminSupabase
@@ -360,7 +352,7 @@ export async function POST(request: NextRequest) {
       // Get participants with profiles
       const { data: participantProfiles } = await adminSupabase
         .from("profiles")
-        .select("id, email, fullname")
+        .select("id, email, fullname, username, avatar_url")
         .in("id", allParticipantIds);
 
       return NextResponse.json({
@@ -378,6 +370,8 @@ export async function POST(request: NextRequest) {
               userId: p.id,
               email: p.email || "",
               fullname: p.fullname || null,
+              username: p.username || null,
+              avatarUrl: p.avatar_url || null,
             })) || [],
         },
       });
@@ -401,7 +395,7 @@ export async function POST(request: NextRequest) {
       // Check if DM already exists between these two specific users
       // Strategy: Find all DMs where current user is a participant,
       // then check if any of those also have the other user and exactly 2 participants total
-      
+
       // Get all conversations where current user is a participant
       const { data: userParticipations, error: userPartError } = await supabase
         .from("conversation_participants")
@@ -412,7 +406,8 @@ export async function POST(request: NextRequest) {
         console.error("Error fetching user participations:", userPartError);
       }
 
-      const userConvIds = userParticipations?.map((p) => p.conversation_id) || [];
+      const userConvIds =
+        userParticipations?.map((p) => p.conversation_id) || [];
 
       if (userConvIds.length > 0) {
         // Get all DM conversations where current user participates
@@ -438,7 +433,10 @@ export async function POST(request: NextRequest) {
               .in("conversation_id", userDMIds);
 
           if (otherPartError) {
-            console.error("Error fetching other user participations:", otherPartError);
+            console.error(
+              "Error fetching other user participations:",
+              otherPartError
+            );
           }
 
           const sharedDMIds =
@@ -460,8 +458,13 @@ export async function POST(request: NextRequest) {
             // If exactly 2 participants (current user + other user), DM exists
             if (participants && participants.length === 2) {
               // Verify both participants are the expected users
-              const participantIds = new Set(participants.map((p) => p.user_id));
-              if (participantIds.has(user.id) && participantIds.has(otherUserId)) {
+              const participantIds = new Set(
+                participants.map((p) => p.user_id)
+              );
+              if (
+                participantIds.has(user.id) &&
+                participantIds.has(otherUserId)
+              ) {
                 // DM already exists, return it
                 const { data: conv } = await supabase
                   .from("conversations")
@@ -472,7 +475,7 @@ export async function POST(request: NextRequest) {
                 if (conv) {
                   const { data: profiles } = await supabase
                     .from("profiles")
-                    .select("id, email, fullname")
+                    .select("id, email, fullname, username, avatar_url")
                     .in("id", Array.from(participantIds));
 
                   return NextResponse.json({
@@ -490,6 +493,8 @@ export async function POST(request: NextRequest) {
                           userId: p.id,
                           email: p.email || "",
                           fullname: p.fullname || null,
+                          username: p.username || null,
+                          avatarUrl: p.avatar_url || null,
                         })) || [],
                     },
                   });
@@ -543,7 +548,7 @@ export async function POST(request: NextRequest) {
       // Get participants with profiles
       const { data: participantProfiles } = await adminSupabase
         .from("profiles")
-        .select("id, email, fullname")
+        .select("id, email, fullname, username, avatar_url")
         .in("id", [user.id, otherUserId]);
 
       return NextResponse.json({
@@ -561,6 +566,8 @@ export async function POST(request: NextRequest) {
               userId: p.id,
               email: p.email || "",
               fullname: p.fullname || null,
+              username: p.username || null,
+              avatarUrl: p.avatar_url || null,
             })) || [],
         },
       });
@@ -573,4 +580,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

@@ -23,6 +23,8 @@ export interface ConversationParticipant {
   userId: string;
   email: string;
   fullname?: string;
+  avatarUrl?: string;
+  username?: string;
 }
 
 export interface Conversation {
@@ -55,6 +57,8 @@ export interface Message {
   authorId: string;
   authorEmail: string;
   authorFullname?: string | null;
+  authorAvatarUrl?: string | null;
+  authorUsername?: string | null;
   content: string;
   createdAt: Date;
   parentMessageId?: string | null;
@@ -100,7 +104,13 @@ export async function getConversations(): Promise<Conversation[]> {
       createdBy: conv.created_by || undefined,
       createdAt: new Date(conv.created_at),
       updatedAt: new Date(conv.updated_at),
-      participants: conv.participants || [],
+      participants: (conv.participants || []).map((p: any) => ({
+        userId: p.userId || p.user_id,
+        email: p.email || "",
+        fullname: p.fullname || null,
+        username: p.username || null,
+        avatarUrl: p.avatarUrl || p.avatar_url || null,
+      })),
       lastMessage: conv.last_message
         ? {
             id: conv.last_message.id,
@@ -108,6 +118,8 @@ export async function getConversations(): Promise<Conversation[]> {
             authorId: conv.last_message.author_id,
             authorEmail: conv.last_message.author_email || "",
             authorFullname: conv.last_message.author_fullname,
+            authorUsername: conv.last_message.author_username || null,
+            authorAvatarUrl: conv.last_message.author_avatar_url || null,
             content: conv.last_message.content,
             createdAt: new Date(conv.last_message.created_at),
             readBy: [],
@@ -130,13 +142,16 @@ export async function getConversations(): Promise<Conversation[]> {
  */
 export async function getMessages(
   conversationId: string,
-  beforeMessageId?: string
-): Promise<Message[]> {
+  beforeMessageId?: string,
+  limit: number = 30
+): Promise<{ messages: Message[]; hasMore: boolean }> {
   try {
     const headers = await getAuthHeaders();
-    const url = beforeMessageId
-      ? `/api/messaging/messages/${conversationId}?before=${beforeMessageId}`
-      : `/api/messaging/messages/${conversationId}`;
+    const params = new URLSearchParams();
+    if (beforeMessageId) params.set("before", beforeMessageId);
+    params.set("limit", limit.toString());
+    
+    const url = `/api/messaging/messages/${conversationId}?${params.toString()}`;
 
     const response = await robustFetch(url, {
       method: "GET",
@@ -151,22 +166,27 @@ export async function getMessages(
     }
 
     const data = await response.json();
-    return (data.messages || []).map((msg: any) => ({
-      id: msg.id,
-      conversationId: msg.conversation_id,
-      authorId: msg.author_id,
-      authorEmail: msg.author_email || "",
-      authorFullname: msg.author_fullname,
-      content: msg.content,
-      createdAt: new Date(msg.created_at),
-      parentMessageId: msg.parent_message_id,
-      threadReplyCount: msg.thread_reply_count || 0,
-      readBy: msg.read_by || [],
-      fileUrl: msg.file_url || null,
-      fileName: msg.file_name || null,
-      fileType: msg.file_type || null,
-      fileSize: msg.file_size || null,
-    }));
+    return {
+      messages: (data.messages || []).map((msg: any) => ({
+        id: msg.id,
+        conversationId: msg.conversation_id,
+        authorId: msg.author_id,
+        authorEmail: msg.author_email || "",
+        authorFullname: msg.author_fullname,
+        authorUsername: msg.author_username || null,
+        authorAvatarUrl: msg.author_avatar_url || null,
+        content: msg.content,
+        createdAt: new Date(msg.created_at),
+        parentMessageId: msg.parent_message_id,
+        threadReplyCount: msg.thread_reply_count || 0,
+        readBy: msg.read_by || [],
+        fileUrl: msg.file_url || null,
+        fileName: msg.file_name || null,
+        fileType: msg.file_type || null,
+        fileSize: msg.file_size || null,
+      })),
+      hasMore: data.hasMore || false,
+    };
   } catch (error) {
     if (isDev) console.error("Error in getMessages:", error);
     throw error;
@@ -203,6 +223,8 @@ export async function getThreadMessages(
       authorId: msg.author_id,
       authorEmail: msg.author_email || "",
       authorFullname: msg.author_fullname,
+      authorUsername: msg.author_username || null,
+      authorAvatarUrl: msg.author_avatar_url || null,
       content: msg.content,
       createdAt: new Date(msg.created_at),
       parentMessageId: msg.parent_message_id,
@@ -269,6 +291,8 @@ export async function sendMessage(
       authorId: data.message.author_id,
       authorEmail: data.message.author_email || "",
       authorFullname: data.message.author_fullname,
+      authorUsername: data.message.author_username || null,
+      authorAvatarUrl: data.message.author_avatar_url || null,
       content: data.message.content,
       createdAt: new Date(data.message.created_at),
       parentMessageId: data.message.parent_message_id,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Download, FileText, Image as ImageIcon, Archive, File, X } from "lucide-react";
 import type {
@@ -9,12 +9,16 @@ import type {
 } from "@/lib/supabase/messaging";
 import { formatMentions } from "@/lib/utils/mentions";
 import { formatFileSize, isImageFile } from "@/lib/supabase/file-upload";
+import { Avatar } from "@/components/ui/avatar";
 
 interface MessageListProps {
   messages: Message[];
   participants: ConversationParticipant[];
   currentUserId: string;
   onMessageClick: (messageId: string) => void;
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
 }
 
 // Image lightbox component
@@ -153,26 +157,65 @@ export function MessageList({
   participants,
   currentUserId,
   onMessageClick,
+  onLoadMore,
+  hasMore = false,
+  isLoadingMore = false,
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const previousMessageCount = useRef(0);
+  const lastConversationId = useRef<string | null>(null);
 
+  // Detect conversation change by checking first message's conversationId
+  const currentConversationId = messages.length > 0 ? messages[0].conversationId : null;
+  const isNewConversation = currentConversationId !== lastConversationId.current;
+
+  // Force scroll to bottom when switching to a conversation (including coming back to it)
+  useLayoutEffect(() => {
+    const container = messagesContainerRef.current;
+    if (container && messages.length > 0 && isNewConversation) {
+      // Directly set scroll position to bottom
+      container.scrollTop = container.scrollHeight;
+      lastConversationId.current = currentConversationId;
+      previousMessageCount.current = messages.length;
+    }
+  }, [messages.length > 0, currentConversationId, isNewConversation]);
+
+  // Handle scroll behavior for new messages in the same conversation
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    const container = messagesContainerRef.current;
+    if (!container || isNewConversation) return;
 
-  const getParticipantName = (userId: string) => {
-    const participant = participants.find((p) => p.userId === userId);
-    return participant?.fullname || participant?.email || "Unknown";
+    const currentMessageCount = messages.length;
+    const messagesAdded = currentMessageCount - previousMessageCount.current;
+    
+    // If loading older messages, don't scroll
+    if (isLoadingMore && messagesAdded > 0) {
+      previousMessageCount.current = currentMessageCount;
+      return;
+    }
+
+    // For new messages, only scroll if user is near the bottom
+    if (messagesAdded > 0) {
+      const isNearBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+
+      if (isNearBottom) {
+        // Smooth scroll to bottom for new messages
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }
+    }
+
+    previousMessageCount.current = currentMessageCount;
+  }, [messages, isLoadingMore, isNewConversation]);
+
+  const getParticipant = (userId: string) => {
+    return participants.find((p) => p.userId === userId);
   };
 
-  const getParticipantInitials = (userId: string) => {
-    const name = getParticipantName(userId);
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
+  const getParticipantName = (userId: string) => {
+    const participant = getParticipant(userId);
+    return participant?.username || participant?.fullname || participant?.email || "Unknown";
   };
 
   if (messages.length === 0) {
@@ -187,7 +230,27 @@ export function MessageList({
   }
 
   return (
-    <div className="h-full overflow-y-auto p-4 space-y-4 custom-scrollbar">
+    <div ref={messagesContainerRef} className="h-full overflow-y-auto p-4 space-y-4 custom-scrollbar">
+      {/* Load More Button */}
+      {hasMore && (
+        <div className="flex justify-center pb-4">
+          <button
+            onClick={onLoadMore}
+            disabled={isLoadingMore}
+            className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isLoadingMore ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Loading...
+              </>
+            ) : (
+              "Load Older Messages"
+            )}
+          </button>
+        </div>
+      )}
+
       <AnimatePresence>
         {messages.map((message, index) => {
           const isOwnMessage = message.authorId === currentUserId;
@@ -210,11 +273,29 @@ export function MessageList({
             >
               {/* Avatar */}
               {showAvatar ? (
-                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center text-white text-xs font-medium flex-shrink-0 mt-5">
-                  {getParticipantInitials(message.authorId)}
+                <div className="mt-5">
+                  <Avatar
+                    src={
+                      message.authorAvatarUrl ||
+                      getParticipant(message.authorId)?.avatarUrl ||
+                      null
+                    }
+                    name={
+                      message.authorUsername ||
+                      message.authorFullname ||
+                      getParticipant(message.authorId)?.fullname ||
+                      undefined
+                    }
+                    email={
+                      message.authorEmail ||
+                      getParticipant(message.authorId)?.email ||
+                      undefined
+                    }
+                    size="sm"
+                  />
                 </div>
               ) : (
-                <div className="w-8 flex-shrink-0" />
+                <div className="w-6 flex-shrink-0" />
               )}
 
               {/* Message Content */}

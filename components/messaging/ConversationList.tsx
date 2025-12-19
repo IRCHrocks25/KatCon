@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { Hash, Users } from "lucide-react";
 import type { Conversation } from "@/lib/supabase/messaging";
 import { useAuth } from "@/contexts/AuthContext";
+import { Avatar } from "@/components/ui/avatar";
 
 interface ConversationListProps {
   readonly conversations: Conversation[];
@@ -28,9 +29,20 @@ export function ConversationList({
       const otherParticipant = conversation.participants.find(
         (p) => p.userId !== currentUser?.id
       );
-      return otherParticipant?.fullname || otherParticipant?.email || "Unknown";
+      return (
+        otherParticipant?.username ||
+        otherParticipant?.fullname ||
+        otherParticipant?.email ||
+        "Unknown"
+      );
     }
     return "Unnamed Channel";
+  };
+
+  const getOtherParticipant = (conversation: Conversation) => {
+    return conversation.participants.find(
+      (p) => p.userId !== currentUser?.id
+    );
   };
 
   const getConversationPreview = (conversation: Conversation) => {
@@ -158,7 +170,21 @@ export function ConversationList({
               whileTap={{ scale: 0.98 }}
             >
               <div className="flex items-center gap-2 mb-1">
-                <Users size={16} className="text-gray-400 shrink-0" />
+                {(() => {
+                  const otherParticipant = getOtherParticipant(conversation);
+                  return (
+                    <Avatar
+                      src={otherParticipant?.avatarUrl || null}
+                      name={
+                        otherParticipant?.username ||
+                        otherParticipant?.fullname ||
+                        undefined
+                      }
+                      email={otherParticipant?.email || undefined}
+                      size="sm"
+                    />
+                  );
+                })()}
                 <span className="text-white font-medium truncate flex-1">
                   {getConversationName(conversation)}
                 </span>
