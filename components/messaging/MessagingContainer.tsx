@@ -1,7 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Plus, MessageSquare, Hash, FolderOpen, ListTodo } from "lucide-react";
+import {
+  Plus,
+  MessageSquare,
+  Hash,
+  FolderOpen,
+  ListTodo,
+  RefreshCw,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase/client";
@@ -25,7 +32,7 @@ import { MessageInput } from "./MessageInput";
 import { ThreadPanel } from "./ThreadPanel";
 import { CreateChannelModal } from "./CreateChannelModal";
 import { ChannelSettingsDialog } from "./ChannelSettingsDialog";
-import { FilesModal } from "./FilesModal";
+import { FilesModal, invalidateFilesCache } from "./FilesModal";
 import { RemindersModal } from "@/components/reminders/RemindersModal";
 import type { Reminder } from "@/lib/supabase/reminders";
 import { Avatar } from "@/components/ui/avatar";
@@ -67,6 +74,11 @@ export function MessagingContainer({
   >(null);
   const [showFilesModal, setShowFilesModal] = useState(false);
   const [showRemindersModal, setShowRemindersModal] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState<{
+    [conversationId: string]: boolean;
+  }>({});
+  const [isLoadingOlderMessages, setIsLoadingOlderMessages] = useState(false);
 
   // Use refs to avoid dependency issues in realtime subscription
   const conversationsRef = useRef<Conversation[]>([]);
@@ -231,8 +243,11 @@ export function MessagingContainer({
 
       try {
         setIsLoadingMessages(true);
-        const fetchedMessages = await getMessages(conversationId);
+        const { messages: fetchedMessages, hasMore } = await getMessages(
+          conversationId
+        );
         setMessages(fetchedMessages);
+        setHasMoreMessages((prev) => ({ ...prev, [conversationId]: hasMore }));
 
         // Update module-level cache (persists across tab switches)
         messagesCacheMap.set(conversationId, {
@@ -303,6 +318,85 @@ export function MessagingContainer({
   const refreshConversations = useCallback(async () => {
     await fetchConversations(true);
   }, [fetchConversations]);
+
+  // Handle manual refresh of messages and conversations
+  const handleManualRefresh = useCallback(async () => {
+    if (!activeConversationId || isRefreshing) return;
+
+    try {
+      setIsRefreshing(true);
+      console.log("[MESSAGING] Manual refresh triggered");
+
+      // Reset pagination state for this conversation
+      setHasMoreMessages((prev) => ({
+        ...prev,
+        [activeConversationId]: false,
+      }));
+
+      // Refresh both conversations and messages in parallel
+      await Promise.all([
+        fetchConversations(true),
+        fetchMessages(activeConversationId, true),
+      ]);
+
+      toast.success("Messages refreshed");
+    } catch (error) {
+      console.error("[MESSAGING] Error during manual refresh:", error);
+      toast.error("Failed to refresh messages");
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [activeConversationId, isRefreshing, fetchConversations, fetchMessages]);
+
+  // Load older messages (pagination)
+  const loadOlderMessages = useCallback(async () => {
+    if (!activeConversationId || isLoadingOlderMessages) return;
+
+    const oldestMessage = messages[0];
+    if (!oldestMessage) return;
+
+    try {
+      setIsLoadingOlderMessages(true);
+      console.log(
+        "[MESSAGING] Loading older messages before:",
+        oldestMessage.id
+      );
+
+      const { messages: olderMessages, hasMore } = await getMessages(
+        activeConversationId,
+        oldestMessage.id,
+        30
+      );
+
+      if (olderMessages.length > 0) {
+        // Prepend older messages to existing ones
+        setMessages((prev) => [...olderMessages, ...prev]);
+        setHasMoreMessages((prev) => ({
+          ...prev,
+          [activeConversationId]: hasMore,
+        }));
+
+        // Update cache with new merged messages
+        const updatedMessages = [...olderMessages, ...messages];
+        messagesCacheMap.set(activeConversationId, {
+          messages: updatedMessages,
+        });
+
+        toast.success(`Loaded ${olderMessages.length} older messages`);
+      } else {
+        setHasMoreMessages((prev) => ({
+          ...prev,
+          [activeConversationId]: false,
+        }));
+        toast.info("No more messages to load");
+      }
+    } catch (error) {
+      console.error("[MESSAGING] Error loading older messages:", error);
+      toast.error("Failed to load older messages");
+    } finally {
+      setIsLoadingOlderMessages(false);
+    }
+  }, [activeConversationId, messages, isLoadingOlderMessages]);
 
   // Load messages when conversation is selected
   useEffect(() => {
@@ -776,6 +870,12 @@ export function MessagingContainer({
         fileAttachment
       );
 
+      // Invalidate files cache if a file was uploaded
+      if (fileAttachment) {
+        invalidateFilesCache(activeConversationId);
+        console.log("[FILES] Cache invalidated after file upload");
+      }
+
       if (sentMessage) {
         // Replace optimistic message with real one
         if (parentMessageId) {
@@ -1168,6 +1268,18 @@ export function MessagingContainer({
               {/* Header Buttons */}
               <div className="flex items-center gap-2">
                 <button
+                  onClick={handleManualRefresh}
+                  disabled={isRefreshing}
+                  className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Refresh messages"
+                >
+                  <RefreshCw
+                    size={20}
+                    className={isRefreshing ? "animate-spin" : ""}
+                  />
+                  <span className="text-sm hidden sm:inline">Refresh</span>
+                </button>
+                <button
                   onClick={() => setShowFilesModal(true)}
                   className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition flex items-center gap-2"
                   title="View shared files"
@@ -1208,6 +1320,13 @@ export function MessagingContainer({
                   participants={activeConversation.participants}
                   currentUserId={currentUser?.id || ""}
                   onMessageClick={(messageId) => setThreadParentId(messageId)}
+                  onLoadMore={loadOlderMessages}
+                  hasMore={
+                    activeConversationId
+                      ? hasMoreMessages[activeConversationId] || false
+                      : false
+                  }
+                  isLoadingMore={isLoadingOlderMessages}
                 />
               )}
             </div>

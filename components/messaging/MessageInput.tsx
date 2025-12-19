@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Paperclip, X, FileText, Image, Archive, File, Trash2 } from "lucide-react";
+import { Send, Paperclip, X, FileText, Image, Archive, File, Trash2, Smile } from "lucide-react";
+import dynamic from "next/dynamic";
+import type { EmojiClickData } from "emoji-picker-react";
+import { Theme } from "emoji-picker-react";
 import type { ConversationParticipant } from "@/lib/supabase/messaging";
 import {
   validateFile,
@@ -9,6 +12,12 @@ import {
   isImageFile,
   ALLOWED_MIME_TYPES,
 } from "@/lib/supabase/file-upload";
+
+// Dynamically import EmojiPicker to avoid SSR issues
+const EmojiPicker = dynamic(() => import("emoji-picker-react"), {
+  ssr: false,
+  loading: () => <div className="w-8 h-8 animate-pulse bg-gray-700 rounded" />,
+});
 
 const MAX_FILES = 5;
 
@@ -35,9 +44,11 @@ export function MessageInput({
   const [selectedFiles, setSelectedFiles] = useState<FileWithPreview[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
 
   // Handle mention autocomplete
   useEffect(() => {
@@ -81,6 +92,26 @@ export function MessageInput({
       });
     };
   }, []);
+
+  // Close emoji picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        emojiPickerRef.current &&
+        !emojiPickerRef.current.contains(event.target as Node)
+      ) {
+        setShowEmojiPicker(false);
+      }
+    };
+
+    if (showEmojiPicker) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showEmojiPicker]);
 
   const filteredParticipants = participants.filter((p) => {
     if (!mentionQuery) return false;
@@ -218,6 +249,27 @@ export function MessageInput({
     [addFiles]
   );
 
+  const handleEmojiClick = (emojiData: EmojiClickData) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const cursorPos = textarea.selectionStart;
+    const newContent =
+      content.substring(0, cursorPos) +
+      emojiData.emoji +
+      content.substring(cursorPos);
+
+    setContent(newContent);
+    setShowEmojiPicker(false);
+
+    // Focus back on textarea and move cursor after emoji
+    setTimeout(() => {
+      textarea.focus();
+      const newCursorPos = cursorPos + emojiData.emoji.length;
+      textarea.setSelectionRange(newCursorPos, newCursorPos);
+    }, 0);
+  };
+
   const handleSend = () => {
     const hasContent = content.trim().length > 0;
     const hasFiles = selectedFiles.length > 0;
@@ -236,6 +288,7 @@ export function MessageInput({
       setFileError(null);
       setShowMentionSuggestions(false);
       setMentionQuery("");
+      setShowEmojiPicker(false);
     }
   };
 
@@ -388,6 +441,23 @@ export function MessageInput({
         className="hidden"
       />
 
+      {/* Emoji Picker */}
+      {showEmojiPicker && (
+        <div
+          ref={emojiPickerRef}
+          className="absolute bottom-full left-4 mb-2 z-30"
+        >
+          <EmojiPicker
+            onEmojiClick={handleEmojiClick}
+            theme={Theme.DARK}
+            width={320}
+            height={400}
+            searchPlaceHolder="Search emoji..."
+            previewConfig={{ showPreview: false }}
+          />
+        </div>
+      )}
+
       <div className="flex items-center gap-3">
         {/* File picker button */}
         <button
@@ -402,6 +472,18 @@ export function MessageInput({
               {selectedFiles.length}
             </span>
           )}
+        </button>
+
+        {/* Emoji picker button */}
+        <button
+          onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+          disabled={isLoading}
+          className={`h-[48px] w-[48px] flex items-center justify-center bg-gray-800/80 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 border border-gray-700 ${
+            showEmojiPicker ? "bg-purple-600/20 text-purple-400 border-purple-500" : ""
+          }`}
+          title="Add emoji"
+        >
+          <Smile size={22} />
         </button>
 
         <textarea

@@ -142,13 +142,16 @@ export async function getConversations(): Promise<Conversation[]> {
  */
 export async function getMessages(
   conversationId: string,
-  beforeMessageId?: string
-): Promise<Message[]> {
+  beforeMessageId?: string,
+  limit: number = 30
+): Promise<{ messages: Message[]; hasMore: boolean }> {
   try {
     const headers = await getAuthHeaders();
-    const url = beforeMessageId
-      ? `/api/messaging/messages/${conversationId}?before=${beforeMessageId}`
-      : `/api/messaging/messages/${conversationId}`;
+    const params = new URLSearchParams();
+    if (beforeMessageId) params.set("before", beforeMessageId);
+    params.set("limit", limit.toString());
+    
+    const url = `/api/messaging/messages/${conversationId}?${params.toString()}`;
 
     const response = await robustFetch(url, {
       method: "GET",
@@ -163,24 +166,27 @@ export async function getMessages(
     }
 
     const data = await response.json();
-    return (data.messages || []).map((msg: any) => ({
-      id: msg.id,
-      conversationId: msg.conversation_id,
-      authorId: msg.author_id,
-      authorEmail: msg.author_email || "",
-      authorFullname: msg.author_fullname,
-      authorUsername: msg.author_username || null,
-      authorAvatarUrl: msg.author_avatar_url || null,
-      content: msg.content,
-      createdAt: new Date(msg.created_at),
-      parentMessageId: msg.parent_message_id,
-      threadReplyCount: msg.thread_reply_count || 0,
-      readBy: msg.read_by || [],
-      fileUrl: msg.file_url || null,
-      fileName: msg.file_name || null,
-      fileType: msg.file_type || null,
-      fileSize: msg.file_size || null,
-    }));
+    return {
+      messages: (data.messages || []).map((msg: any) => ({
+        id: msg.id,
+        conversationId: msg.conversation_id,
+        authorId: msg.author_id,
+        authorEmail: msg.author_email || "",
+        authorFullname: msg.author_fullname,
+        authorUsername: msg.author_username || null,
+        authorAvatarUrl: msg.author_avatar_url || null,
+        content: msg.content,
+        createdAt: new Date(msg.created_at),
+        parentMessageId: msg.parent_message_id,
+        threadReplyCount: msg.thread_reply_count || 0,
+        readBy: msg.read_by || [],
+        fileUrl: msg.file_url || null,
+        fileName: msg.file_name || null,
+        fileType: msg.file_type || null,
+        fileSize: msg.file_size || null,
+      })),
+      hasMore: data.hasMore || false,
+    };
   } catch (error) {
     if (isDev) console.error("Error in getMessages:", error);
     throw error;

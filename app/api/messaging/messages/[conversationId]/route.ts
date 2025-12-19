@@ -42,6 +42,7 @@ export async function GET(
     const { conversationId } = await params;
     const { searchParams } = new URL(request.url);
     const beforeMessageId = searchParams.get("before");
+    const limit = Math.min(parseInt(searchParams.get("limit") || "30", 10), 100);
 
     // Verify user is a participant
     const { data: participant } = await supabase
@@ -65,7 +66,7 @@ export async function GET(
       .eq("conversation_id", conversationId)
       .is("parent_message_id", null) // Only top-level messages
       .order("created_at", { ascending: false })
-      .limit(50);
+      .limit(limit);
 
     // If beforeMessageId is provided, get messages before that
     if (beforeMessageId) {
@@ -158,7 +159,13 @@ export async function GET(
         };
       });
 
-    return NextResponse.json({ messages: formattedMessages });
+    // Check if there are more messages (if we got exactly the limit, there might be more)
+    const hasMore = (messages || []).length === limit;
+
+    return NextResponse.json({ 
+      messages: formattedMessages,
+      hasMore 
+    });
   } catch (error) {
     console.error("Error in messages/[conversationId] GET API route:", error);
     return NextResponse.json(
