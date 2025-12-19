@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion } from "motion/react";
-import { X } from "lucide-react";
+import { X, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase/client";
@@ -33,6 +33,13 @@ export function CreateChannelModal({
     Array<{ id: string; email: string; fullname?: string }>
   >([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Reset search when mode changes
+  useEffect(() => {
+    setSearchQuery("");
+    setSelectedUserIds([]);
+  }, [mode]);
 
   // Fetch available users (only approved users)
   useEffect(() => {
@@ -80,6 +87,21 @@ export function CreateChannelModal({
       );
     }
   };
+
+  // Filter users based on search query
+  const filteredUsers = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return availableUsers;
+    }
+
+    const query = searchQuery.toLowerCase().trim();
+    return availableUsers.filter(
+      (user) =>
+        user.email.toLowerCase().includes(query) ||
+        user.fullname?.toLowerCase().includes(query) ||
+        user.email.split("@")[0].toLowerCase().includes(query)
+    );
+  }, [availableUsers, searchQuery]);
 
   const handleCreate = () => {
     if (mode === "dm") {
@@ -201,13 +223,33 @@ export function CreateChannelModal({
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Add Members (optional)
                 </label>
+                {/* Search Bar */}
+                <div className="relative mb-2">
+                  <Search
+                    size={16}
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                  />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search users by name or email..."
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-9 pr-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm"
+                  />
+                </div>
                 {isLoadingUsers ? (
                   <div className="text-center py-4">
                     <div className="w-6 h-6 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mx-auto" />
                   </div>
+                ) : filteredUsers.length === 0 ? (
+                  <div className="text-center py-4 text-gray-400 text-sm">
+                    {searchQuery.trim()
+                      ? "No users found matching your search"
+                      : "No users available"}
+                  </div>
                 ) : (
                   <div className="max-h-48 overflow-y-auto border border-gray-700 rounded-lg p-2 space-y-1">
-                    {availableUsers.map((user) => (
+                    {filteredUsers.map((user) => (
                       <label
                         key={user.id}
                         className="flex items-center gap-2 p-2 hover:bg-gray-800 rounded cursor-pointer"
@@ -238,13 +280,33 @@ export function CreateChannelModal({
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 Select a person to message *
               </label>
+              {/* Search Bar */}
+              <div className="relative mb-2">
+                <Search
+                  size={16}
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search users by name or email..."
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-9 pr-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm"
+                />
+              </div>
               {isLoadingUsers ? (
                 <div className="text-center py-4">
                   <div className="w-6 h-6 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mx-auto" />
                 </div>
+              ) : filteredUsers.length === 0 ? (
+                <div className="text-center py-4 text-gray-400 text-sm">
+                  {searchQuery.trim()
+                    ? "No users found matching your search"
+                    : "No users available"}
+                </div>
               ) : (
                 <div className="max-h-96 overflow-y-auto border border-gray-700 rounded-lg p-2 space-y-1">
-                  {availableUsers.map((user) => (
+                  {filteredUsers.map((user) => (
                     <button
                       key={user.id}
                       onClick={() => handleToggleUser(user.id)}
