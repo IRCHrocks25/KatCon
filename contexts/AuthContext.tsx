@@ -20,6 +20,7 @@ import {
   fetchUserProfile,
   buildAuthUser,
 } from "@/lib/supabase/auth";
+import { setUserStatus } from "@/lib/supabase/messaging";
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -188,6 +189,14 @@ export function AuthProvider({
         setSession(sessionResult.data.session);
         setUser(buildAuthUser(sessionResult.data.session.user, profile));
         setLoading(false);
+
+        // Set user status to Available when logged in
+        try {
+          await setUserStatus("Available", "🟢");
+        } catch (statusError) {
+          console.error("[AUTH] Failed to set available status on login:", statusError);
+          // Don't fail login for this - it's not critical
+        }
       }
     } finally {
       // Always clear the flag
@@ -198,6 +207,14 @@ export function AuthProvider({
   const handleLogout = useCallback(async () => {
     try {
       console.log("[AUTH] Logging out...");
+
+      // Set user status to Offline before clearing state
+      try {
+        await setUserStatus("Offline", "⚫");
+      } catch (statusError) {
+        console.error("[AUTH] Failed to set offline status on logout:", statusError);
+        // Don't fail logout for this - it's not critical
+      }
 
       // Optimistically clear state immediately (don't wait for API)
       setUser(null);

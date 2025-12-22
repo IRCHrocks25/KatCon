@@ -136,13 +136,12 @@ export async function GET(
     const reactionUserIds = reactions
       ? [...new Set(reactions.map((r) => r.user_id))]
       : [];
-    const { data: reactionProfiles } =
-      reactionUserIds.length > 0
-        ? await supabase
-            .from("profiles")
-            .select("id, email, fullname, username, avatar_url")
-            .in("id", reactionUserIds)
-        : { data: null, error: null };
+    const { data: reactionProfiles } = reactionUserIds.length > 0
+      ? await supabase
+          .from("profiles")
+          .select("id, email, fullname, username, avatar_url")
+          .in("id", reactionUserIds)
+      : { data: null };
 
     const reactionProfileMap = new Map();
     (reactionProfiles || []).forEach((p) => {
@@ -150,7 +149,15 @@ export async function GET(
     });
 
     // Group reactions by message and type
-    const reactionsByMessage = new Map<string, Map<string, any[]>>();
+    interface ReactionUser {
+      id: string;
+      userId: string;
+      userEmail: string;
+      userFullname: string | null;
+      userAvatarUrl: string | null;
+      createdAt: string;
+    }
+    const reactionsByMessage = new Map<string, Map<string, ReactionUser[]>>();
     (reactions || []).forEach((reaction) => {
       if (!reactionsByMessage.has(reaction.message_id)) {
         reactionsByMessage.set(reaction.message_id, new Map());
@@ -183,7 +190,7 @@ export async function GET(
       .select("id, email, fullname, username, avatar_url")
       .in("id", senderIds);
 
-    const profileMap = new Map<string, any>();
+    const profileMap = new Map<string, { id: string; email: string; fullname: string | null; username: string | null; avatar_url: string | null }>();
     (profiles || []).forEach((p) => {
       profileMap.set(p.id, p);
     });
@@ -463,4 +470,3 @@ export async function POST(
     );
   }
 }
-
