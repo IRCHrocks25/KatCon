@@ -8,8 +8,10 @@ import {
   validateAvatarFile,
 } from "@/lib/supabase/avatar-upload";
 import { toast } from "sonner";
-import { Loader2, Mail } from "lucide-react";
+import { Loader2, Mail, Circle } from "lucide-react";
 import type { Reminder } from "@/lib/supabase/reminders";
+import { UserStatusSelector } from "@/components/user/UserStatusSelector";
+import { getUserStatus, type UserStatus } from "@/lib/supabase/messaging";
 
 interface ProfileViewProps {
   reminders: Reminder[];
@@ -23,11 +25,38 @@ export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isStatusSelectorOpen, setIsStatusSelectorOpen] = useState(false);
+  const [userStatus, setUserStatus] = useState<UserStatus | null>(null);
 
   // Update local state when user changes
   useEffect(() => {
     setUsername(user?.username || "");
   }, [user]);
+
+  // Load user status
+  useEffect(() => {
+    if (user?.id) {
+      getUserStatus(user.id)
+        .then((status) => setUserStatus(status))
+        .catch((error) => {
+          console.error("Error loading user status:", error);
+        });
+    }
+  }, [user?.id]);
+
+  // Listen for status updates from other components
+  useEffect(() => {
+    const handleStatusUpdate = (event: CustomEvent) => {
+      if (event.detail.userId === user?.id) {
+        setUserStatus(event.detail.status);
+      }
+    };
+
+    window.addEventListener("userStatusUpdated", handleStatusUpdate as EventListener);
+    return () => {
+      window.removeEventListener("userStatusUpdated", handleStatusUpdate as EventListener);
+    };
+  }, [user?.id]);
 
   const handleSaveProfile = async () => {
     if (!user) return;
@@ -217,6 +246,25 @@ export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
               <div className="text-center">
                 <h2 className="text-2xl font-bold text-white">{displayName}</h2>
                 <p className="text-gray-400">{user?.email}</p>
+                {/* User Status */}
+                {userStatus && (
+                  <div className="flex items-center justify-center gap-2 mt-2">
+                    {userStatus.statusEmoji && (
+                      <span className="text-lg">{userStatus.statusEmoji}</span>
+                    )}
+                    <span className="text-sm text-gray-300">
+                      {userStatus.statusText || "No status"}
+                    </span>
+                  </div>
+                )}
+                {/* Set Status Button */}
+                <button
+                  onClick={() => setIsStatusSelectorOpen(true)}
+                  className="mt-2 px-4 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition flex items-center gap-2 mx-auto"
+                >
+                  <Circle size={14} />
+                  {userStatus ? "Change Status" : "Set Status"}
+                </button>
               </div>
 
               {/* Change Photo / Confirm / Cancel Buttons */}
@@ -347,6 +395,16 @@ export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
           </div>
         </div>
       </div>
+
+      {/* User Status Selector Modal */}
+      <UserStatusSelector
+        isOpen={isStatusSelectorOpen}
+        onClose={() => setIsStatusSelectorOpen(false)}
+        onStatusChange={(status) => {
+          // Update local state immediately
+          setUserStatus(status);
+        }}
+      />
     </div>
   );
 }

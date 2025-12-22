@@ -8,6 +8,8 @@ import {
   FolderOpen,
   ListTodo,
   RefreshCw,
+  Search,
+  Pin,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -16,11 +18,13 @@ import {
   getConversations,
   getMessages,
   getThreadMessages,
+  getMessagesAround,
   sendMessage,
   createChannel,
   createDM,
   joinChannel,
   markAsRead,
+  getPinnedMessages,
   type Conversation,
   type Message,
   type FileAttachment,
@@ -34,7 +38,10 @@ import { CreateChannelModal } from "./CreateChannelModal";
 import { ChannelSettingsDialog } from "./ChannelSettingsDialog";
 import { FilesModal, invalidateFilesCache } from "./FilesModal";
 import { RemindersModal } from "@/components/reminders/RemindersModal";
+import { MessageSearch } from "./MessageSearch";
+import { PinnedMessagesPanel } from "./PinnedMessagesPanel";
 import type { Reminder } from "@/lib/supabase/reminders";
+import { updateUnreadMessagesNotification } from "@/lib/supabase/notifications";
 import { Avatar } from "@/components/ui/avatar";
 
 // Session cache for messages (persists until logout)
@@ -75,6 +82,38 @@ export function MessagingContainer({
   const [showFilesModal, setShowFilesModal] = useState(false);
   const [showRemindersModal, setShowRemindersModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [activeSearchResultId, setActiveSearchResultId] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [isLoadingSearchMessage, setIsLoadingSearchMessage] = useState(false);
+  const [searchResultIds, setSearchResultIds] = useState<string[]>([]);
+  const [isPinnedMessagesOpen, setIsPinnedMessagesOpen] = useState(false);
+  const [pinnedMessageIds, setPinnedMessageIds] = useState<string[]>([]);
+
+  // Refresh pinned message IDs
+  const refreshPinnedMessageIds = useCallback(async (conversationId: string) => {
+    try {
+      const pinnedMessages = await getPinnedMessages(conversationId);
+      setPinnedMessageIds(pinnedMessages.map((pm) => pm.messageId));
+    } catch (error) {
+      console.error("Error refreshing pinned messages:", error);
+    }
+  }, []);
+
+  // Listen for pinned message refresh events
+  useEffect(() => {
+    const handleRefresh = (event: CustomEvent) => {
+      const { conversationId } = event.detail || {};
+      if (conversationId && conversationId === activeConversationId) {
+        refreshPinnedMessageIds(conversationId);
+      }
+    };
+
+    window.addEventListener("refreshPinnedMessageIds", handleRefresh as EventListener);
+    return () => {
+      window.removeEventListener("refreshPinnedMessageIds", handleRefresh as EventListener);
+    };
+  }, [activeConversationId, refreshPinnedMessageIds]);
   const [hasMoreMessages, setHasMoreMessages] = useState<{
     [conversationId: string]: boolean;
   }>({});
@@ -92,6 +131,10 @@ export function MessagingContainer({
     timestamp: number;
   } | null>(null);
   const markAsReadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Track notification updates to prevent duplicates
+  const notificationUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastNotificationCountRef = useRef<number>(-1);
 
   // Keep refs in sync
   useEffect(() => {
@@ -139,6 +182,39 @@ export function MessagingContainer({
     }
   }, [currentUser]);
 
+  // Calculate total unread messages across all conversations
+  const calculateTotalUnread = useCallback((convs: Conversation[]): number => {
+    return convs.reduce((total, conv) => total + (conv.unreadCount || 0), 0);
+  }, []);
+
+  // Update unread messages notification
+  const updateUnreadNotification = useCallback(
+    async (convs: Conversation[]) => {
+      if (!currentUser?.email) return;
+
+      const totalUnread = calculateTotalUnread(convs);
+      
+      // Skip if count hasn't changed
+      if (totalUnread === lastNotificationCountRef.current) {
+        return;
+      }
+
+      // Clear any pending update
+      if (notificationUpdateTimeoutRef.current) {
+        clearTimeout(notificationUpdateTimeoutRef.current);
+        notificationUpdateTimeoutRef.current = null;
+      }
+
+      // Debounce the notification update
+      notificationUpdateTimeoutRef.current = setTimeout(async () => {
+        lastNotificationCountRef.current = totalUnread;
+        await updateUnreadMessagesNotification(currentUser.email, totalUnread);
+        notificationUpdateTimeoutRef.current = null;
+      }, 500); // 500ms debounce
+    },
+    [currentUser?.email, calculateTotalUnread]
+  );
+
   // Fetch conversations with caching (only fetch if cache is empty)
   const fetchConversations = useCallback(
     async (forceRefresh = false) => {
@@ -156,6 +232,15 @@ export function MessagingContainer({
         console.log("[MESSAGING] Using cached conversations");
         setConversations(conversationsCache);
         setIsLoadingConversations(false);
+        // Update unread messages notification with cached data
+        if (currentUser?.email) {
+          updateUnreadNotification(conversationsCache).catch((error) => {
+            console.error(
+              "[MESSAGING] Error updating unread messages notification:",
+              error
+            );
+          });
+        }
         return;
       }
 
@@ -167,6 +252,16 @@ export function MessagingContainer({
         // Update module-level cache (persists across tab switches)
         conversationsCache = fetchedConversations;
         cachedUserId = currentUser?.id || null;
+
+        // Update unread messages notification
+        if (currentUser?.email) {
+          updateUnreadNotification(fetchedConversations).catch((error) => {
+            console.error(
+              "[MESSAGING] Error updating unread messages notification:",
+              error
+            );
+          });
+        }
       } catch (error) {
         console.error("Error fetching conversations:", error);
         toast.error("Failed to load conversations");
@@ -174,46 +269,51 @@ export function MessagingContainer({
         setIsLoadingConversations(false);
       }
     },
-    [currentUser]
+    [currentUser, updateUnreadNotification]
   );
 
   // Optimized markAsRead with debouncing and deduplication
-  const debouncedMarkAsRead = useCallback((conversationId: string) => {
-    const lastMarked = lastMarkedAsReadRef.current;
-    const now = Date.now();
+  const debouncedMarkAsRead = useCallback(
+    (conversationId: string) => {
+      const lastMarked = lastMarkedAsReadRef.current;
+      const now = Date.now();
 
-    // Skip if we marked this conversation within the last 2 seconds
-    if (
-      lastMarked &&
-      lastMarked.conversationId === conversationId &&
-      now - lastMarked.timestamp < 2000
-    ) {
-      return;
-    }
+      // Skip if we marked this conversation within the last 2 seconds
+      if (
+        lastMarked &&
+        lastMarked.conversationId === conversationId &&
+        now - lastMarked.timestamp < 2000
+      ) {
+        return;
+      }
 
-    // Clear any pending timeout for this conversation
-    if (markAsReadTimeoutRef.current) {
-      clearTimeout(markAsReadTimeoutRef.current);
-      markAsReadTimeoutRef.current = null;
-    }
+      // Clear any pending timeout for this conversation
+      if (markAsReadTimeoutRef.current) {
+        clearTimeout(markAsReadTimeoutRef.current);
+        markAsReadTimeoutRef.current = null;
+      }
 
-    // Debounce by 300ms to batch rapid calls
-    markAsReadTimeoutRef.current = setTimeout(() => {
-      markAsRead(conversationId)
-        .then(() => {
-          lastMarkedAsReadRef.current = {
-            conversationId,
-            timestamp: Date.now(),
-          };
-        })
-        .catch((error) => {
-          console.error("[MESSAGING] Error marking as read:", error);
-        })
-        .finally(() => {
-          markAsReadTimeoutRef.current = null;
-        });
-    }, 300);
-  }, []);
+      // Debounce by 300ms to batch rapid calls
+      markAsReadTimeoutRef.current = setTimeout(() => {
+        markAsRead(conversationId)
+          .then(() => {
+            lastMarkedAsReadRef.current = {
+              conversationId,
+              timestamp: Date.now(),
+            };
+            // Update notification after marking as read
+            updateUnreadNotification(conversationsRef.current);
+          })
+          .catch((error) => {
+            console.error("[MESSAGING] Error marking as read:", error);
+          })
+          .finally(() => {
+            markAsReadTimeoutRef.current = null;
+          });
+      }, 300);
+    },
+    [updateUnreadNotification]
+  );
 
   // Fetch messages for active conversation with caching (only fetch if cache is empty)
   const fetchMessages = useCallback(
@@ -255,6 +355,15 @@ export function MessagingContainer({
         });
         cachedUserId = currentUser?.id || null;
 
+        // Fetch pinned message IDs for this conversation
+        try {
+          const pinnedMessages = await getPinnedMessages(conversationId);
+          setPinnedMessageIds(pinnedMessages.map((pm) => pm.messageId));
+        } catch (error) {
+          console.error("Error fetching pinned messages:", error);
+          setPinnedMessageIds([]);
+        }
+
         // Mark conversation as read when viewing (with debouncing)
         debouncedMarkAsRead(conversationId);
       } catch (error) {
@@ -264,7 +373,7 @@ export function MessagingContainer({
         setIsLoadingMessages(false);
       }
     },
-    [currentUser, debouncedMarkAsRead]
+    [currentUser, debouncedMarkAsRead, updateUnreadNotification]
   );
 
   // Fetch thread messages
@@ -309,8 +418,13 @@ export function MessagingContainer({
         clearTimeout(markAsReadTimeoutRef.current);
         markAsReadTimeoutRef.current = null;
       }
+      if (notificationUpdateTimeoutRef.current) {
+        clearTimeout(notificationUpdateTimeoutRef.current);
+        notificationUpdateTimeoutRef.current = null;
+      }
       // Reset last marked when user changes
       lastMarkedAsReadRef.current = null;
+      lastNotificationCountRef.current = -1;
     };
   }, [currentUser?.id]);
 
@@ -318,6 +432,18 @@ export function MessagingContainer({
   const refreshConversations = useCallback(async () => {
     await fetchConversations(true);
   }, [fetchConversations]);
+
+  // Update notification when conversations change
+  useEffect(() => {
+    if (currentUser?.email && conversations.length > 0) {
+      updateUnreadNotification(conversations).catch((error) => {
+        console.error(
+          "[MESSAGING] Error updating unread messages notification:",
+          error
+        );
+      });
+    }
+  }, [conversations, currentUser?.email, updateUnreadNotification]);
 
   // Handle manual refresh of messages and conversations
   const handleManualRefresh = useCallback(async () => {
@@ -404,10 +530,44 @@ export function MessagingContainer({
       fetchMessages(activeConversationId);
       setThreadParentId(null);
       setThreadMessages([]);
+      // Close search when switching conversations
+      setIsSearchOpen(false);
+      setActiveSearchResultId("");
+      setSearchQuery("");
+      setSearchResultIds([]);
     } else {
       setMessages([]);
+      setIsSearchOpen(false);
+      setActiveSearchResultId("");
+      setSearchQuery("");
+      setSearchResultIds([]);
     }
   }, [activeConversationId, fetchMessages]);
+
+  // Handle global keyboard shortcut for search (Cmd/Ctrl+F)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle if not typing in an input/textarea
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key === "f") {
+        e.preventDefault();
+        if (activeConversationId) {
+          setIsSearchOpen(true);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeConversationId]);
 
   const handleSelectConversation = async (conversationId: string) => {
     const conversation = conversations.find((c) => c.id === conversationId);
@@ -703,6 +863,23 @@ export function MessagingContainer({
             // Update module-level conversations cache
             conversationsCache = updated;
             cachedUserId = currentUser?.id || null;
+
+            // Update unread messages notification
+            const totalUnread = updated.reduce(
+              (sum, conv) => sum + (conv.unreadCount || 0),
+              0
+            );
+            if (currentUser?.email) {
+              updateUnreadMessagesNotification(
+                currentUser.email,
+                totalUnread
+              ).catch((error) => {
+                console.error(
+                  "[MESSAGING] Error updating unread messages notification:",
+                  error
+                );
+              });
+            }
 
             return updated;
           });
@@ -1187,6 +1364,88 @@ export function MessagingContainer({
       : "#";
   };
 
+  // Search handlers - memoized to prevent infinite loops
+  const handleCloseSearch = useCallback(() => {
+    setIsSearchOpen(false);
+    setSearchQuery("");
+    setActiveSearchResultId("");
+    setSearchResultIds([]);
+  }, []);
+
+  const handleSearchResultChange = useCallback(
+    (resultIndex: number, messageId: string, allResultIds: string[]) => {
+      // Use setTimeout to defer state update to avoid setState during render
+      setTimeout(() => {
+        setActiveSearchResultId(messageId);
+        setSearchResultIds(allResultIds);
+      }, 0);
+    },
+    []
+  );
+
+  const handleLoadSearchMessage = useCallback(
+    async (messageId: string) => {
+      if (!activeConversationId || isLoadingSearchMessage) return;
+
+      try {
+        setIsLoadingSearchMessage(true);
+        // Check if message is already loaded
+        const isLoaded = messages.some((m) => m.id === messageId);
+        if (isLoaded) {
+          // Message is already loaded, just scroll to it
+          setActiveSearchResultId(messageId);
+          setIsLoadingSearchMessage(false);
+          return;
+        }
+
+        // Load messages around the target message
+        const contextMessages = await getMessagesAround(
+          activeConversationId,
+          messageId,
+          20
+        );
+
+        if (contextMessages.length > 0) {
+          // Merge with existing messages, avoiding duplicates
+          setMessages((prev) => {
+            const existingIds = new Set(prev.map((m) => m.id));
+            const newMessages = contextMessages.filter(
+              (m) => !existingIds.has(m.id)
+            );
+
+            if (newMessages.length === 0) return prev;
+
+            // Combine and sort by creation date
+            const combined = [...prev, ...newMessages].sort(
+              (a, b) => a.createdAt.getTime() - b.createdAt.getTime()
+            );
+
+            // Update cache
+            messagesCacheMap.set(activeConversationId, {
+              messages: combined,
+            });
+
+            return combined;
+          });
+
+          // Wait for React to update DOM, then set active search result
+          // Use requestAnimationFrame to ensure DOM is ready
+          requestAnimationFrame(() => {
+            setTimeout(() => {
+              setActiveSearchResultId(messageId);
+            }, 50);
+          });
+        }
+      } catch (error) {
+        console.error("Error loading search message:", error);
+        toast.error("Failed to load message");
+      } finally {
+        setIsLoadingSearchMessage(false);
+      }
+    },
+    [activeConversationId, isLoadingSearchMessage, messages]
+  );
+
   return (
     <div className="h-full w-full flex bg-black">
       {/* Sidebar */}
@@ -1228,7 +1487,8 @@ export function MessagingContainer({
         {activeConversation ? (
           <>
             {/* Chat Header */}
-            <div className="flex-shrink-0 p-4 border-b border-gray-800 bg-gray-900 flex items-center justify-between">
+            <div className="flex-shrink-0 border-b border-gray-800 bg-gray-900">
+              <div className="p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 {/* Avatar for DM or Icon for Channel */}
                 {activeConversation.type === "channel" ? (
@@ -1268,6 +1528,22 @@ export function MessagingContainer({
               {/* Header Buttons */}
               <div className="flex items-center gap-2">
                 <button
+                  onClick={() => setIsSearchOpen(true)}
+                  className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition flex items-center gap-2"
+                  title="Search messages (Ctrl+F)"
+                >
+                  <Search size={20} />
+                  <span className="text-sm hidden sm:inline">Search</span>
+                </button>
+                <button
+                  onClick={() => setIsPinnedMessagesOpen(true)}
+                  className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition flex items-center gap-2"
+                  title="Pinned messages"
+                >
+                  <Pin size={20} />
+                  <span className="text-sm hidden sm:inline">Pinned</span>
+                </button>
+                <button
                   onClick={handleManualRefresh}
                   disabled={isRefreshing}
                   className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1306,6 +1582,18 @@ export function MessagingContainer({
                   )}
                 </button>
               </div>
+              </div>
+
+              {/* Search Bar */}
+              <MessageSearch
+                messages={messages}
+                conversationId={activeConversationId || ""}
+                isOpen={isSearchOpen}
+                onClose={handleCloseSearch}
+                onResultChange={handleSearchResultChange}
+                onQueryChange={setSearchQuery}
+                onLoadMessage={handleLoadSearchMessage}
+              />
             </div>
 
             {/* Messages */}
@@ -1319,6 +1607,7 @@ export function MessagingContainer({
                   messages={messages}
                   participants={activeConversation.participants}
                   currentUserId={currentUser?.id || ""}
+                  conversationId={activeConversationId || ""}
                   onMessageClick={(messageId) => setThreadParentId(messageId)}
                   onLoadMore={loadOlderMessages}
                   hasMore={
@@ -1327,6 +1616,10 @@ export function MessagingContainer({
                       : false
                   }
                   isLoadingMore={isLoadingOlderMessages}
+                  searchQuery={searchQuery}
+                  activeSearchResultId={activeSearchResultId}
+                  allSearchResults={searchResultIds}
+                  pinnedMessageIds={pinnedMessageIds}
                 />
               )}
             </div>
@@ -1409,6 +1702,16 @@ export function MessagingContainer({
         reminders={reminders}
         setReminders={setReminders}
       />
+
+      {/* Pinned Messages Panel */}
+      {activeConversation && (
+        <PinnedMessagesPanel
+          conversationId={activeConversation.id}
+          isOpen={isPinnedMessagesOpen}
+          onClose={() => setIsPinnedMessagesOpen(false)}
+          onMessageClick={handleLoadSearchMessage}
+        />
+      )}
     </div>
   );
 }

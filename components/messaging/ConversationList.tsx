@@ -5,6 +5,8 @@ import { Hash, Users } from "lucide-react";
 import type { Conversation } from "@/lib/supabase/messaging";
 import { useAuth } from "@/contexts/AuthContext";
 import { Avatar } from "@/components/ui/avatar";
+import { useUserStatuses } from "@/hooks/useUserStatuses";
+import { useMemo } from "react";
 
 interface ConversationListProps {
   readonly conversations: Conversation[];
@@ -20,6 +22,22 @@ export function ConversationList({
   onOpenChannelSettings,
 }: ConversationListProps) {
   const { user: currentUser } = useAuth();
+
+  // Collect all participant user IDs for status fetching
+  const participantIds = useMemo(() => {
+    const ids = new Set<string>();
+    conversations.forEach((conv) => {
+      conv.participants.forEach((p) => {
+        if (p.userId !== currentUser?.id) {
+          ids.add(p.userId);
+        }
+      });
+    });
+    return Array.from(ids);
+  }, [conversations, currentUser?.id]);
+
+  // Fetch user statuses for all participants
+  const { statuses: userStatuses } = useUserStatuses(participantIds);
 
   const getConversationName = (conversation: Conversation) => {
     if (conversation.name) {
@@ -172,6 +190,9 @@ export function ConversationList({
               <div className="flex items-center gap-2 mb-1">
                 {(() => {
                   const otherParticipant = getOtherParticipant(conversation);
+                  const participantStatus = otherParticipant
+                    ? userStatuses[otherParticipant.userId]
+                    : null;
                   return (
                     <Avatar
                       src={otherParticipant?.avatarUrl || null}
@@ -182,11 +203,24 @@ export function ConversationList({
                       }
                       email={otherParticipant?.email || undefined}
                       size="sm"
+                      statusEmoji={participantStatus?.statusEmoji || null}
+                      showStatusIndicator={true}
                     />
                   );
                 })()}
-                <span className="text-white font-medium truncate flex-1">
+                <span className="text-white font-medium truncate flex-1 flex items-center gap-1">
                   {getConversationName(conversation)}
+                  {(() => {
+                    const otherParticipant = getOtherParticipant(conversation);
+                    const participantStatus = otherParticipant
+                      ? userStatuses[otherParticipant.userId]
+                      : null;
+                    return participantStatus?.statusEmoji ? (
+                      <span className="text-xs" title={participantStatus.statusText || undefined}>
+                        {participantStatus.statusEmoji}
+                      </span>
+                    ) : null;
+                  })()}
                 </span>
                 {Number(conversation.unreadCount || 0) > 0 && (
                   <span className="bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full shrink-0">

@@ -51,6 +51,18 @@ export interface Conversation {
   unreadCount?: number;
 }
 
+export interface MessageReaction {
+  type: string;
+  count: number;
+  users: Array<{
+    id: string;
+    email: string;
+    fullname?: string | null;
+    avatarUrl?: string | null;
+  }>;
+  currentUserReacted: boolean;
+}
+
 export interface Message {
   id: string;
   conversationId: string;
@@ -69,6 +81,9 @@ export interface Message {
   fileName?: string | null;
   fileType?: string | null;
   fileSize?: number | null;
+  // Reactions
+  reactions?: MessageReaction[];
+  isPinned?: boolean;
 }
 
 /**
@@ -143,12 +158,14 @@ export async function getConversations(): Promise<Conversation[]> {
 export async function getMessages(
   conversationId: string,
   beforeMessageId?: string,
-  limit: number = 30
+  limit: number = 30,
+  searchQuery?: string
 ): Promise<{ messages: Message[]; hasMore: boolean }> {
   try {
     const headers = await getAuthHeaders();
     const params = new URLSearchParams();
     if (beforeMessageId) params.set("before", beforeMessageId);
+    if (searchQuery) params.set("search", searchQuery);
     params.set("limit", limit.toString());
     
     const url = `/api/messaging/messages/${conversationId}?${params.toString()}`;
@@ -184,11 +201,63 @@ export async function getMessages(
         fileName: msg.file_name || null,
         fileType: msg.file_type || null,
         fileSize: msg.file_size || null,
+        reactions: (msg.reactions || []) as MessageReaction[],
       })),
       hasMore: data.hasMore || false,
     };
   } catch (error) {
     if (isDev) console.error("Error in getMessages:", error);
+    throw error;
+  }
+}
+
+/**
+ * Search messages in a conversation
+ */
+export async function searchMessages(
+  conversationId: string,
+  searchQuery: string,
+  limit: number = 100
+): Promise<Message[]> {
+  try {
+    const { messages } = await getMessages(conversationId, undefined, limit, searchQuery);
+    return messages;
+  } catch (error) {
+    if (isDev) console.error("Error in searchMessages:", error);
+    throw error;
+  }
+}
+
+/**
+ * Get messages around a specific message ID (for scrolling to unloaded messages)
+ * Fetches a large batch of messages and returns context around the target
+ */
+export async function getMessagesAround(
+  conversationId: string,
+  messageId: string,
+  contextSize: number = 20
+): Promise<Message[]> {
+  try {
+    // Fetch a large batch of messages to ensure we get the target
+    const { messages: allMessages } = await getMessages(conversationId, undefined, 200);
+    
+    // Find target message in results
+    const targetIndex = allMessages.findIndex((m) => m.id === messageId);
+    
+    if (targetIndex === -1) {
+      // Target not found in first batch, try fetching more
+      // For now, return empty - in production you might want to implement
+      // a more sophisticated search (e.g., binary search by timestamp)
+      console.warn(`Message ${messageId} not found in conversation ${conversationId}`);
+      return [];
+    }
+
+    // Return context around target (messages before and after)
+    const start = Math.max(0, targetIndex - contextSize);
+    const end = Math.min(allMessages.length, targetIndex + contextSize + 1);
+    return allMessages.slice(start, end);
+  } catch (error) {
+    if (isDev) console.error("Error in getMessagesAround:", error);
     throw error;
   }
 }
@@ -615,6 +684,294 @@ export async function deleteChannel(conversationId: string): Promise<void> {
     }
   } catch (error) {
     if (isDev) console.error("Error in deleteChannel:", error);
+    throw error;
+  }
+}
+
+// ==================== Message Reactions ====================
+
+export interface MessageReactionResponse {
+  reactions: MessageReaction[];
+}
+
+/**
+ * Get reactions for a message
+ */
+export async function getMessageReactions(
+  messageId: string
+): Promise<MessageReaction[]> {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await robustFetch(
+      `/api/messaging/reactions?messageId=${messageId}`,
+      {
+        method: "GET",
+        headers,
+        retries: 2,
+        timeout: 10000,
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to fetch reactions");
+    }
+
+    const data: MessageReactionResponse = await response.json();
+    return data.reactions || [];
+  } catch (error) {
+    if (isDev) console.error("Error in getMessageReactions:", error);
+    throw error;
+  }
+}
+
+/**
+ * Toggle a reaction on a message
+ */
+export async function toggleMessageReaction(
+  messageId: string,
+  reactionType: string
+): Promise<{ action: "added" | "removed"; reactionType: string }> {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await robustFetch("/api/messaging/reactions", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ messageId, reactionType }),
+      retries: 2,
+      timeout: 10000,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to toggle reaction");
+    }
+
+    return await response.json();
+  } catch (error) {
+    if (isDev) console.error("Error in toggleMessageReaction:", error);
+    throw error;
+  }
+}
+
+// ==================== Pinned Messages ====================
+
+export interface PinnedMessage {
+  id: string;
+  messageId: string;
+  message: {
+    id: string;
+    content: string;
+    createdAt: string;
+    author: {
+      id: string;
+      email: string;
+      fullname?: string | null;
+      username?: string | null;
+      avatarUrl?: string | null;
+    };
+  };
+  pinnedBy: {
+    id: string;
+    email: string;
+    fullname?: string | null;
+  };
+  pinnedAt: string;
+}
+
+/**
+ * Get pinned messages for a conversation
+ */
+export async function getPinnedMessages(
+  conversationId: string
+): Promise<PinnedMessage[]> {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await robustFetch(
+      `/api/messaging/pinned?conversationId=${conversationId}`,
+      {
+        method: "GET",
+        headers,
+        retries: 2,
+        timeout: 10000,
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to fetch pinned messages");
+    }
+
+    const data = await response.json();
+    return data.pinnedMessages || [];
+  } catch (error) {
+    if (isDev) console.error("Error in getPinnedMessages:", error);
+    throw error;
+  }
+}
+
+/**
+ * Pin a message
+ */
+export async function pinMessage(
+  messageId: string
+): Promise<{ pinnedMessage: any }> {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await robustFetch("/api/messaging/pinned", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ messageId }),
+      retries: 2,
+      timeout: 10000,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to pin message");
+    }
+
+    return await response.json();
+  } catch (error) {
+    if (isDev) console.error("Error in pinMessage:", error);
+    throw error;
+  }
+}
+
+/**
+ * Unpin a message
+ */
+export async function unpinMessage(messageId: string): Promise<void> {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await robustFetch(
+      `/api/messaging/pinned?messageId=${messageId}`,
+      {
+        method: "DELETE",
+        headers,
+        retries: 2,
+        timeout: 10000,
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to unpin message");
+    }
+  } catch (error) {
+    if (isDev) console.error("Error in unpinMessage:", error);
+    throw error;
+  }
+}
+
+// ==================== User Status ====================
+
+export interface UserStatus {
+  userId: string;
+  statusText?: string | null;
+  statusEmoji?: string | null;
+  expiresAt?: string | null;
+  updatedAt: string;
+}
+
+/**
+ * Get user status
+ */
+export async function getUserStatus(
+  userId?: string
+): Promise<UserStatus | null> {
+  try {
+    const headers = await getAuthHeaders();
+    const url = userId
+      ? `/api/user/status?userId=${userId}`
+      : "/api/user/status";
+    const response = await robustFetch(url, {
+      method: "GET",
+      headers,
+      retries: 2,
+      timeout: 10000,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to fetch user status");
+    }
+
+    const data = await response.json();
+    return data.status;
+  } catch (error) {
+    if (isDev) console.error("Error in getUserStatus:", error);
+    throw error;
+  }
+}
+
+/**
+ * Set user status
+ */
+export async function setUserStatus(
+  statusText?: string | null,
+  statusEmoji?: string | null,
+  expiresAt?: string | null
+): Promise<UserStatus | null> {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await robustFetch("/api/user/status", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ statusText, statusEmoji, expiresAt }),
+      retries: 2,
+      timeout: 10000,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to set user status");
+    }
+
+    const data = await response.json();
+    return data.status;
+  } catch (error) {
+    if (isDev) console.error("Error in setUserStatus:", error);
+    throw error;
+  }
+}
+
+/**
+ * Get multiple user statuses (batch)
+ */
+export async function getUserStatuses(
+  userIds: string[]
+): Promise<Record<string, UserStatus>> {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await robustFetch("/api/user/status", {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ userIds }),
+      retries: 2,
+      timeout: 10000,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to fetch user statuses");
+    }
+
+    const data = await response.json();
+    // Convert the statuses map to UserStatus format
+    const statuses: Record<string, UserStatus> = {};
+    Object.entries(data.statuses || {}).forEach(([userId, status]: [string, any]) => {
+      statuses[userId] = {
+        userId,
+        statusText: status.statusText,
+        statusEmoji: status.statusEmoji,
+        expiresAt: status.expiresAt,
+        updatedAt: status.updatedAt,
+      };
+    });
+    return statuses;
+  } catch (error) {
+    if (isDev) console.error("Error in getUserStatuses:", error);
     throw error;
   }
 }

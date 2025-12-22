@@ -8,6 +8,8 @@ interface AvatarProps {
   readonly email?: string;
   readonly size?: "sm" | "md" | "lg";
   readonly className?: string;
+  readonly statusEmoji?: string | null;
+  readonly showStatusIndicator?: boolean;
 }
 
 const sizeClasses = {
@@ -22,9 +24,13 @@ export function Avatar({
   email,
   size = "md",
   className = "",
+  statusEmoji,
+  showStatusIndicator = false,
 }: AvatarProps) {
   const [imageError, setImageError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
+  
+  const hasStatus = showStatusIndicator && statusEmoji;
 
   // Get initials from name or email
   const getInitials = () => {
@@ -44,6 +50,13 @@ export function Avatar({
 
   const sizeClass = sizeClasses[size];
   const showImage = src && !imageError;
+
+  // Status indicator size based on avatar size
+  const statusIndicatorSize = {
+    sm: "w-3 h-3 text-[8px]",
+    md: "w-4 h-4 text-[10px]",
+    lg: "w-5 h-5 text-xs",
+  }[size];
 
   return (
     <div
@@ -72,6 +85,16 @@ export function Avatar({
       ) : (
         <div className="w-full h-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center text-white font-medium">
           {getInitials()}
+        </div>
+      )}
+      
+      {/* Status Indicator */}
+      {hasStatus && (
+        <div
+          className={`absolute bottom-0 right-0 ${statusIndicatorSize} rounded-full bg-gray-900 border-2 border-gray-800 flex items-center justify-center`}
+          title={statusEmoji}
+        >
+          <span className="leading-none">{statusEmoji}</span>
         </div>
       )}
     </div>

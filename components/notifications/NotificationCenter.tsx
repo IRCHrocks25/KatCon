@@ -31,14 +31,23 @@ export function NotificationCenter() {
     }
 
     try {
-      console.log("[NOTIFICATIONS] Fetching notifications for user:", user?.email);
-      
+      console.log(
+        "[NOTIFICATIONS] Fetching notifications for user:",
+        user?.email
+      );
+
       const fetchedNotifications = await getNotifications(user.email);
-      console.log("[NOTIFICATIONS] Fetched notifications count:", fetchedNotifications.length);
-      
+      console.log(
+        "[NOTIFICATIONS] Fetched notifications count:",
+        fetchedNotifications.length
+      );
+
       setNotifications(fetchedNotifications);
       setUnreadCount(fetchedNotifications.filter((n) => !n.read).length);
-      console.log("[NOTIFICATIONS] State updated, unread count:", fetchedNotifications.filter((n) => !n.read).length);
+      console.log(
+        "[NOTIFICATIONS] State updated, unread count:",
+        fetchedNotifications.filter((n) => !n.read).length
+      );
     } catch (error) {
       console.error("[NOTIFICATIONS] Exception during fetch:", error);
     }
@@ -71,7 +80,7 @@ export function NotificationCenter() {
       console.warn("[NOTIFICATIONS] No user email, cannot mark all as read");
       return;
     }
-    
+
     setMarkingAllRead(true);
     try {
       const success = await markAllAsRead(user.email);
@@ -116,6 +125,8 @@ export function NotificationCenter() {
         return "✏️";
       case "reminder_deleted":
         return "🗑️";
+      case "unread_messages":
+        return "💬";
       default:
         return "🔔";
     }
@@ -132,11 +143,16 @@ export function NotificationCenter() {
   // Real-time subscription for new notifications
   useEffect(() => {
     if (!user?.email) {
-      console.warn("[NOTIFICATIONS] No user email, skipping realtime subscription");
+      console.warn(
+        "[NOTIFICATIONS] No user email, skipping realtime subscription"
+      );
       return;
     }
 
-    console.log("[NOTIFICATIONS] Setting up realtime subscription for:", user.email);
+    console.log(
+      "[NOTIFICATIONS] Setting up realtime subscription for:",
+      user.email
+    );
 
     const channel = supabase
       .channel("notifications")
@@ -150,7 +166,26 @@ export function NotificationCenter() {
         },
         (payload) => {
           console.log("[NOTIFICATIONS] 🔔 New notification received:", payload);
-          
+          console.log("[NOTIFICATIONS] Payload details:", {
+            id: payload.new.id,
+            type: payload.new.type,
+            user_email: payload.new.user_email,
+            title: payload.new.title,
+            message: payload.new.message,
+          });
+
+          // Verify this notification is for the current user
+          const notificationEmail = payload.new.user_email?.toLowerCase();
+          const currentUserEmail = user?.email?.toLowerCase();
+
+          if (notificationEmail !== currentUserEmail) {
+            console.warn("[NOTIFICATIONS] Notification email mismatch:", {
+              notificationEmail,
+              currentUserEmail,
+            });
+            return;
+          }
+
           // Add new notification to state
           const newNotification: Notification = {
             id: payload.new.id,
@@ -163,20 +198,50 @@ export function NotificationCenter() {
             createdAt: new Date(payload.new.created_at),
           };
 
-          setNotifications((prev) => [newNotification, ...prev]);
-          setUnreadCount((prev) => prev + 1);
+          // Check if notification already exists to avoid duplicates
+          setNotifications((prev) => {
+            const exists = prev.some((n) => n.id === newNotification.id);
+            if (exists) {
+              console.log(
+                "[NOTIFICATIONS] Notification already exists, skipping state update"
+              );
+              return prev;
+            }
+            return [newNotification, ...prev];
+          });
 
+          setUnreadCount((prev) => prev + 1);
           console.log("[NOTIFICATIONS] State updated with new notification");
 
-          // Show toast notification
-          toast.info(newNotification.title, {
-            description: newNotification.message,
-            duration: 5000,
-          });
+          // Show toast notification - always show for all notifications received via realtime
+          // Use setTimeout to ensure toast shows even if state update is delayed
+          setTimeout(() => {
+            try {
+              console.log("[NOTIFICATIONS] Showing toast for:", {
+                title: newNotification.title,
+                message: newNotification.message,
+                type: newNotification.type,
+              });
+              toast.info(newNotification.title, {
+                description: newNotification.message,
+                duration: 5000,
+              });
+              console.log("[NOTIFICATIONS] ✅ Toast shown successfully");
+            } catch (error) {
+              console.error("[NOTIFICATIONS] ❌ Error showing toast:", error);
+            }
+          }, 100);
         }
       )
       .subscribe((status) => {
         console.log("[NOTIFICATIONS] Realtime subscription status:", status);
+        if (status === "SUBSCRIBED") {
+          console.log(
+            "[NOTIFICATIONS] ✅ Successfully subscribed to notifications"
+          );
+        } else if (status === "CHANNEL_ERROR") {
+          console.error("[NOTIFICATIONS] ❌ Channel subscription error");
+        }
       });
 
     return () => {
@@ -188,7 +253,10 @@ export function NotificationCenter() {
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setIsOpen(false);
       }
     };
@@ -232,7 +300,9 @@ export function NotificationCenter() {
           >
             {/* Header */}
             <div className="p-4 border-b border-gray-800 flex items-center justify-between">
-              <h3 className="text-white font-semibold text-sm">Notifications</h3>
+              <h3 className="text-white font-semibold text-sm">
+                Notifications
+              </h3>
               {unreadCount > 0 && (
                 <button
                   onClick={handleMarkAllAsRead}
@@ -291,7 +361,9 @@ export function NotificationCenter() {
                             {/* Mark as read button */}
                             {!notification.read && (
                               <button
-                                onClick={() => handleMarkAsRead(notification.id)}
+                                onClick={() =>
+                                  handleMarkAsRead(notification.id)
+                                }
                                 disabled={markingReadId === notification.id}
                                 className="flex-shrink-0 p-1 text-gray-500 hover:text-purple-400 transition disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Mark as read"
@@ -317,4 +389,3 @@ export function NotificationCenter() {
     </div>
   );
 }
-

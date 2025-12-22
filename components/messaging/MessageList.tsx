@@ -1,24 +1,34 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Download, FileText, Image as ImageIcon, Archive, File, X } from "lucide-react";
+import { Download, FileText, Image as ImageIcon, Archive, File, X, Pin } from "lucide-react";
 import type {
   Message,
   ConversationParticipant,
 } from "@/lib/supabase/messaging";
 import { formatMentions } from "@/lib/utils/mentions";
+import { highlightSearchMatches } from "@/lib/utils/search-highlight";
 import { formatFileSize, isImageFile } from "@/lib/supabase/file-upload";
 import { Avatar } from "@/components/ui/avatar";
+import { MessageReactions } from "./MessageReactions";
+import { MessageActionsMenu } from "./MessageActionsMenu";
+import { useUserStatuses } from "@/hooks/useUserStatuses";
 
 interface MessageListProps {
   messages: Message[];
   participants: ConversationParticipant[];
   currentUserId: string;
+  conversationId: string;
   onMessageClick: (messageId: string) => void;
   onLoadMore?: () => void;
   hasMore?: boolean;
   isLoadingMore?: boolean;
+  searchQuery?: string;
+  activeSearchResultId?: string;
+  allSearchResults?: string[]; // Array of message IDs that match search
+  searchResultIds?: string[]; // Alias for allSearchResults for compatibility
+  pinnedMessageIds?: string[]; // Array of pinned message IDs
 }
 
 // Image lightbox component
@@ -156,15 +166,33 @@ export function MessageList({
   messages,
   participants,
   currentUserId,
+  conversationId,
   onMessageClick,
   onLoadMore,
   hasMore = false,
   isLoadingMore = false,
+  searchQuery = "",
+  activeSearchResultId = "",
+  allSearchResults = [],
+  searchResultIds = [],
+  pinnedMessageIds = [],
 }: MessageListProps) {
+  // Use searchResultIds if allSearchResults is empty (for backward compatibility)
+  const effectiveSearchResults = allSearchResults.length > 0 ? allSearchResults : searchResultIds;
+  const [reactionPickerMessageId, setReactionPickerMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const previousMessageCount = useRef(0);
   const lastConversationId = useRef<string | null>(null);
+  const activeResultRef = useRef<HTMLDivElement>(null);
+
+  // Fetch user statuses for all message authors
+  const authorIds = useMemo(() => {
+    const uniqueIds = new Set(messages.map((m) => m.authorId));
+    return Array.from(uniqueIds);
+  }, [messages]);
+  
+  const { statuses: userStatuses } = useUserStatuses(authorIds);
 
   // Detect conversation change by checking first message's conversationId
   const currentConversationId = messages.length > 0 ? messages[0].conversationId : null;
@@ -208,6 +236,68 @@ export function MessageList({
 
     previousMessageCount.current = currentMessageCount;
   }, [messages, isLoadingMore, isNewConversation]);
+
+  // Scroll to active search result
+  useLayoutEffect(() => {
+    if (!activeSearchResultId) return;
+    
+    // Verify the message exists in the messages array
+    const messageExists = messages.some((m) => m.id === activeSearchResultId);
+    if (!messageExists) {
+      // Message not loaded yet, will scroll when it's loaded
+      return;
+    }
+    
+    const scrollToElement = (element: HTMLElement) => {
+      element.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+        inline: "nearest",
+      });
+    };
+    
+    // Use requestAnimationFrame to ensure DOM is ready
+    requestAnimationFrame(() => {
+      // Additional delay for AnimatePresence animations to complete
+      setTimeout(() => {
+        // Try ref first (most reliable)
+        const element = activeResultRef.current;
+        if (element) {
+          scrollToElement(element);
+          return;
+        }
+        
+        // Fallback: query DOM directly using data attribute
+        const container = messagesContainerRef.current;
+        if (container) {
+          const queriedElement = container.querySelector(
+            `[data-message-id="${activeSearchResultId}"]`
+          ) as HTMLElement;
+          if (queriedElement) {
+            scrollToElement(queriedElement);
+            return;
+          }
+        }
+        
+        // Final retry: check ref again after delay
+        // This handles the case where React hasn't assigned the ref yet
+        setTimeout(() => {
+          const retryElement = activeResultRef.current;
+          if (retryElement) {
+            scrollToElement(retryElement);
+          } else if (container) {
+            // Last resort: query DOM again
+            const finalElement = container.querySelector(
+              `[data-message-id="${activeSearchResultId}"]`
+            ) as HTMLElement;
+            if (finalElement) {
+              scrollToElement(finalElement);
+            }
+          }
+        }, 200);
+      }, 250); // Increased delay for AnimatePresence
+    });
+  }, [activeSearchResultId, messages]);
 
   const getParticipant = (userId: string) => {
     return participants.find((p) => p.userId === userId);
@@ -261,13 +351,20 @@ export function MessageList({
           const hasFile = message.fileUrl && message.fileName;
           const hasContent = message.content && message.content.trim().length > 0;
 
+          const isActiveSearchResult = message.id === activeSearchResultId;
+          const hasSearchQuery = searchQuery.trim().length > 0 && effectiveSearchResults.length > 0;
+          const isSearchResult = effectiveSearchResults.includes(message.id);
+          const isPinned = pinnedMessageIds?.includes(message.id) || false;
+
           return (
             <motion.div
               key={message.id}
+              ref={isActiveSearchResult ? activeResultRef : null}
+              data-message-id={message.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className={`flex items-start gap-3 ${
+              className={`group flex items-start gap-3 ${
                 isOwnMessage ? "flex-row-reverse" : "flex-row"
               }`}
             >
@@ -292,6 +389,8 @@ export function MessageList({
                       undefined
                     }
                     size="sm"
+                    statusEmoji={userStatuses[message.authorId]?.statusEmoji || null}
+                    showStatusIndicator={true}
                   />
                 </div>
               ) : (
@@ -300,58 +399,116 @@ export function MessageList({
 
               {/* Message Content */}
               <div
-                className={`flex flex-col max-w-[70%] ${
+                className={`flex flex-col max-w-[70%] relative ${
                   isOwnMessage ? "items-end" : "items-start"
                 }`}
               >
                 {/* Show name on every message */}
                 {showAvatar && (
                   <div
-                    className={`text-xs font-semibold mb-1 px-2 ${
+                    className={`text-xs font-semibold mb-1 px-2 flex items-center gap-1 ${
                       isOwnMessage
-                        ? "text-right text-purple-300"
-                        : "text-left text-gray-400"
+                        ? "text-right text-purple-300 justify-end"
+                        : "text-left text-gray-400 justify-start"
                     }`}
                   >
+                    {isPinned && (
+                      <Pin size={12} className="text-purple-400 flex-shrink-0" />
+                    )}
                     {isOwnMessage
                       ? "You"
                       : getParticipantName(message.authorId)}
+                    {/* Status emoji next to name */}
+                    {userStatuses[message.authorId]?.statusEmoji && (
+                      <span className="text-xs" title={userStatuses[message.authorId]?.statusText || undefined}>
+                        {userStatuses[message.authorId]?.statusEmoji}
+                      </span>
+                    )}
+                  </div>
+                )}
+                
+                {/* Show pin indicator even when no avatar */}
+                {!showAvatar && isPinned && (
+                  <div
+                    className={`text-xs mb-1 px-2 flex items-center gap-1 ${
+                      isOwnMessage
+                        ? "text-right justify-end"
+                        : "text-left justify-start"
+                    }`}
+                  >
+                    <Pin size={12} className="text-purple-400 flex-shrink-0" />
                   </div>
                 )}
 
-                {/* Message bubble */}
-                <div
-                  className={`px-4 py-2 rounded-2xl cursor-pointer ${
-                    isOwnMessage
-                      ? "bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 text-white rounded-tr-sm"
-                      : "bg-gray-800 text-gray-100 rounded-tl-sm border border-gray-700"
-                  }`}
-                  onClick={() => onMessageClick(message.id)}
-                >
-                  {/* Text content */}
-                  {hasContent && (
-                    <div className="text-sm whitespace-pre-wrap break-words">
-                      {formatMentions(
-                        message.content,
-                        participants.map((p) => ({
-                          id: p.userId,
-                          email: p.email,
-                          fullname: p.fullname,
-                        }))
-                      )}
-                    </div>
-                  )}
+                {/* Message bubble with actions menu */}
+                <div className={`flex items-start gap-2 ${isOwnMessage ? "flex-row-reverse" : "flex-row"}`}>
+                  <div
+                    className={`px-4 py-2 rounded-2xl cursor-pointer ${
+                      isOwnMessage
+                        ? "bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 text-white rounded-tr-sm"
+                        : "bg-gray-800 text-gray-100 rounded-tl-sm border border-gray-700"
+                    }`}
+                    onClick={() => onMessageClick(message.id)}
+                  >
+                    {/* Text content */}
+                    {hasContent && (
+                      <div className="text-sm whitespace-pre-wrap break-words">
+                        {hasSearchQuery && isSearchResult
+                          ? highlightSearchMatches(
+                              formatMentions(
+                                message.content,
+                                participants.map((p) => ({
+                                  id: p.userId,
+                                  email: p.email,
+                                  fullname: p.fullname,
+                                }))
+                              ),
+                              searchQuery
+                            )
+                          : formatMentions(
+                              message.content,
+                              participants.map((p) => ({
+                                id: p.userId,
+                                email: p.email,
+                                fullname: p.fullname,
+                              }))
+                            )}
+                      </div>
+                    )}
 
-                  {/* File attachment */}
-                  {hasFile && (
-                    <FileAttachment
-                      fileUrl={message.fileUrl!}
-                      fileName={message.fileName!}
-                      fileType={message.fileType || "application/octet-stream"}
-                      fileSize={message.fileSize || 0}
+                    {/* File attachment */}
+                    {hasFile && (
+                      <FileAttachment
+                        fileUrl={message.fileUrl!}
+                        fileName={message.fileName!}
+                        fileType={message.fileType || "application/octet-stream"}
+                        fileSize={message.fileSize || 0}
+                        isOwnMessage={isOwnMessage}
+                      />
+                    )}
+                  </div>
+                  
+                  {/* Actions Menu - Shows on hover, beside message */}
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center">
+                    <MessageActionsMenu
+                      messageId={message.id}
+                      conversationId={conversationId}
+                      isPinned={isPinned}
                       isOwnMessage={isOwnMessage}
+                      onReply={() => onMessageClick(message.id)}
+                      onPinChange={() => {
+                        // Refresh pinned messages list
+                        window.dispatchEvent(new CustomEvent("refreshPinnedMessages"));
+                        // Also trigger a refresh of pinned message IDs in parent
+                        window.dispatchEvent(new CustomEvent("refreshPinnedMessageIds", {
+                          detail: { conversationId }
+                        }));
+                      }}
+                      onAddReaction={() => {
+                        setReactionPickerMessageId(message.id);
+                      }}
                     />
-                  )}
+                  </div>
                 </div>
 
                 {/* Timestamp */}
@@ -376,6 +533,22 @@ export function MessageList({
                     {message.threadReplyCount === 1 ? "reply" : "replies"}
                   </button>
                 )}
+
+                {/* Message Reactions - Lazy loaded, only fetches when user interacts */}
+                <div className={`mt-1 ${isOwnMessage ? "text-right" : "text-left"}`}>
+                  <MessageReactions
+                    messageId={message.id}
+                    initialReactions={message.reactions || []}
+                    trigger={reactionPickerMessageId === message.id ? "menu" : "button"}
+                    isOwnMessage={isOwnMessage}
+                    onPickerClose={() => {
+                      // Clear the trigger when picker closes
+                      if (reactionPickerMessageId === message.id) {
+                        setReactionPickerMessageId(null);
+                      }
+                    }}
+                  />
+                </div>
               </div>
             </motion.div>
           );

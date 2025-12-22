@@ -42,6 +42,7 @@ export async function GET(
     const { conversationId } = await params;
     const { searchParams } = new URL(request.url);
     const beforeMessageId = searchParams.get("before");
+    const searchQuery = searchParams.get("search");
     const limit = Math.min(parseInt(searchParams.get("limit") || "30", 10), 100);
 
     // Verify user is a participant
@@ -65,8 +66,16 @@ export async function GET(
       .select("*")
       .eq("conversation_id", conversationId)
       .is("parent_message_id", null) // Only top-level messages
-      .order("created_at", { ascending: false })
-      .limit(limit);
+      .order("created_at", { ascending: false });
+
+    // If search query is provided, filter by content
+    if (searchQuery && searchQuery.trim()) {
+      query = query.ilike("content", `%${searchQuery.trim()}%`);
+      // For search, use a higher limit to get more results
+      query = query.limit(Math.min(limit * 3, 200));
+    } else {
+      query = query.limit(limit);
+    }
 
     // If beforeMessageId is provided, get messages before that
     if (beforeMessageId) {
@@ -115,6 +124,51 @@ export async function GET(
       .in("message_id", messageIds);
 
     const readByMap = new Map<string, string[]>();
+    
+    // Get reactions for all messages (batch fetch)
+    const { data: reactions } = await supabase
+      .from("message_reactions")
+      .select("id, message_id, user_id, reaction_type, created_at")
+      .in("message_id", messageIds)
+      .order("created_at", { ascending: true });
+
+    // Get user profiles for reaction authors
+    const reactionUserIds = reactions
+      ? [...new Set(reactions.map((r) => r.user_id))]
+      : [];
+    const { data: reactionProfiles } =
+      reactionUserIds.length > 0
+        ? await supabase
+            .from("profiles")
+            .select("id, email, fullname, username, avatar_url")
+            .in("id", reactionUserIds)
+        : { data: null, error: null };
+
+    const reactionProfileMap = new Map();
+    (reactionProfiles || []).forEach((p) => {
+      reactionProfileMap.set(p.id, p);
+    });
+
+    // Group reactions by message and type
+    const reactionsByMessage = new Map<string, Map<string, any[]>>();
+    (reactions || []).forEach((reaction) => {
+      if (!reactionsByMessage.has(reaction.message_id)) {
+        reactionsByMessage.set(reaction.message_id, new Map());
+      }
+      const messageReactions = reactionsByMessage.get(reaction.message_id)!;
+      if (!messageReactions.has(reaction.reaction_type)) {
+        messageReactions.set(reaction.reaction_type, []);
+      }
+      const profile = reactionProfileMap.get(reaction.user_id);
+      messageReactions.get(reaction.reaction_type)!.push({
+        id: reaction.id,
+        userId: reaction.user_id,
+        userEmail: profile?.email || "",
+        userFullname: profile?.fullname || null,
+        userAvatarUrl: profile?.avatar_url || null,
+        createdAt: reaction.created_at,
+      });
+    });
     (reads || []).forEach((read) => {
       if (!readByMap.has(read.message_id)) {
         readByMap.set(read.message_id, []);
@@ -156,6 +210,25 @@ export async function GET(
           file_name: msg.file_name || null,
           file_type: msg.file_type || null,
           file_size: msg.file_size || null,
+          reactions: (() => {
+            const messageReactions = reactionsByMessage.get(msg.id);
+            if (!messageReactions || messageReactions.size === 0) {
+              return [];
+            }
+            return Array.from(messageReactions.entries()).map(
+              ([type, users]) => ({
+                type,
+                count: users.length,
+                users: users.map((u) => ({
+                  id: u.userId,
+                  email: u.userEmail,
+                  fullname: u.userFullname,
+                  avatarUrl: u.userAvatarUrl,
+                })),
+                currentUserReacted: users.some((u) => u.userId === user.id),
+              })
+            );
+          })(),
         };
       });
 

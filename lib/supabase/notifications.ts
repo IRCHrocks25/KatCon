@@ -1,4 +1,5 @@
 import { supabase } from "./client";
+import { robustFetch } from "@/lib/utils/fetch";
 
 export interface Notification {
   id: string;
@@ -7,7 +8,8 @@ export interface Notification {
     | "reminder_assigned"
     | "reminder_completed"
     | "reminder_updated"
-    | "reminder_deleted";
+    | "reminder_deleted"
+    | "unread_messages";
   title: string;
   message: string;
   reminderId?: string;
@@ -143,4 +145,68 @@ export async function markAllAsRead(userEmail: string): Promise<boolean> {
     console.error("[NOTIFICATIONS] Exception marking all as read:", error);
     return false;
   }
+}
+
+/**
+ * Update or create unread messages notification
+ * This creates/updates a single notification showing total unread message count
+ * Uses API route to handle database constraints and RLS policies
+ */
+export async function updateUnreadMessagesNotification(
+  userEmail: string,
+  unreadCount: number
+): Promise<boolean> {
+  try {
+    if (!userEmail) {
+      console.warn("[NOTIFICATIONS] No user email provided for unread messages notification");
+      return false;
+    }
+
+    const headers = await getAuthHeaders();
+    const response = await robustFetch("/api/notifications/update-unread-messages", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ unreadCount }),
+      retries: 2,
+      timeout: 10000,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error("[NOTIFICATIONS] Error updating unread messages notification:", {
+        status: response.status,
+        error: errorData.error,
+        details: errorData.details,
+      });
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("[NOTIFICATIONS] Exception updating unread messages notification:", {
+      error,
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    return false;
+  }
+}
+
+/**
+ * Get auth headers for API requests
+ */
+async function getAuthHeaders(): Promise<HeadersInit> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+  };
+
+  if (session?.access_token) {
+    headers["Authorization"] = `Bearer ${session.access_token}`;
+  }
+
+  return headers;
 }
