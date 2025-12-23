@@ -27,6 +27,7 @@ import {
 } from "@/lib/supabase/reminders";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase/client";
+import { TaskDetailsModal } from "./TaskDetailsModal";
 
 interface TasksSummaryWidgetProps {
   reminders: Reminder[];
@@ -34,6 +35,7 @@ interface TasksSummaryWidgetProps {
   onOpenModal: () => void;
   onOpenModalWithForm?: () => void;
   onEditTask?: (reminder: Reminder) => void;
+  onViewTaskDetails?: (reminder: Reminder) => void;
 }
 
 type Priority = "overdue" | "today" | "upcoming" | "no-date";
@@ -50,6 +52,7 @@ export function TasksSummaryWidget({
   onOpenModal,
   onOpenModalWithForm,
   onEditTask,
+  onViewTaskDetails,
 }: TasksSummaryWidgetProps) {
   const { user: currentUser } = useAuth();
   const [isExpanded, setIsExpanded] = useState(true);
@@ -57,6 +60,7 @@ export function TasksSummaryWidget({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
 
   // Fetch reminders
   const fetchReminders = useCallback(
@@ -222,6 +226,12 @@ export function TasksSummaryWidget({
     } finally {
       setDeletingId(null);
     }
+  };
+
+  // Handle view details
+  const handleViewDetails = (reminder: Reminder) => {
+    console.log('Task card clicked:', reminder.id);
+    onViewTaskDetails?.(reminder);
   };
 
   // Format due date
@@ -403,13 +413,17 @@ export function TasksSummaryWidget({
                   animate={{ opacity: 1, y: 0 }}
                   className={`
                     relative bg-gray-800/60 rounded-lg border-l-4 ${styles.border}
-                    hover:bg-gray-800/80 transition-colors group
+                    hover:bg-gray-800/80 transition-colors group cursor-pointer
                   `}
+                  onClick={() => handleViewDetails(reminder)}
                 >
                   <div className="p-4 flex gap-3">
                     {/* Checkbox */}
                     <button
-                      onClick={() => handleToggleComplete(reminder.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleComplete(reminder.id);
+                      }}
                       disabled={isToggling}
                       className={`
                         mt-0.5 w-5 h-5 rounded-full border-2 flex-shrink-0
@@ -588,6 +602,7 @@ export function TasksSummaryWidget({
           Add Task
         </button>
       </div>
+
     </motion.div>
   );
 }

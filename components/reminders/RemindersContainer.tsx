@@ -30,6 +30,8 @@ import { getAllUsers, type UserWithTeam } from "@/lib/supabase/users";
 import { robustFetch } from "@/lib/utils/fetch";
 import type { AccountType } from "@/lib/supabase/auth";
 import { supabase } from "@/lib/supabase/client";
+import { TaskDetailsModal } from "./TaskDetailsModal";
+import { ReminderCard } from "./ReminderCard";
 
 export type { Reminder };
 
@@ -53,6 +55,8 @@ export function RemindersContainer({
   const [isSaving, setIsSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [selectedReminder, setSelectedReminder] = useState<Reminder | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [newReminder, setNewReminder] = useState({
     title: "",
     description: "",
@@ -627,6 +631,17 @@ export function RemindersContainer({
     }
   };
 
+  const handleViewDetails = (reminder: Reminder) => {
+    console.log('handleViewDetails called:', reminder.id);
+    setSelectedReminder(reminder);
+    setShowDetailsModal(true);
+  };
+
+  const handleCloseDetailsModal = () => {
+    setSelectedReminder(null);
+    setShowDetailsModal(false);
+  };
+
   return (
     <div className="h-full flex flex-col bg-gray-900/50 backdrop-blur-sm border-r border-gray-800/50">
       {/* Header */}
@@ -979,176 +994,33 @@ export function RemindersContainer({
               : reminder.myStatus || reminder.status;
 
             return (
-              <motion.div
+              <ReminderCard
                 key={reminder.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`p-3 rounded-lg border ${
-                  displayStatus === "done"
-                    ? "bg-gray-800/30 border-gray-700/50 opacity-60"
-                    : "bg-gray-800/50 border-gray-700/50"
-                }`}
-              >
-                <div className="flex items-start gap-2">
-                  <button
-                    onClick={() => handleToggleComplete(reminder.id)}
-                    disabled={togglingId === reminder.id}
-                    className={`mt-0.5 w-4 h-4 rounded border-2 flex items-center justify-center transition disabled:opacity-50 disabled:cursor-not-allowed ${
-                      displayStatus === "done"
-                        ? "bg-purple-600 border-purple-600"
-                        : "border-gray-600 hover:border-purple-500"
-                    }`}
-                  >
-                    {togglingId === reminder.id ? (
-                      <div className="w-2.5 h-2.5 border border-white/30 border-t-white rounded-full animate-spin" />
-                    ) : displayStatus === "done" ? (
-                      <svg
-                        className="w-3 h-3 text-white"
-                        fill="none"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path d="M5 13l4 4L19 7" />
-                      </svg>
-                    ) : null}
-                  </button>
-                  <div className="flex-1 min-w-0">
-                    <h3
-                      className={`text-sm font-medium ${
-                        displayStatus === "done"
-                          ? "text-gray-500 line-through"
-                          : "text-white"
-                      }`}
-                    >
-                      {reminder.title}
-                    </h3>
-                    {reminder.description && (
-                      <p
-                        className={`text-xs mt-1 ${
-                          displayStatus === "done"
-                            ? "text-gray-600 line-through"
-                            : "text-gray-400"
-                        }`}
-                      >
-                        {reminder.description}
-                      </p>
-                    )}
-                    {reminder.dueDate && (
-                      <div className="flex items-center gap-1 mt-2 text-xs text-gray-500">
-                        <Clock size={12} />
-                        <span>
-                          {new Date(reminder.dueDate).toLocaleString([], {
-                            month: "short",
-                            day: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                      </div>
-                    )}
-                    {/* Creator and assigned users info */}
-                    <div className="mt-2 space-y-1">
-                      {reminder.createdBy && (
-                        <div className="flex items-center gap-1 text-xs text-gray-500">
-                          <span className="text-gray-600">Created by:</span>
-                          <span
-                            className={
-                              reminder.createdBy === currentUser?.email
-                                ? "text-purple-400 font-medium"
-                                : "text-gray-400"
-                            }
-                          >
-                            {reminder.createdBy === currentUser?.email
-                              ? "You"
-                              : reminder.createdBy}
-                          </span>
-                        </div>
-                      )}
-                      {reminder.assignedTo &&
-                        reminder.assignedTo.length > 0 && (
-                          <div className="flex items-start gap-1 text-xs text-gray-500">
-                            <Users
-                              size={12}
-                              className="mt-0.5 text-purple-400"
-                            />
-                            <div className="flex-1">
-                              <span className="text-gray-600">
-                                Assigned to:{" "}
-                              </span>
-                              <div className="inline-flex flex-wrap gap-1.5 mt-0.5">
-                                {reminder.assignedTo.map((assignment) => {
-                                  const { display, isTeam } =
-                                    getAssignmentDisplay(assignment);
-                                  const isCurrentUser =
-                                    !isTeam &&
-                                    assignment === currentUser?.email;
-
-                                  return (
-                                    <span
-                                      key={assignment}
-                                      className={`px-1.5 py-0.5 rounded flex items-center gap-1 ${
-                                        isCurrentUser
-                                          ? "bg-purple-600/20 text-purple-300 font-medium"
-                                          : isTeam
-                                          ? "bg-blue-600/20 text-blue-300 font-medium"
-                                          : "bg-gray-700/50 text-gray-300"
-                                      }`}
-                                    >
-                                      {isTeam ? (
-                                        <>
-                                          <Users size={10} />
-                                          {display}
-                                        </>
-                                      ) : (
-                                        <>
-                                          <User size={10} />
-                                          {isCurrentUser ? "You" : display}
-                                        </>
-                                      )}
-                                    </span>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {reminder.createdBy === currentUser?.email && (
-                      <button
-                        onClick={() => handleEditReminder(reminder)}
-                        disabled={isSaving || deletingId === reminder.id}
-                        className="p-1 hover:bg-gray-700/50 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Edit reminder"
-                      >
-                        <Edit size={14} className="text-gray-400" />
-                      </button>
-                    )}
-                    {reminder.createdBy === currentUser?.email && (
-                      <button
-                        onClick={() => handleDeleteReminder(reminder.id)}
-                        disabled={deletingId === reminder.id || isSaving}
-                        className="p-1 hover:bg-gray-700/50 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Delete reminder"
-                      >
-                        {deletingId === reminder.id ? (
-                          <div className="w-3.5 h-3.5 border-2 border-gray-400/30 border-t-gray-400 rounded-full animate-spin" />
-                        ) : (
-                          <X size={14} className="text-gray-400" />
-                        )}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </motion.div>
+                reminder={reminder}
+                currentUserEmail={currentUser?.email || ""}
+                onToggleComplete={handleToggleComplete}
+                onEdit={handleEditReminder}
+                onDelete={handleDeleteReminder}
+                onViewDetails={handleViewDetails}
+                isToggling={togglingId === reminder.id}
+                isDeleting={deletingId === reminder.id}
+              />
             );
           })
         )}
       </div>
+
+      {/* Task Details Modal */}
+      <TaskDetailsModal
+        reminder={selectedReminder}
+        isOpen={showDetailsModal}
+        onClose={handleCloseDetailsModal}
+        onEdit={handleEditReminder}
+        onDelete={handleDeleteReminder}
+        onToggleComplete={handleToggleComplete}
+        isToggling={togglingId === selectedReminder?.id}
+        isDeleting={deletingId === selectedReminder?.id}
+      />
     </div>
   );
 }

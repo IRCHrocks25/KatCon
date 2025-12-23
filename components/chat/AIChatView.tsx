@@ -17,6 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { TasksSummaryWidget } from "@/components/reminders/TasksSummaryWidget";
 import { RemindersModal } from "@/components/reminders/RemindersModal";
+import { TaskDetailsModal } from "@/components/reminders/TaskDetailsModal";
 import type { Reminder } from "@/lib/supabase/reminders";
 import { robustFetch } from "@/lib/utils/fetch";
 import { getStorageItem, setStorageItem } from "@/lib/utils/storage";
@@ -44,6 +45,8 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
   const [showRemindersModal, setShowRemindersModal] = useState(false);
   const [showFormOnOpen, setShowFormOnOpen] = useState(false);
   const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
+  const [selectedTask, setSelectedTask] = useState<Reminder | null>(null);
+  const [showTaskDetailsModal, setShowTaskDetailsModal] = useState(false);
 
   // Get or generate sessionId
   const getSessionId = (): string => {
@@ -308,6 +311,17 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
     },
   ];
 
+  const handleViewTaskDetails = (reminder: Reminder) => {
+    console.log('Task card clicked:', reminder.id);
+    setSelectedTask(reminder);
+    setShowTaskDetailsModal(true);
+  };
+
+  const handleCloseTaskDetailsModal = () => {
+    setSelectedTask(null);
+    setShowTaskDetailsModal(false);
+  };
+
   return (
     <div className="relative h-full w-full overflow-hidden bg-black flex">
       {/* Gradient Background */}
@@ -328,6 +342,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
             setEditingReminder(reminder);
             setShowRemindersModal(true);
           }}
+          onViewTaskDetails={handleViewTaskDetails}
         />
       </div>
 
@@ -473,6 +488,34 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
         setReminders={setReminders}
         initialShowForm={showFormOnOpen}
         initialEditingReminder={editingReminder}
+      />
+
+      {/* Task Details Modal */}
+      <TaskDetailsModal
+        reminder={selectedTask}
+        isOpen={showTaskDetailsModal}
+        onClose={handleCloseTaskDetailsModal}
+        onEdit={(reminder) => {
+          setEditingReminder(reminder);
+          setShowRemindersModal(true);
+          setShowTaskDetailsModal(false);
+        }}
+        onDelete={(id) => {
+          const reminder = reminders.find((r) => r.id === id);
+          if (reminder) {
+            // This would trigger the delete handler in RemindersContainer
+            // For now, just close the modal
+            setShowTaskDetailsModal(false);
+          }
+        }}
+        onToggleComplete={(id) => {
+          const reminder = reminders.find((r) => r.id === id);
+          if (reminder) {
+            // This would trigger the toggle handler
+            // For now, just close the modal
+            setShowTaskDetailsModal(false);
+          }
+        }}
       />
     </div>
   );

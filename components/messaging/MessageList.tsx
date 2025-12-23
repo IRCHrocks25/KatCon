@@ -579,19 +579,30 @@ export function MessageList({
                   </div>
                 </div>
 
-                {/* Timestamp and Read Receipts - Only show on last message */}
+                {/* Timestamp - alone */}
                 <div
-                  className={`text-[10px] text-gray-500 mt-1 px-2 flex items-center gap-1 ${
+                  className={`text-[10px] text-gray-500 mt-1 px-2 ${
                     isOwnMessage
-                      ? "text-right justify-end"
-                      : "text-left justify-start"
+                      ? "text-right"
+                      : "text-left"
                   }`}
                 >
                   {new Date(message.createdAt).toLocaleTimeString([], {
                     hour: "2-digit",
                     minute: "2-digit",
                   })}
-                  {/* Read receipts only for the last message */}
+                </div>
+
+                {/* Read Receipts and Thread replies - below timestamp */}
+                <div
+                  className={`text-[10px] text-gray-500 mt-1 px-2 flex items-center ${
+                    isOwnMessage
+                      ? "flex-row-reverse justify-end gap-2"
+                      : "flex-row justify-start gap-4"
+                  }`}
+                >
+                  {/* For own messages: reads rightmost, replies on left */}
+                  {/* For others' messages: reads leftmost, replies on right */}
                   {(() => {
                     // Only show read receipts on the last message (most recent)
                     const isLastMessage = index === messages.length - 1;
@@ -599,95 +610,105 @@ export function MessageList({
                     const isOwnLastMessage =
                       lastMessage?.authorId === currentUserId;
 
-                    return isLastMessage &&
-                      isOwnLastMessage &&
+                    const hasReadReceipts = isLastMessage &&
                       lastMessage.readBy &&
-                      lastMessage.readBy.length > 0 ? (
-                      <div className="flex items-center -space-x-1">
-                        {/* For DMs, show if the other person read it */}
-                        {participants.length === 2 ? (
-                          lastMessage.readBy.some(
-                            (userId) =>
-                              userId !== currentUserId &&
-                              participants.some((p) => p.userId === userId)
-                          ) ? (
-                            <div className="text-blue-400" title="Read">
-                              <svg
-                                width="12"
-                                height="12"
-                                viewBox="0 0 24 24"
-                                fill="currentColor"
-                              >
-                                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-                              </svg>
-                            </div>
-                          ) : (
-                            <div className="text-gray-500" title="Sent">
-                              <svg
-                                width="12"
-                                height="12"
-                                viewBox="0 0 24 24"
-                                fill="currentColor"
-                              >
-                                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-                              </svg>
-                            </div>
-                          )
-                        ) : (
-                          /* For channels, show all profile pictures of readers (no limit) */
-                          (() => {
-                            const readers = lastMessage.readBy
-                              .filter((userId) => userId !== currentUserId)
-                              .map((userId) => getParticipant(userId))
-                              .filter(Boolean);
+                      lastMessage.readBy.length > 0;
 
-                            return (
-                              <div className="flex items-center -space-x-1">
-                                {readers.map((reader) => (
-                                  <div
-                                    key={reader!.userId}
-                                    className="relative"
-                                    title={`${
-                                      reader!.fullname ||
-                                      reader!.email ||
-                                      "Unknown"
-                                    } read this message`}
+                    const hasThreadReplies = (message.threadReplyCount || 0) > 0;
+
+                    return (
+                      <>
+                        {/* Read receipts - positioned based on message alignment */}
+                        {hasReadReceipts ? (
+                          <div className="flex items-center justify-center -space-x-1 min-h-[12px]">
+                            {/* For DMs, show if the other person read it */}
+                            {participants.length === 2 ? (
+                              lastMessage.readBy.some(
+                                (userId) =>
+                                  userId !== currentUserId &&
+                                  participants.some((p) => p.userId === userId)
+                              ) ? (
+                                <div className="text-blue-400" title="Read">
+                                  <svg
+                                    width="12"
+                                    height="12"
+                                    viewBox="0 0 24 24"
+                                    fill="currentColor"
                                   >
-                                    <div className="w-3 h-3">
-                                      <Avatar
-                                        src={reader!.avatarUrl || null}
-                                        name={
+                                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                                  </svg>
+                                </div>
+                              ) : (
+                                <div className="text-gray-500" title="Sent">
+                                  <svg
+                                    width="12"
+                                    height="12"
+                                    viewBox="0 0 24 24"
+                                    fill="currentColor"
+                                  >
+                                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                                  </svg>
+                                </div>
+                              )
+                            ) : (
+                              /* For channels, show all profile pictures of readers (no limit) */
+                              (() => {
+                                const readers = lastMessage.readBy
+                                  .filter((userId) => userId !== currentUserId)
+                                  .map((userId) => getParticipant(userId))
+                                  .filter(Boolean);
+
+                                return (
+                                  <>
+                                    {readers.map((reader) => (
+                                      <div
+                                        key={reader!.userId}
+                                        className="relative"
+                                        title={`${
                                           reader!.fullname ||
-                                          reader!.username ||
-                                          undefined
-                                        }
-                                        email={reader!.email || undefined}
-                                        size="sm"
-                                        className="w-3 h-3 text-[6px]"
-                                        showStatusIndicator={false}
-                                      />
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            );
-                          })()
+                                          reader!.email ||
+                                          "Unknown"
+                                        } read this message`}
+                                      >
+                                        <div className="w-3 h-3">
+                                          <Avatar
+                                            src={reader!.avatarUrl || null}
+                                            name={
+                                              reader!.fullname ||
+                                              reader!.username ||
+                                              undefined
+                                            }
+                                            email={reader!.email || undefined}
+                                            size="sm"
+                                            className="w-3 h-3 text-[6px]"
+                                            showStatusIndicator={false}
+                                          />
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </>
+                                );
+                              })()
+                            )}
+                          </div>
+                        ) : null}
+
+                        {/* Thread replies - positioned based on message alignment */}
+                        {hasThreadReplies && (
+                          <div className="flex items-center justify-center min-h-[12px]">
+                            <button
+                              onClick={() => onMessageClick(message.id)}
+                              className="text-xs text-purple-400 hover:text-purple-300 leading-tight"
+                            >
+                              {message.threadReplyCount}{" "}
+                              {message.threadReplyCount === 1 ? "reply" : "replies"}
+                            </button>
+                          </div>
                         )}
-                      </div>
-                    ) : null;
+                      </>
+                    );
                   })()}
                 </div>
-
-                {/* Thread replies count */}
-                {(message.threadReplyCount || 0) > 0 && (
-                  <button
-                    onClick={() => onMessageClick(message.id)}
-                    className="text-xs text-purple-400 hover:text-purple-300 mt-1 px-2"
-                  >
-                    {message.threadReplyCount}{" "}
-                    {message.threadReplyCount === 1 ? "reply" : "replies"}
-                  </button>
-                )}
 
                 {/* Message Reactions - Lazy loaded, only fetches when user interacts */}
                 <div

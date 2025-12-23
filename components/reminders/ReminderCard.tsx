@@ -20,6 +20,7 @@ interface ReminderCardProps {
   onToggleComplete: (id: string) => void;
   onEdit: (reminder: Reminder) => void;
   onDelete: (id: string) => void;
+  onViewDetails?: (reminder: Reminder) => void;
   isToggling: boolean;
   isDeleting: boolean;
 }
@@ -32,6 +33,7 @@ export function ReminderCard({
   onToggleComplete,
   onEdit,
   onDelete,
+  onViewDetails,
   isToggling,
   isDeleting,
 }: ReminderCardProps) {
@@ -46,13 +48,13 @@ export function ReminderCard({
   // Determine priority based on due date
   const getPriority = (): Priority => {
     if (!reminder.dueDate) return "no-date";
-    
+
     const now = new Date();
     const dueDate = new Date(reminder.dueDate);
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    
+
     if (dueDate < now && !isCompleted) return "overdue";
     if (dueDate >= today && dueDate < tomorrow) return "today";
     return "upcoming";
@@ -82,7 +84,9 @@ export function ReminderCard({
     });
 
     if (dueDate < yesterday) {
-      const diffDays = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+      const diffDays = Math.floor(
+        (today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)
+      );
       return `${diffDays} days ago`;
     }
     if (dueDate >= yesterday && dueDate < today) {
@@ -91,7 +95,10 @@ export function ReminderCard({
     if (dueDate >= today && dueDate < tomorrow) {
       return `Today ${timeStr}`;
     }
-    if (dueDate >= tomorrow && dueDate < new Date(tomorrow.getTime() + 24 * 60 * 60 * 1000)) {
+    if (
+      dueDate >= tomorrow &&
+      dueDate < new Date(tomorrow.getTime() + 24 * 60 * 60 * 1000)
+    ) {
       return `Tomorrow ${timeStr}`;
     }
     return dueDate.toLocaleDateString([], {
@@ -104,12 +111,19 @@ export function ReminderCard({
 
   const getAssignmentDisplay = (assignment: string) => {
     if (assignment.startsWith("team:")) {
-      return { display: `${assignment.replace("team:", "")} Team`, isTeam: true };
+      return {
+        display: `${assignment.replace("team:", "")} Team`,
+        isTeam: true,
+      };
     }
     if (assignment === currentUserEmail) {
       return { display: "You", isTeam: false, isCurrentUser: true };
     }
-    return { display: assignment.split("@")[0], isTeam: false, isCurrentUser: false };
+    return {
+      display: assignment.split("@")[0],
+      isTeam: false,
+      isCurrentUser: false,
+    };
   };
 
   return (
@@ -121,12 +135,20 @@ export function ReminderCard({
         ${priorityStyles[isCompleted ? "no-date" : priority]}
         ${isCompleted ? "opacity-60" : ""}
         hover:bg-gray-800/80 transition-colors group
+        ${onViewDetails ? "cursor-pointer" : ""}
       `}
+      onClick={() => {
+        console.log("ReminderCard clicked:", reminder.id, onViewDetails);
+        onViewDetails?.(reminder);
+      }}
     >
       <div className="p-4 flex gap-3">
         {/* Checkbox */}
         <button
-          onClick={() => onToggleComplete(reminder.id)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleComplete(reminder.id);
+          }}
           disabled={isToggling}
           className={`
             mt-0.5 w-5 h-5 rounded-full border-2 flex-shrink-0
@@ -200,7 +222,8 @@ export function ReminderCard({
           {reminder.assignedTo && reminder.assignedTo.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-2">
               {reminder.assignedTo.slice(0, 3).map((assignment) => {
-                const { display, isTeam, isCurrentUser } = getAssignmentDisplay(assignment);
+                const { display, isTeam, isCurrentUser } =
+                  getAssignmentDisplay(assignment);
                 return (
                   <span
                     key={assignment}
@@ -237,7 +260,7 @@ export function ReminderCard({
                 e.stopPropagation();
                 setShowMenu(!showMenu);
               }}
-              className="p-1.5 rounded-lg opacity-50 group-hover:opacity-100 hover:bg-gray-700 transition-all"
+              className="p-1.5 rounded-lg opacity-50 group-hover:opacity-100 hover:bg-gray-700 transition-all cursor-pointer"
             >
               <MoreVertical size={16} className="text-gray-400" />
             </button>
@@ -285,4 +308,3 @@ export function ReminderCard({
     </motion.div>
   );
 }
-
