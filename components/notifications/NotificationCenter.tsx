@@ -162,7 +162,6 @@ export function NotificationCenter() {
           event: "INSERT",
           schema: "public",
           table: "notifications",
-          filter: `user_email=eq.${user.email.toLowerCase()}`,
         },
         (payload) => {
           console.log("[NOTIFICATIONS] 🔔 New notification received:", payload);
@@ -174,15 +173,12 @@ export function NotificationCenter() {
             message: payload.new.message,
           });
 
-          // Verify this notification is for the current user
+          // Verify this notification is for the current user (client-side filtering)
           const notificationEmail = payload.new.user_email?.toLowerCase();
           const currentUserEmail = user?.email?.toLowerCase();
 
           if (notificationEmail !== currentUserEmail) {
-            console.warn("[NOTIFICATIONS] Notification email mismatch:", {
-              notificationEmail,
-              currentUserEmail,
-            });
+            console.log("[NOTIFICATIONS] Notification not for current user, ignoring");
             return;
           }
 

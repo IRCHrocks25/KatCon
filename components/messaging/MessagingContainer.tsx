@@ -447,23 +447,25 @@ export function MessagingContainer({
 
   // Handle manual refresh of messages and conversations
   const handleManualRefresh = useCallback(async () => {
-    if (!activeConversationId || isRefreshing) return;
+    if (isRefreshing) return;
 
     try {
       setIsRefreshing(true);
       console.log("[MESSAGING] Manual refresh triggered");
 
-      // Reset pagination state for this conversation
-      setHasMoreMessages((prev) => ({
-        ...prev,
-        [activeConversationId]: false,
-      }));
+      // Refresh conversations
+      await fetchConversations(true);
 
-      // Refresh both conversations and messages in parallel
-      await Promise.all([
-        fetchConversations(true),
-        fetchMessages(activeConversationId, true),
-      ]);
+      // If there's an active conversation, also refresh its messages
+      if (activeConversationId) {
+        // Reset pagination state for this conversation
+        setHasMoreMessages((prev) => ({
+          ...prev,
+          [activeConversationId]: false,
+        }));
+
+        await fetchMessages(activeConversationId, true);
+      }
 
       toast.success("Messages refreshed");
     } catch (error) {
@@ -607,11 +609,63 @@ export function MessagingContainer({
     }
   }, [threadParentId, fetchThreadMessages]);
 
-  // Realtime subscription for new messages
+  // Realtime subscription for new messages and conversations
   useEffect(() => {
     if (!currentUser?.id) return;
 
     console.log("[MESSAGING] Setting up realtime subscriptions");
+
+    // Subscribe to new conversations
+    const conversationsChannel = supabase
+      .channel("conversations-updates")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "conversations",
+        },
+        async (payload) => {
+          console.log("[MESSAGING] New conversation received:", payload);
+
+          const newConversation = payload.new as {
+            id: string;
+            name: string | null;
+            description: string | null;
+            type: "channel" | "dm";
+            is_private: boolean;
+            created_by: string;
+            created_at: string;
+            updated_at: string;
+          };
+
+          // Check if this conversation was created by the current user
+          const isCreatedByCurrentUser = newConversation.created_by === currentUser.id;
+
+          if (isCreatedByCurrentUser) {
+            console.log("[MESSAGING] Conversation created by current user, already handled locally");
+            return;
+          }
+
+          // For conversations created by others, we need to check if current user should see it
+          // Since there might be timing issues with participants table, let's refetch all conversations
+          // This ensures we have the most up-to-date conversation list
+          console.log("[MESSAGING] Refetching conversations due to new conversation:", newConversation.id);
+
+          try {
+            const allConversations = await getConversations();
+            setConversations(allConversations);
+            conversationsCache = allConversations;
+            cachedUserId = currentUser?.id || null;
+            console.log("[MESSAGING] Refreshed conversations list with", allConversations.length, "conversations");
+          } catch (error) {
+            console.error("[MESSAGING] Error refetching conversations:", error);
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log("[MESSAGING] Conversations subscription status:", status);
+      });
 
     // Subscribe to new messages
     const messagesChannel = supabase
@@ -734,6 +788,64 @@ export function MessagingContainer({
             messagesCacheMap.set(newMessage.conversation_id, {
               messages: [newMsg],
             });
+          }
+
+          // Check if we have this conversation in our local list
+          const hasConversation = conversationsRef.current?.some(
+            (conv) => conv.id === newMessage.conversation_id
+          );
+
+          console.log("[MESSAGING] Message received for conversation:", newMessage.conversation_id, "Has conversation locally:", hasConversation);
+
+          if (!hasConversation) {
+            console.log("[MESSAGING] Received message for unknown conversation, refreshing conversations:", newMessage.conversation_id);
+
+            // Try multiple times with delay to handle potential race conditions
+            let attempts = 0;
+            const maxAttempts = 3;
+
+            while (attempts < maxAttempts) {
+              try {
+                console.log(`[MESSAGING] Attempt ${attempts + 1}/${maxAttempts} to fetch conversations`);
+
+                const allConversations = await getConversations();
+                console.log("[MESSAGING] Fetched conversations result:", allConversations.length, "conversations");
+
+                // Check if the target conversation is now in the fetched list
+                const targetConversation = allConversations.find(c => c.id === newMessage.conversation_id);
+                console.log("[MESSAGING] Target conversation found in fetch:", !!targetConversation, targetConversation?.id);
+
+                if (targetConversation) {
+                  setConversations(allConversations);
+                  conversationsCache = allConversations;
+                  cachedUserId = currentUser?.id || null;
+                  console.log("[MESSAGING] Successfully refreshed conversations list with", allConversations.length, "conversations");
+                  break; // Success, exit the retry loop
+                } else {
+                  console.log("[MESSAGING] Target conversation not found, will retry...");
+                  attempts++;
+
+                  if (attempts < maxAttempts) {
+                    // Wait before retrying
+                    await new Promise(resolve => setTimeout(resolve, 1000 * attempts)); // 1s, 2s
+                  }
+                }
+              } catch (error) {
+                console.error(`[MESSAGING] Error refreshing conversations on attempt ${attempts + 1}:`, error);
+                attempts++;
+
+                if (attempts >= maxAttempts) {
+                  break;
+                }
+
+                // Wait before retrying
+                await new Promise(resolve => setTimeout(resolve, 1000 * attempts));
+              }
+            }
+
+            if (attempts >= maxAttempts) {
+              console.error("[MESSAGING] Failed to find conversation after", maxAttempts, "attempts");
+            }
           }
 
           // If it's the active conversation, also update the UI state
@@ -955,6 +1067,7 @@ export function MessagingContainer({
     return () => {
       console.log("[MESSAGING] Cleaning up realtime subscriptions");
       supabase.removeChannel(messagesChannel);
+      supabase.removeChannel(conversationsChannel);
       // Clear any pending markAsRead timeout
       if (markAsReadTimeoutRef.current) {
         clearTimeout(markAsReadTimeoutRef.current);
@@ -1272,10 +1385,14 @@ export function MessagingContainer({
   const handleCreateDM = async (userId: string) => {
     if (!currentUser) return;
 
+    console.log("[MESSAGING] Creating DM with user:", userId);
+
     try {
       // The API will return existing DM if one exists, or create a new one
       // No need to check client-side - let the API handle duplicate prevention
       const conversation = await createDM(userId);
+
+      console.log("[MESSAGING] DM creation result:", conversation);
 
       if (conversation) {
         // Check if conversation already exists in our list
@@ -1290,9 +1407,12 @@ export function MessagingContainer({
           toast.success("Opened existing conversation");
         } else {
           // New conversation, add it to the list
+          console.log("[MESSAGING] Adding new DM to conversation list:", conversation.id);
           setConversations((prev) => {
             const updated = [conversation, ...prev];
             conversationsCache = updated;
+            cachedUserId = currentUser?.id || null;
+            console.log("[MESSAGING] Updated conversations cache with", updated.length, "conversations");
             return updated;
           });
           setActiveConversationId(conversation.id);
@@ -1456,13 +1576,27 @@ export function MessagingContainer({
             <MessageSquare size={24} />
             Messages
           </h2>
-          <button
-            onClick={() => setShowCreateChannel(true)}
-            className="p-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition flex items-center justify-center"
-            title="New conversation"
-          >
-            <Plus size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleManualRefresh}
+              disabled={isRefreshing}
+              className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Refresh messages"
+            >
+              <RefreshCw
+                size={20}
+                className={isRefreshing ? "animate-spin" : ""}
+              />
+              <span className="text-sm hidden sm:inline">Refresh</span>
+            </button>
+            <button
+              onClick={() => setShowCreateChannel(true)}
+              className="p-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition flex items-center justify-center"
+              title="New conversation"
+            >
+              <Plus size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Conversation List */}
@@ -1542,18 +1676,6 @@ export function MessagingContainer({
                 >
                   <Pin size={20} />
                   <span className="text-sm hidden sm:inline">Pinned</span>
-                </button>
-                <button
-                  onClick={handleManualRefresh}
-                  disabled={isRefreshing}
-                  className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Refresh messages"
-                >
-                  <RefreshCw
-                    size={20}
-                    className={isRefreshing ? "animate-spin" : ""}
-                  />
-                  <span className="text-sm hidden sm:inline">Refresh</span>
                 </button>
                 <button
                   onClick={() => setShowFilesModal(true)}

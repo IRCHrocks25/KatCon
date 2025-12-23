@@ -29,7 +29,7 @@ export function Avatar({
 }: AvatarProps) {
   const [imageError, setImageError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
-  
+
   const hasStatus = showStatusIndicator && statusEmoji;
 
   // Get initials from name or email
@@ -87,7 +87,7 @@ export function Avatar({
           {getInitials()}
         </div>
       )}
-      
+
       {/* Status Indicator */}
       {hasStatus && (
         <div

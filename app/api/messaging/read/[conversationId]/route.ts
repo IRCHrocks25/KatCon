@@ -85,15 +85,19 @@ export async function POST(
       return NextResponse.json({ success: true });
     }
 
-    // Mark messages as read
+    // Mark messages as read - use upsert to handle potential duplicates
     const readInserts = toMarkAsRead.map((messageId) => ({
       message_id: messageId,
       user_id: user.id,
     }));
 
+    // Use upsert with conflict resolution on the unique constraint
     const { error: readError } = await supabase
       .from("message_reads")
-      .insert(readInserts);
+      .upsert(readInserts, {
+        onConflict: "message_id,user_id",
+        ignoreDuplicates: true,
+      });
 
     if (readError) {
       console.error("Error marking messages as read:", readError);
@@ -112,9 +116,3 @@ export async function POST(
     );
   }
 }
-
-
-
-
-
-

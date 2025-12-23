@@ -8,8 +8,7 @@ export interface Notification {
     | "reminder_assigned"
     | "reminder_completed"
     | "reminder_updated"
-    | "reminder_deleted"
-    | "unread_messages";
+    | "reminder_deleted";
   title: string;
   message: string;
   reminderId?: string;
@@ -158,36 +157,47 @@ export async function updateUnreadMessagesNotification(
 ): Promise<boolean> {
   try {
     if (!userEmail) {
-      console.warn("[NOTIFICATIONS] No user email provided for unread messages notification");
+      console.warn(
+        "[NOTIFICATIONS] No user email provided for unread messages notification"
+      );
       return false;
     }
 
     const headers = await getAuthHeaders();
-    const response = await robustFetch("/api/notifications/update-unread-messages", {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ unreadCount }),
-      retries: 2,
-      timeout: 10000,
-    });
+    const response = await robustFetch(
+      "/api/notifications/update-unread-messages",
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ unreadCount }),
+        retries: 2,
+        timeout: 10000,
+      }
+    );
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      console.error("[NOTIFICATIONS] Error updating unread messages notification:", {
-        status: response.status,
-        error: errorData.error,
-        details: errorData.details,
-      });
+      console.error(
+        "[NOTIFICATIONS] Error updating unread messages notification:",
+        {
+          status: response.status,
+          error: errorData.error,
+          details: errorData.details,
+        }
+      );
       return false;
     }
 
     return true;
   } catch (error) {
-    console.error("[NOTIFICATIONS] Exception updating unread messages notification:", {
-      error,
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-    });
+    console.error(
+      "[NOTIFICATIONS] Exception updating unread messages notification:",
+      {
+        error,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      }
+    );
     return false;
   }
 }

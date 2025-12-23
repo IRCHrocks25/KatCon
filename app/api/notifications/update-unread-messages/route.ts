@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,7 +16,24 @@ export async function POST(request: NextRequest) {
     }
 
     const token = authHeader.replace("Bearer ", "");
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    // Use service role key for server-side operations (bypasses RLS like reminders API)
+    const supabase = supabaseServiceRoleKey
+      ? createClient(supabaseUrl, supabaseServiceRoleKey, {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+          },
+        })
+      : createClient(supabaseUrl, supabaseAnonKey, {
+          global: {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
+        });
+
+    // Get user info from token for validation
+    const userSupabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -26,7 +44,7 @@ export async function POST(request: NextRequest) {
     const {
       data: { user },
       error: userError,
-    } = await supabase.auth.getUser();
+    } = await userSupabase.auth.getUser();
 
     if (userError || !user) {
       return NextResponse.json(
@@ -139,12 +157,12 @@ export async function POST(request: NextRequest) {
         );
       }
     } else {
-      // Create new notification
+      // Create new notification - use reminder_assigned type since unread_messages is not in database constraint
       const { error: insertError } = await supabase
         .from("notifications")
         .insert({
           user_email: userEmail,
-          type: "unread_messages",
+          type: "reminder_assigned",
           title: "New Messages",
           message,
           reminder_id: null,
@@ -159,33 +177,11 @@ export async function POST(request: NextRequest) {
           hint: insertError.hint,
           code: insertError.code,
         });
-        
-        // If the error is about type constraint, try using an existing type
-        if (insertError.code === "23514" || insertError.message?.includes("type")) {
-          // Try using reminder_assigned type as fallback (like message mentions do)
-          const { error: fallbackError } = await supabase
-            .from("notifications")
-            .insert({
-              user_email: userEmail,
-              type: "reminder_assigned", // Fallback to existing type
-              title: "New Messages",
-              message,
-              reminder_id: null,
-              read: false,
-            });
 
-          if (fallbackError) {
-            return NextResponse.json(
-              { error: "Failed to create notification", details: fallbackError.message },
-              { status: 500 }
-            );
-          }
-        } else {
-          return NextResponse.json(
-            { error: "Failed to create notification", details: insertError.message },
-            { status: 500 }
-          );
-        }
+        return NextResponse.json(
+          { error: "Failed to create notification", details: insertError.message },
+          { status: 500 }
+        );
       }
     }
 
@@ -198,4 +194,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
