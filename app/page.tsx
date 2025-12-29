@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { MessageSquare, Users, LogOut, User, KanbanSquare } from "lucide-react";
 import { motion } from "motion/react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -13,9 +13,11 @@ import {
   removeStorageItem,
 } from "@/lib/utils/storage";
 import { AIChatView } from "@/components/chat/AIChatView";
-import { MessagesView } from "@/components/messaging/MessagesView";
 import { ProfileView } from "@/components/profile/ProfileView";
 import { KanbanView } from "@/components/kanban/KanbanView";
+
+// Lazy load heavy components
+const MessagesView = lazy(() => import("@/components/messaging/MessagesView"));
 
 type TabType = "chat" | "messages" | "kanban" | "profile";
 
@@ -177,15 +179,21 @@ export default function Home() {
           transition={{ duration: 0.2 }}
           className="w-full h-full"
         >
-          {activeTab === "chat" ? (
-            <AIChatView reminders={reminders} setReminders={setReminders} />
-          ) : activeTab === "messages" ? (
-            <MessagesView reminders={reminders} setReminders={setReminders} />
-          ) : activeTab === "kanban" ? (
-            <KanbanView reminders={reminders} setReminders={setReminders} />
-          ) : (
-            <ProfileView reminders={reminders} setReminders={setReminders} />
-          )}
+          <Suspense fallback={
+            <div className="w-full h-full flex items-center justify-center">
+              <div className="w-8 h-8 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+            </div>
+          }>
+            {activeTab === "chat" ? (
+              <AIChatView reminders={reminders} setReminders={setReminders} />
+            ) : activeTab === "messages" ? (
+              <MessagesView reminders={reminders} setReminders={setReminders} />
+            ) : activeTab === "kanban" ? (
+              <KanbanView reminders={reminders} setReminders={setReminders} />
+            ) : (
+              <ProfileView reminders={reminders} setReminders={setReminders} />
+            )}
+          </Suspense>
         </motion.div>
       </div>
     </div>

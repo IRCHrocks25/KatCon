@@ -8,7 +8,7 @@ interface MessagesViewProps {
   setReminders: React.Dispatch<React.SetStateAction<Reminder[]>>;
 }
 
-export function MessagesView({ reminders, setReminders }: MessagesViewProps) {
+function MessagesView({ reminders, setReminders }: MessagesViewProps) {
   return (
     <div className="w-full h-full flex bg-black">
       {/* Main Messaging Area with integrated reminders modal */}
@@ -17,5 +17,4 @@ export function MessagesView({ reminders, setReminders }: MessagesViewProps) {
   );
 }
 
-
-
+export default MessagesView;
