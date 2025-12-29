@@ -22,12 +22,13 @@ export function PinnedMessagesPanel({
 }: PinnedMessagesPanelProps) {
   const [pinnedMessages, setPinnedMessages] = useState<PinnedMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadedConversationId, setLoadedConversationId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isOpen && conversationId) {
+    if (isOpen && conversationId && loadedConversationId !== conversationId) {
       loadPinnedMessages();
     }
-  }, [isOpen, conversationId]);
+  }, [isOpen, conversationId, loadedConversationId]);
 
   // Listen for refresh events
   useEffect(() => {
@@ -48,6 +49,7 @@ export function PinnedMessagesPanel({
       setIsLoading(true);
       const messages = await getPinnedMessages(conversationId);
       setPinnedMessages(messages);
+      setLoadedConversationId(conversationId); // Cache the loaded conversation
     } catch (error) {
       console.error("Error loading pinned messages:", error);
       toast.error("Failed to load pinned messages");
@@ -166,4 +168,3 @@ export function PinnedMessagesPanel({
     </AnimatePresence>
   );
 }
-

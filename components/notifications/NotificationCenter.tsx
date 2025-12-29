@@ -13,7 +13,12 @@ import {
   type Notification,
 } from "@/lib/supabase/notifications";
 
-export function NotificationCenter() {
+interface NotificationCenterProps {
+  onTabChange?: (tab: "chat" | "messages" | "kanban" | "profile") => void;
+  onOpenTask?: (taskId: string) => void;
+}
+
+export function NotificationCenter({ onTabChange, onOpenTask }: NotificationCenterProps = {}) {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -97,6 +102,36 @@ export function NotificationCenter() {
     } finally {
       setMarkingAllRead(false);
     }
+  };
+
+  // Handle notification click - redirect based on type
+  const handleNotificationClick = async (notification: Notification) => {
+    // Mark as read first
+    if (!notification.read) {
+      await handleMarkAsRead(notification.id);
+    }
+
+    // Close dropdown
+    setIsOpen(false);
+
+    // Redirect based on notification type
+    if (notification.type.startsWith('reminder_')) {
+      // Reminder notifications - go to kanban tab
+      onTabChange?.('kanban');
+
+      // If there's a specific task, open it
+      if (notification.reminderId && onOpenTask) {
+        // Small delay to allow tab switch
+        setTimeout(() => {
+          onOpenTask(notification.reminderId!);
+        }, 100);
+      }
+    } else if (notification.type === 'unread_messages') {
+      // Unread messages - go to messages tab
+      onTabChange?.('messages');
+    }
+
+    // For other notification types, stay on current tab
   };
 
   // Format relative time
@@ -329,9 +364,10 @@ export function NotificationCenter() {
                       key={notification.id}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      className={`p-4 hover:bg-gray-800/50 transition ${
+                      className={`p-4 hover:bg-gray-800/50 transition cursor-pointer ${
                         !notification.read ? "bg-purple-900/10" : ""
                       }`}
+                      onClick={() => handleNotificationClick(notification)}
                     >
                       <div className="flex gap-3">
                         {/* Icon */}

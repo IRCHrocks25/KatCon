@@ -140,7 +140,14 @@ export default function Home() {
           {/* Right Actions */}
           <div className="flex items-center gap-2">
             {/* Notification Center */}
-            <NotificationCenter />
+            <NotificationCenter
+              onTabChange={setActiveTab}
+              onOpenTask={(taskId) => {
+                // For now, just switch to kanban tab
+                // In the future, we could open a task details modal
+                setActiveTab('kanban');
+              }}
+            />
 
             {/* Logout Button */}
             <button

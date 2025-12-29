@@ -8,7 +8,8 @@ export interface Notification {
     | "reminder_assigned"
     | "reminder_completed"
     | "reminder_updated"
-    | "reminder_deleted";
+    | "reminder_deleted"
+    | "unread_messages";
   title: string;
   message: string;
   reminderId?: string;
