@@ -21,7 +21,7 @@ export function KanbanColumn({ id, title, color, tasks, onTaskClick }: KanbanCol
   return (
     <div
       ref={setNodeRef}
-      className={`flex-shrink-0 w-80 bg-gray-800/50 rounded-lg border-2 transition-colors ${
+      className={`flex-1 min-w-72 max-w-xs bg-gray-800/50 rounded-lg border-2 transition-colors ${
         isOver
           ? "border-purple-500 bg-purple-900/20"
           : "border-gray-700 hover:border-gray-600"

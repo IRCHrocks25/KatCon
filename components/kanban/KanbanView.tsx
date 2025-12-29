@@ -270,33 +270,32 @@ export function KanbanView({ reminders, setReminders }: KanbanViewProps) {
   };
 
   return (
-    <div className="h-full w-full bg-gray-900/50 backdrop-blur-sm">
-      <div className="p-6 h-full">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-white mb-2">Kanban Board</h1>
-          <p className="text-gray-400">
-            Drag and drop tasks to organize your workflow
-          </p>
-        </div>
+    <div className="h-full w-full bg-gray-900/50 backdrop-blur-sm p-4">
+      <div className="mb-4">
+        <h1 className="text-xl font-bold text-white mb-1">Kanban Board</h1>
+        <p className="text-gray-400 text-sm">
+          Drag and drop tasks to organize your workflow
+        </p>
+      </div>
 
-        <DndContext
-          sensors={sensors}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDragEnd={handleDragEnd}
-        >
-          <div className="flex gap-6 h-[calc(100%-8rem)] overflow-x-auto pb-4">
-            {KANBAN_COLUMNS.map((column) => (
-              <KanbanColumn
-                key={column.id}
-                id={column.id}
-                title={column.title}
-                color={column.color}
-                tasks={tasksByStatus[column.id]}
-                onTaskClick={handleTaskClick}
-              />
-            ))}
-          </div>
+      <DndContext
+        sensors={sensors}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="flex gap-3 h-[calc(100%-6rem)] overflow-x-auto pb-4">
+          {KANBAN_COLUMNS.map((column) => (
+            <KanbanColumn
+              key={column.id}
+              id={column.id}
+              title={column.title}
+              color={column.color}
+              tasks={tasksByStatus[column.id]}
+              onTaskClick={handleTaskClick}
+            />
+          ))}
+        </div>
 
           <DragOverlay>
             {activeTask ? (
@@ -305,20 +304,19 @@ export function KanbanView({ reminders, setReminders }: KanbanViewProps) {
               </div>
             ) : null}
           </DragOverlay>
-        </DndContext>
+      </DndContext>
 
-        {/* Task Details Modal */}
-        <TaskDetailsModal
-          reminder={selectedTask}
-          isOpen={showDetailsModal}
-          onClose={handleCloseDetailsModal}
-          onEdit={() => {}} // Not implemented in v1
-          onDelete={() => {}} // Not implemented in v1
-          onToggleComplete={() => {}} // Not implemented in v1
-          isToggling={false}
-          isDeleting={false}
-        />
-      </div>
+      {/* Task Details Modal */}
+      <TaskDetailsModal
+        reminder={selectedTask}
+        isOpen={showDetailsModal}
+        onClose={handleCloseDetailsModal}
+        onEdit={() => {}} // Not implemented in v1
+        onDelete={() => {}} // Not implemented in v1
+        onToggleComplete={() => {}} // Not implemented in v1
+        isToggling={false}
+        isDeleting={false}
+      />
     </div>
   );
 }
