@@ -114,9 +114,16 @@ export function NotificationCenter({ onTabChange, onOpenTask }: NotificationCent
     // Close dropdown
     setIsOpen(false);
 
-    // Redirect based on notification type
-    if (notification.type.startsWith('reminder_')) {
+    console.log('Notification click:', {
+      type: notification.type,
+      title: notification.title,
+      message: notification.message
+    });
+
+    // Redirect based on notification type or title
+    if (notification.type.startsWith('reminder_') && notification.title !== 'New Messages') {
       // Reminder notifications - go to kanban tab
+      console.log('Redirecting to Kanban for reminder notification');
       onTabChange?.('kanban');
 
       // If there's a specific task, open it
@@ -126,12 +133,25 @@ export function NotificationCenter({ onTabChange, onOpenTask }: NotificationCent
           onOpenTask(notification.reminderId!);
         }, 100);
       }
-    } else if (notification.type === 'unread_messages') {
+    } else if (notification.type === 'unread_messages' || notification.title === 'New Messages') {
       // Unread messages - go to messages tab
+      console.log('Redirecting to Messages for unread messages notification');
       onTabChange?.('messages');
-    }
+    } else if (notification.type.startsWith('reminder_')) {
+      // Other reminder notifications - go to kanban tab
+      console.log('Redirecting to Kanban for other reminder notification');
+      onTabChange?.('kanban');
 
-    // For other notification types, stay on current tab
+      // If there's a specific task, open it
+      if (notification.reminderId && onOpenTask) {
+        // Small delay to allow tab switch
+        setTimeout(() => {
+          onOpenTask(notification.reminderId!);
+        }, 100);
+      }
+    } else {
+      console.log('No redirect for notification type:', notification.type, 'title:', notification.title);
+    }
   };
 
   // Format relative time
