@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { checkUserExistsServer, validateEmailFormat } from "@/lib/supabase/server-users";
+import { validateAuth, createAuthenticatedClient } from "@/lib/auth/middleware";
+import { checkUserExists, validateEmailFormat } from "@/lib/supabase/users";
 import type { AccountType } from "@/lib/supabase/auth";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
 // Database reminder format (matches Supabase schema)
 interface DatabaseReminder {
@@ -99,37 +95,31 @@ function dbToAppReminder(
 
 export async function POST(request: NextRequest) {
   try {
+    // Validate JWT token and get authenticated user
+    const authResult = await validateAuth(request);
+    if (authResult.error) {
+      return authResult.error;
+    }
+
+    const { user } = authResult;
     const body = await request.json();
-    const { title, description, dueDate, assignedTo, userEmail } = body;
+    const { title, description, dueDate, assignedTo } = body;
 
     // Validate request body
-    if (!title || !userEmail) {
+    if (!title) {
       return NextResponse.json(
-        {
-          error: "Missing required fields",
-          details: "title and userEmail are required",
-        },
+        { error: "Missing required field: title" },
         { status: 400 }
       );
     }
 
-    // Create Supabase client with service role key for server-side operations
-    // This bypasses RLS, but we validate userEmail in the request body
-    const supabase = supabaseServiceRoleKey
-      ? createClient(supabaseUrl, supabaseServiceRoleKey, {
-          auth: {
-            autoRefreshToken: false,
-            persistSession: false,
-          },
-        })
-      : createClient(supabaseUrl, supabaseAnonKey);
+    // Create authenticated Supabase client
+    const supabase = createAuthenticatedClient(request.headers.get("authorization")!.substring(7));
 
     // Default to assigning to creator if no assignedTo provided
-    const rawAssignedTo =
-      assignedTo && assignedTo.length > 0 ? assignedTo : [userEmail];
+    const rawAssignedTo = assignedTo && assignedTo.length > 0 ? assignedTo : [user.email];
 
     // Validate all assignees exist before creating the reminder
-    // Only validate non-team assignments (individual emails)
     if (assignedTo && assignedTo.length > 0) {
       const invalidEmails: string[] = [];
 
@@ -147,37 +137,34 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Check if user exists using server-side function directly
-        const exists = await checkUserExistsServer(normalizedEmail);
+        // Check if user exists
+        const exists = await checkUserExists(normalizedEmail);
         if (!exists) {
           invalidEmails.push(assignment);
         }
       }
 
       if (invalidEmails.length > 0) {
-        const errorMessage =
-          invalidEmails.length === 1
-            ? `User does not exist: The email "${invalidEmails[0]}" is not registered in the system.`
-            : `Users do not exist: The following emails are not registered: ${invalidEmails.join(", ")}`;
-        return NextResponse.json(
-          { error: errorMessage },
-          { status: 400 }
-        );
+        const errorMessage = invalidEmails.length === 1
+          ? `User does not exist: The email "${invalidEmails[0]}" is not registered in the system.`
+          : `Users do not exist: The following emails are not registered: ${invalidEmails.join(", ")}`;
+        return NextResponse.json({ error: errorMessage }, { status: 400 });
       }
     }
 
     // Expand team assignments to individual emails
     const finalAssignedTo = await expandTeamAssignments(rawAssignedTo, supabase);
 
-    // Create the reminder
+    // Create the reminder (RLS will ensure user can only create for themselves)
     const { data: reminderData, error: reminderError } = await supabase
       .from("reminders")
       .insert({
-        user_id: userEmail,
+        user_id: user.email, // Use authenticated user's email
         title: title,
         description: description || null,
         due_date: dueDate ? new Date(dueDate).toISOString() : null,
         status: "pending",
+        last_status_change_at: new Date().toISOString(),
       })
       .select()
       .single();
@@ -185,10 +172,7 @@ export async function POST(request: NextRequest) {
     if (reminderError) {
       console.error("Error creating reminder:", reminderError);
       return NextResponse.json(
-        {
-          error: "Failed to create reminder",
-          details: reminderError.message,
-        },
+        { error: "Failed to create reminder", details: reminderError.message },
         { status: 500 }
       );
     }
@@ -208,10 +192,7 @@ export async function POST(request: NextRequest) {
       if (assignmentError) {
         console.error("Error creating reminder assignments:", assignmentError);
         return NextResponse.json(
-          {
-            error: "Failed to create reminder assignments",
-            details: assignmentError.message,
-          },
+          { error: "Failed to create reminder assignments", details: assignmentError.message },
           { status: 500 }
         );
       }
@@ -231,14 +212,13 @@ export async function POST(request: NextRequest) {
     const reminder = dbToAppReminder(reminderData, assignmentsData || []);
 
     // Create notifications asynchronously in background (fire and forget)
-    // This happens AFTER we prepare the response, so it doesn't block
     if (finalAssignedTo.length > 0) {
       console.log(`[NOTIFICATIONS] Creating notifications for ${finalAssignedTo.length} users`);
       console.log(`[NOTIFICATIONS] Assigned to:`, finalAssignedTo);
-      console.log(`[NOTIFICATIONS] Creator (excluded):`, userEmail);
-      
+      console.log(`[NOTIFICATIONS] Creator (excluded):`, user.email);
+
       const notificationPromises = finalAssignedTo
-        .filter((email) => email !== userEmail.toLowerCase())
+        .filter((email) => email !== user.email.toLowerCase())
         .map((email) => {
           console.log(`[NOTIFICATIONS] Creating notification for:`, email);
           return supabase.from("notifications").insert({
@@ -266,8 +246,6 @@ export async function POST(request: NextRequest) {
         .catch((error) => {
           console.error("[NOTIFICATIONS] Error creating notifications:", error);
         });
-    } else {
-      console.log("[NOTIFICATIONS] No users to notify (finalAssignedTo is empty or all excluded)");
     }
 
     // Return response immediately (notifications continue in background)
@@ -275,12 +253,8 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Error in create reminder API route:", error);
     return NextResponse.json(
-      {
-        error: "Internal server error",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
+      { error: "Internal server error", details: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 }
     );
   }
 }
-

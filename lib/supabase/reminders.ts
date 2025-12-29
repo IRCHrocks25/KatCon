@@ -1,7 +1,24 @@
 import { supabase } from "./client";
 import { getUserEmail } from "./session";
-import { checkUserExists, validateEmailFormat } from "./users";
 import type { AccountType } from "./auth";
+/**
+ * Helper function to get authenticated headers for API calls
+ */
+async function getAuthHeaders(): Promise<HeadersInit> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+  };
+
+  if (session?.access_token) {
+    headers["Authorization"] = `Bearer ${session.access_token}`;
+  }
+
+  return headers;
+}
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -230,129 +247,25 @@ export async function createReminder(
     assignedTo?: string[];
   }
 ): Promise<Reminder> {
-  const userEmail = await getUserEmail();
-  if (!userEmail) {
-    throw new Error("User not authenticated");
-  }
+  const headers = await getAuthHeaders();
 
-  // Default to assigning to creator if no assignedTo provided
-  const assignedTo =
-    reminder.assignedTo && reminder.assignedTo.length > 0
-      ? reminder.assignedTo
-      : [userEmail];
-
-  // Expand team assignments to individual emails
-  const expandedEmails = await expandTeamAssignments(assignedTo);
-
-  // Validate all assignees exist before creating the reminder
-  // Only validate non-team assignments (individual emails)
-  if (reminder.assignedTo && reminder.assignedTo.length > 0) {
-    const invalidEmails: string[] = [];
-
-    for (const assignment of reminder.assignedTo) {
-      // Skip team assignments in validation
-      if (assignment.startsWith("team:")) {
-        continue;
-      }
-
-      const normalizedEmail = assignment.trim().toLowerCase();
-
-      // Validate email format
-      if (!validateEmailFormat(normalizedEmail)) {
-        invalidEmails.push(assignment);
-        continue;
-      }
-
-      // Check if user exists
-      const exists = await checkUserExists(normalizedEmail);
-      if (!exists) {
-        invalidEmails.push(assignment);
-      }
-    }
-
-    if (invalidEmails.length > 0) {
-      const errorMessage =
-        invalidEmails.length === 1
-          ? `User does not exist: The email "${invalidEmails[0]}" is not registered in the system.`
-          : `Users do not exist: The following emails are not registered: ${invalidEmails.join(
-              ", "
-            )}`;
-      throw new Error(errorMessage);
-    }
-  }
-
-  // Create the reminder
-  const { data: reminderData, error: reminderError } = await supabase
-    .from("reminders")
-    .insert({
-      user_id: userEmail,
+  const response = await fetch("/api/reminders/create", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
       title: reminder.title,
-      description: reminder.description || null,
-      due_date: reminder.dueDate ? reminder.dueDate.toISOString() : null,
-      status: "pending",
-    })
-    .select()
-    .single();
+      description: reminder.description,
+      dueDate: reminder.dueDate,
+      assignedTo: reminder.assignedTo,
+    }),
+  });
 
-  if (reminderError) {
-    throw reminderError;
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+    throw new Error(errorData.error || "Failed to create reminder");
   }
 
-  // Create assignments for all assigned users (using expanded emails)
-  if (expandedEmails.length > 0) {
-    const assignments = expandedEmails.map((email) => ({
-      reminder_id: reminderData.id,
-      user_email: email.trim().toLowerCase(),
-      status: "pending" as const,
-    }));
-
-    const { error: assignmentError, data: insertedAssignments } = await supabase
-      .from("reminder_assignments")
-      .insert(assignments)
-      .select();
-
-    if (assignmentError) {
-      if (isDev) {
-        console.error("Error creating reminder assignments:", {
-          error: assignmentError,
-          message: assignmentError.message,
-          details: assignmentError.details,
-          hint: assignmentError.hint,
-          code: assignmentError.code,
-          assignments: assignments,
-        });
-      }
-      throw new Error(
-        `Failed to create reminder assignments: ${
-          assignmentError.message || JSON.stringify(assignmentError)
-        }`
-      );
-    }
-
-    if (isDev && insertedAssignments) {
-      console.log("Created assignments:", insertedAssignments);
-    }
-  }
-
-  // Always fetch the assignments to ensure we have the latest data
-  const { data: assignmentsData, error: fetchError } = await supabase
-    .from("reminder_assignments")
-    .select("*")
-    .eq("reminder_id", reminderData.id);
-
-  if (fetchError) {
-    if (isDev)
-      console.error("Error fetching assignments after creation:", fetchError);
-  }
-
-  if (isDev) {
-    console.log("Reminder created with assignments:", {
-      reminderId: reminderData.id,
-      assignments: assignmentsData || [],
-    });
-  }
-
-  return dbToAppReminder(reminderData, assignmentsData || [], userEmail);
+  return response.json();
 }
 
 // Update reminder (title, description, dueDate)
