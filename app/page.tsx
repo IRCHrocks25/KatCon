@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { MessageSquare, Users, LogOut, User } from "lucide-react";
+import { MessageSquare, Users, LogOut, User, KanbanSquare } from "lucide-react";
 import { motion } from "motion/react";
 import { useAuth } from "@/contexts/AuthContext";
 import { LoginForm } from "@/components/auth/LoginForm";
@@ -15,8 +15,9 @@ import {
 import { AIChatView } from "@/components/chat/AIChatView";
 import { MessagesView } from "@/components/messaging/MessagesView";
 import { ProfileView } from "@/components/profile/ProfileView";
+import { KanbanView } from "@/components/kanban/KanbanView";
 
-type TabType = "chat" | "messages" | "profile";
+type TabType = "chat" | "messages" | "kanban" | "profile";
 
 export default function Home() {
   const { user, loading: authLoading, logout } = useAuth();
@@ -25,7 +26,7 @@ export default function Home() {
   // Tab state with session storage persistence
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     const saved = getStorageItem("activeTab");
-    return saved === "chat" || saved === "messages" || saved === "profile"
+    return saved === "chat" || saved === "messages" || saved === "kanban" || saved === "profile"
       ? (saved as TabType)
       : "chat";
   });
@@ -113,6 +114,17 @@ export default function Home() {
               <span className="font-medium">Messages</span>
             </button>
             <button
+              onClick={() => setActiveTab("kanban")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                activeTab === "kanban"
+                  ? "bg-gradient-to-r from-purple-600/20 via-pink-500/20 to-orange-500/20 text-white border-b-2 border-purple-500"
+                  : "text-gray-400 hover:text-white hover:bg-gray-800/50"
+              }`}
+            >
+              <KanbanSquare size={18} />
+              <span className="font-medium">Kanban</span>
+            </button>
+            <button
               onClick={() => setActiveTab("profile")}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
                 activeTab === "profile"
@@ -162,6 +174,8 @@ export default function Home() {
             <AIChatView reminders={reminders} setReminders={setReminders} />
           ) : activeTab === "messages" ? (
             <MessagesView reminders={reminders} setReminders={setReminders} />
+          ) : activeTab === "kanban" ? (
+            <KanbanView reminders={reminders} setReminders={setReminders} />
           ) : (
             <ProfileView reminders={reminders} setReminders={setReminders} />
           )}

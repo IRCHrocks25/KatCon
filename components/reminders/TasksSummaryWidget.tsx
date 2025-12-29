@@ -313,6 +313,20 @@ export function TasksSummaryWidget({
     };
   };
 
+  // Get status display helper
+  const getStatusDisplay = (status: string) => {
+    const statusMap = {
+      backlog: { label: "Backlog", color: "bg-gray-500" },
+      in_progress: { label: "In Progress", color: "bg-blue-500" },
+      review: { label: "Review", color: "bg-yellow-500" },
+      done: { label: "Done", color: "bg-green-500" },
+      pending: { label: "Pending", color: "bg-orange-500" },
+      hidden: { label: "Hidden", color: "bg-red-500" },
+    };
+
+    return statusMap[status as keyof typeof statusMap] || { label: status, color: "bg-gray-500" };
+  };
+
   // Collapsed state
   if (!isExpanded) {
     return (
@@ -455,6 +469,11 @@ export function TasksSummaryWidget({
 
                       {/* Meta info */}
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2">
+                        {/* Status Badge */}
+                        <div className={`px-2 py-1 rounded text-xs font-medium text-white ${getStatusDisplay(reminder.status).color}`}>
+                          {getStatusDisplay(reminder.status).label}
+                        </div>
+
                         {/* Due date */}
                         {reminder.dueDate && (
                           <div

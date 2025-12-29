@@ -10,8 +10,11 @@ export interface Reminder {
   title: string;
   description?: string;
   dueDate?: Date;
-  status: "pending" | "done" | "hidden"; // Overall reminder status (creator's view)
-  myStatus?: "pending" | "done" | "hidden"; // Current user's assignment status
+  status: "backlog" | "in_progress" | "review" | "done" | "pending" | "hidden"; // Overall reminder status (creator's view)
+  myStatus?: "backlog" | "in_progress" | "review" | "done" | "pending" | "hidden"; // Current user's assignment status
+  position?: number; // Position for Kanban ordering within columns
+  lastStatusChangeAt?: Date; // When the status was last changed
+  snoozedUntil?: Date; // When the task is snoozed until
   createdBy: string; // Email of the creator
   assignedTo: string[]; // Array of emails of assigned users
 }
@@ -23,7 +26,10 @@ interface DatabaseReminder {
   title: string;
   description: string | null;
   due_date: string | null;
-  status: "pending" | "done" | "hidden";
+  status: "backlog" | "in_progress" | "review" | "done" | "pending" | "hidden";
+  position: number;
+  last_status_change_at: string;
+  snoozed_until: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -33,7 +39,7 @@ interface ReminderAssignment {
   id: string;
   reminder_id: string;
   user_email: string;
-  status: "pending" | "done" | "hidden";
+  status: "backlog" | "in_progress" | "review" | "done" | "pending" | "hidden";
   created_at: string;
 }
 
@@ -119,6 +125,9 @@ async function dbToAppReminder(
     dueDate: dbReminder.due_date ? new Date(dbReminder.due_date) : undefined,
     status: dbReminder.status, // Overall reminder status
     myStatus: myAssignment?.status, // Current user's assignment status
+    position: dbReminder.position, // Position for Kanban ordering
+    lastStatusChangeAt: new Date(dbReminder.last_status_change_at),
+    snoozedUntil: dbReminder.snoozed_until ? new Date(dbReminder.snoozed_until) : undefined,
     createdBy: dbReminder.user_id,
     assignedTo: assignments.map((a) => a.user_email),
   };
@@ -582,10 +591,13 @@ export async function updateReminderStatus(
       `[REMINDER] Creator updating status: ${userEmail} -> ${status}`
     );
 
-    // Step 1: Update the overall reminder status
+    // Step 1: Update the overall reminder status and last status change timestamp
     const { data: reminderData, error: reminderUpdateError } = await supabase
       .from("reminders")
-      .update({ status })
+      .update({
+        status,
+        last_status_change_at: new Date().toISOString()
+      })
       .eq("id", id)
       .eq("user_id", userEmail)
       .select() // Return data to avoid 406 error
@@ -702,6 +714,89 @@ export async function updateReminderStatus(
   return updatedReminder;
 }
 
+// Update reminder Kanban status and position for drag and drop
+// Only users assigned to the task can move it
+export async function updateReminderKanban(
+  id: string,
+  status: "backlog" | "in_progress" | "review" | "done",
+  position: number
+): Promise<Reminder | null> {
+  const userEmail = await getUserEmail();
+  if (!userEmail) {
+    throw new Error("User not authenticated");
+  }
+
+  console.log(`[KANBAN] updateReminderKanban called:`, {
+    id,
+    status,
+    position,
+    userEmail,
+  });
+
+  // Check if user is assigned to this reminder
+  const { data: assignment, error: assignmentError } = await supabase
+    .from("reminder_assignments")
+    .select("id, user_email")
+    .eq("reminder_id", id)
+    .eq("user_email", userEmail.toLowerCase())
+    .single();
+
+  console.log(`[KANBAN] Assignment check result:`, {
+    assignment,
+    assignmentError,
+    userEmail: userEmail.toLowerCase(),
+  });
+
+  const isAssigned = !!assignment;
+  if (!isAssigned) {
+    console.error(`[KANBAN] User not assigned to task:`, {
+      taskId: id,
+      userEmail: userEmail.toLowerCase(),
+      assignmentError,
+    });
+    throw new Error("You are not authorized to move this task");
+  }
+
+  // Update the reminder status and position
+  const { data: reminderData, error: reminderError } = await supabase
+    .from("reminders")
+    .update({
+      status,
+      position,
+      last_status_change_at: new Date().toISOString()
+    })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (reminderError) {
+    throw new Error(`Failed to update task: ${reminderError.message}`);
+  }
+
+  // Update all assignees' statuses to match the new status
+  const { error: assignmentsUpdateError } = await supabase
+    .from("reminder_assignments")
+    .update({ status })
+    .eq("reminder_id", id);
+
+  if (assignmentsUpdateError) {
+    console.error("Failed to update assignment statuses:", assignmentsUpdateError);
+    // Don't throw - reminder update succeeded, assignment update is secondary
+  }
+
+  // Fetch assignments for this reminder
+  const { data: assignmentsData, error: assignmentsFetchError } = await supabase
+    .from("reminder_assignments")
+    .select("*")
+    .eq("reminder_id", id);
+
+  if (assignmentsFetchError) {
+    console.error("Failed to fetch assignments:", assignmentsFetchError);
+  }
+
+  return dbToAppReminder(reminderData, assignmentsData || [], userEmail);
+}
+
 // Delete a reminder (soft delete - sets status to 'hidden')
 // Client-side implementation - only creators can delete
 export async function deleteReminder(id: string): Promise<void> {
@@ -734,5 +829,272 @@ export async function deleteReminder(id: string): Promise<void> {
 
   if (deleteError) {
     throw new Error(`Failed to delete reminder: ${deleteError.message}`);
+  }
+}
+
+// ==================== Stale Task Detection ====================
+
+/**
+ * Check if a task is stale (not progressed in 3 days and not snoozed)
+ */
+export function isStaleTask(reminder: Reminder): boolean {
+  // Don't mark done or hidden tasks as stale
+  if (reminder.status === "done" || reminder.status === "hidden") {
+    return false;
+  }
+
+  // Don't mark snoozed tasks as stale
+  if (reminder.snoozedUntil && reminder.snoozedUntil > new Date()) {
+    return false;
+  }
+
+  // Check if last status change was more than 3 days ago
+  if (!reminder.lastStatusChangeAt) {
+    return false; // No timestamp available
+  }
+
+  const threeDaysAgo = new Date();
+  threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+  return reminder.lastStatusChangeAt < threeDaysAgo;
+}
+
+/**
+ * Get all stale tasks for the current user
+ */
+export async function getStaleTasks(): Promise<Reminder[]> {
+  const userEmail = await getUserEmail();
+  if (!userEmail) {
+    return [];
+  }
+
+  // Get reminder IDs where user is assigned
+  const { data: assignedReminders } = await supabase
+    .from("reminder_assignments")
+    .select("reminder_id")
+    .eq("user_email", userEmail)
+    .neq("status", "hidden")
+    .neq("status", "done");
+
+  const assignedReminderIds =
+    assignedReminders?.map((a) => a.reminder_id) || [];
+
+  if (assignedReminderIds.length === 0) {
+    return [];
+  }
+
+  // Calculate 3 days ago
+  const threeDaysAgo = new Date();
+  threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+  // Get stale tasks
+  const { data: staleReminders, error } = await supabase
+    .from("reminders")
+    .select("*")
+    .in("id", assignedReminderIds)
+    .neq("status", "done")
+    .neq("status", "hidden")
+    .or(`snoozed_until.is.null,snoozed_until.lt.${threeDaysAgo.toISOString()}`)
+    .lt("last_status_change_at", threeDaysAgo.toISOString());
+
+  if (error) {
+    if (isDev) console.error("Error fetching stale tasks:", error);
+    return [];
+  }
+
+  if (!staleReminders || staleReminders.length === 0) {
+    return [];
+  }
+
+  // Fetch assignments for these reminders
+  const reminderIds = staleReminders.map((r) => r.id);
+  const { data: assignmentsData, error: assignmentsError } = await supabase
+    .from("reminder_assignments")
+    .select("*")
+    .in("reminder_id", reminderIds);
+
+  if (assignmentsError) {
+    if (isDev) console.error("Error fetching assignments for stale tasks:", assignmentsError);
+  }
+
+  // Convert to app format
+  return Promise.all(
+    staleReminders.map((reminder) =>
+      dbToAppReminder(reminder, assignmentsData?.filter(a => a.reminder_id === reminder.id) || [], userEmail)
+    )
+  );
+}
+
+// ==================== Snooze Functionality ====================
+
+/**
+ * Snooze a task for 3 days (sets snoozedUntil to 3 days from now)
+ */
+export async function snoozeTask(id: string): Promise<Reminder | null> {
+  const userEmail = await getUserEmail();
+  if (!userEmail) {
+    throw new Error("User not authenticated");
+  }
+
+  // Check if user is assigned to this reminder
+  const { data: assignment } = await supabase
+    .from("reminder_assignments")
+    .select("id")
+    .eq("reminder_id", id)
+    .eq("user_email", userEmail)
+    .single();
+
+  if (!assignment) {
+    throw new Error("You are not assigned to this task");
+  }
+
+  // Set snoozedUntil to 3 days from now
+  const snoozedUntil = new Date();
+  snoozedUntil.setDate(snoozedUntil.getDate() + 3);
+
+  const { data: reminderData, error: reminderError } = await supabase
+    .from("reminders")
+    .update({
+      snoozed_until: snoozedUntil.toISOString()
+    })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (reminderError) {
+    throw new Error(`Failed to snooze task: ${reminderError.message}`);
+  }
+
+  // Fetch assignments for this reminder
+  const { data: assignmentsData, error: assignmentsFetchError } = await supabase
+    .from("reminder_assignments")
+    .select("*")
+    .eq("reminder_id", id);
+
+  if (assignmentsFetchError) {
+    if (isDev) console.error("Error fetching assignments after snoozing:", assignmentsFetchError);
+  }
+
+  return dbToAppReminder(reminderData, assignmentsData || [], userEmail);
+}
+
+// ==================== Stale Task Notifications ====================
+
+/**
+ * Send notifications for stale tasks (called by background job)
+ * This should be called periodically to check for stale tasks and notify assignees
+ */
+export async function notifyStaleTasks(): Promise<void> {
+  try {
+    // Get all users
+    const { data: users, error: usersError } = await supabase
+      .from("profiles")
+      .select("email")
+      .eq("approved", true);
+
+    if (usersError || !users) {
+      console.error("Error fetching users for stale task notifications:", usersError);
+      return;
+    }
+
+    // For each user, check their stale tasks and send notifications
+    for (const user of users) {
+      try {
+        // Temporarily set the current user context for getStaleTasks
+        // We need to modify getStaleTasks to accept a userEmail parameter
+        const staleTasks = await getStaleTasksForUser(user.email);
+
+        for (const task of staleTasks) {
+          // Check if we already notified about this task recently
+          // For now, we'll just send the notification (in production, you'd track this)
+          await sendStaleTaskNotification(user.email, task);
+        }
+      } catch (error) {
+        console.error(`Error processing stale tasks for user ${user.email}:`, error);
+      }
+    }
+  } catch (error) {
+    console.error("Error in notifyStaleTasks:", error);
+  }
+}
+
+/**
+ * Get stale tasks for a specific user (helper for notifications)
+ */
+async function getStaleTasksForUser(userEmail: string): Promise<Reminder[]> {
+  // Get reminder IDs where user is assigned
+  const { data: assignedReminders } = await supabase
+    .from("reminder_assignments")
+    .select("reminder_id")
+    .eq("user_email", userEmail)
+    .neq("status", "hidden")
+    .neq("status", "done");
+
+  const assignedReminderIds =
+    assignedReminders?.map((a) => a.reminder_id) || [];
+
+  if (assignedReminderIds.length === 0) {
+    return [];
+  }
+
+  // Calculate 3 days ago
+  const threeDaysAgo = new Date();
+  threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+  // Get stale tasks
+  const { data: staleReminders, error } = await supabase
+    .from("reminders")
+    .select("*")
+    .in("id", assignedReminderIds)
+    .neq("status", "done")
+    .neq("status", "hidden")
+    .or(`snoozed_until.is.null,snoozed_until.lt.${threeDaysAgo.toISOString()}`)
+    .lt("last_status_change_at", threeDaysAgo.toISOString());
+
+  if (error) {
+    if (isDev) console.error("Error fetching stale tasks for user:", error);
+    return [];
+  }
+
+  if (!staleReminders || staleReminders.length === 0) {
+    return [];
+  }
+
+  // Fetch assignments for these reminders
+  const reminderIds = staleReminders.map((r) => r.id);
+  const { data: assignmentsData, error: assignmentsError } = await supabase
+    .from("reminder_assignments")
+    .select("*")
+    .in("reminder_id", reminderIds);
+
+  if (assignmentsError) {
+    if (isDev) console.error("Error fetching assignments for stale tasks:", assignmentsError);
+  }
+
+  // Convert to app format
+  return Promise.all(
+    staleReminders.map((reminder) =>
+      dbToAppReminder(reminder, assignmentsData?.filter(a => a.reminder_id === reminder.id) || [], userEmail)
+    )
+  );
+}
+
+/**
+ * Send a notification for a stale task
+ */
+async function sendStaleTaskNotification(userEmail: string, task: Reminder): Promise<void> {
+  // For now, we'll use the existing notification system
+  // In a real implementation, you'd create a specific notification type for stale tasks
+  try {
+    const notificationMessage = `This task hasn't moved in 3 days. Still relevant? "${task.title}"`;
+
+    // You could use the existing notification system here
+    // For now, we'll just log it
+    console.log(`[STALE TASK] Would send notification to ${userEmail}: ${notificationMessage}`);
+
+    // TODO: Implement actual notification sending using the app's notification system
+    // This would involve creating a notification record in the database
+  } catch (error) {
+    console.error(`Error sending stale task notification to ${userEmail}:`, error);
   }
 }

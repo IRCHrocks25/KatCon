@@ -132,6 +132,38 @@ export function AuthProvider({
     }
   }, [user?.id, user?.accountType]);
 
+  // Periodically update expired user statuses (every 5 minutes when user is active)
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const updateExpiredStatuses = async () => {
+      try {
+        const response = await fetch('/api/user/update-expired-statuses', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          console.log('[STATUS] Updated expired user statuses');
+        } else {
+          console.warn('[STATUS] Failed to update expired statuses');
+        }
+      } catch (error) {
+        console.warn('[STATUS] Error updating expired statuses:', error);
+      }
+    };
+
+    // Update immediately when user logs in
+    updateExpiredStatuses();
+
+    // Then update every 5 minutes
+    const interval = setInterval(updateExpiredStatuses, 5 * 60 * 1000); // 5 minutes
+
+    return () => clearInterval(interval);
+  }, [user?.id]);
+
   // Memoized handlers
   const handleSignUp = useCallback(
     async (
@@ -190,9 +222,10 @@ export function AuthProvider({
         setUser(buildAuthUser(sessionResult.data.session.user, profile));
         setLoading(false);
 
-        // Set user status to Available when logged in
+        // Set user status to Available when logged in (expires after 24 hours of inactivity)
         try {
-          await setUserStatus("Available", "🟢");
+          const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours from now
+          await setUserStatus("Available", "🟢", expiresAt);
         } catch (statusError) {
           console.error("[AUTH] Failed to set available status on login:", statusError);
           // Don't fail login for this - it's not critical
