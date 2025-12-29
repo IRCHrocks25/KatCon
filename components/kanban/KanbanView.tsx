@@ -12,16 +12,12 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
 import { arrayMove } from "@dnd-kit/sortable";
 import { toast } from "sonner";
 import type { Reminder } from "@/lib/supabase/reminders";
 import { updateReminderKanban, getReminders } from "@/lib/supabase/reminders";
-import { KanbanColumn } from "./KanbanColumn";
-import { KanbanCard } from "./KanbanCard";
+import { KanbanColumn } from "@/components/kanban/KanbanColumn";
+import { KanbanCard } from "@/components/kanban/KanbanCard";
 import { TaskDetailsModal } from "@/components/reminders/TaskDetailsModal";
 
 interface KanbanViewProps {
@@ -78,8 +74,9 @@ export function KanbanView({ reminders, setReminders }: KanbanViewProps) {
 
     // Only show tasks where the current user is explicitly assigned
     return reminders.filter((reminder) =>
-      reminder.assignedTo.some(assignedEmail =>
-        assignedEmail.toLowerCase() === user.email?.toLowerCase()
+      reminder.assignedTo.some(
+        (assignedEmail) =>
+          assignedEmail.toLowerCase() === user.email?.toLowerCase()
       )
     );
   }, [reminders, user]);
@@ -176,7 +173,9 @@ export function KanbanView({ reminders, setReminders }: KanbanViewProps) {
 
         // Update positions
         const updatedReminders = reminders.map((reminder) => {
-          const newIndex = reorderedTasks.findIndex((task) => task.id === reminder.id);
+          const newIndex = reorderedTasks.findIndex(
+            (task) => task.id === reminder.id
+          );
           if (newIndex !== -1) {
             return { ...reminder, position: newIndex };
           }
@@ -212,7 +211,9 @@ export function KanbanView({ reminders, setReminders }: KanbanViewProps) {
       } else {
         // Find which column the over item is in
         const overColumn = Object.keys(tasksByStatus).find((status) =>
-          tasksByStatus[status as KanbanStatus].some((task) => task.id === overId)
+          tasksByStatus[status as KanbanStatus].some(
+            (task) => task.id === overId
+          )
         ) as KanbanStatus;
 
         if (overColumn) {
@@ -234,7 +235,11 @@ export function KanbanView({ reminders, setReminders }: KanbanViewProps) {
       }
 
       // Update in Supabase
-      const updatedTask = await updateReminderKanban(activeId, newStatus, newPosition);
+      const updatedTask = await updateReminderKanban(
+        activeId,
+        newStatus,
+        newPosition
+      );
 
       if (updatedTask) {
         // Update local state
@@ -296,11 +301,7 @@ export function KanbanView({ reminders, setReminders }: KanbanViewProps) {
           <DragOverlay>
             {activeTask ? (
               <div className="rotate-3 opacity-90">
-                <KanbanCard
-                  task={activeTask}
-                  onClick={() => {}}
-                  isDragging
-                />
+                <KanbanCard task={activeTask} onClick={() => {}} isDragging />
               </div>
             ) : null}
           </DragOverlay>

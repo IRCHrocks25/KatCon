@@ -3,7 +3,7 @@
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import type { Reminder } from "@/lib/supabase/reminders";
-import { KanbanCard } from "./KanbanCard";
+import { KanbanCard } from "@/components/kanban/KanbanCard";
 
 interface KanbanColumnProps {
   id: string;
