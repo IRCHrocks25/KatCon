@@ -12,9 +12,10 @@ interface KanbanCardProps {
   task: Reminder;
   onClick: () => void;
   isDragging?: boolean;
+  currentUserEmail?: string;
 }
 
-export function KanbanCard({ task, onClick, isDragging = false }: KanbanCardProps) {
+export function KanbanCard({ task, onClick, isDragging = false, currentUserEmail }: KanbanCardProps) {
   const {
     attributes,
     listeners,
@@ -54,6 +55,11 @@ export function KanbanCard({ task, onClick, isDragging = false }: KanbanCardProp
 
   const dueDateInfo = formatDueDate(task.dueDate);
   const isStale = isStaleTask(task);
+
+  // Check if current user is creator but not assigned to this task
+  const isCreatorNotAssigned = currentUserEmail &&
+    task.createdBy.toLowerCase() === currentUserEmail.toLowerCase() &&
+    !task.assignedTo.some(email => email.toLowerCase() === currentUserEmail.toLowerCase());
 
   const handleSnooze = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -121,8 +127,16 @@ export function KanbanCard({ task, onClick, isDragging = false }: KanbanCardProp
         </div>
 
         {/* Assignee Avatar Placeholder */}
-        <div className="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
-          {task.assignedTo[0]?.charAt(0).toUpperCase() || "?"}
+        <div className="flex items-center gap-1">
+          <div className="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
+            {task.assignedTo[0]?.charAt(0).toUpperCase() || "?"}
+          </div>
+          {/* Creator but not assigned indicator */}
+          {isCreatorNotAssigned && (
+            <div className="text-xs text-amber-400 font-medium" title="You created this task but it's assigned to someone else">
+              →
+            </div>
+          )}
         </div>
       </div>
 

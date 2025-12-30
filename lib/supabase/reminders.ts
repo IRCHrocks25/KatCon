@@ -339,12 +339,12 @@ export async function updateReminder(
       }
     }
 
-    // Add new assignments (with pending status)
+    // Add new assignments (with backlog status)
     if (emailsToAdd.length > 0) {
       const newAssignments = emailsToAdd.map((email) => ({
         reminder_id: id,
         user_email: email,
-        status: "pending" as const,
+        status: "backlog" as const,
       }));
 
       const { error: insertError, data: insertedAssignments } = await supabase
@@ -391,7 +391,7 @@ export async function updateReminder(
 // For creators, updates the reminder status directly
 export async function updateReminderStatus(
   id: string,
-  status: "pending" | "done" | "hidden"
+  status: "backlog" | "in_progress" | "review" | "done" | "pending" | "hidden"
 ): Promise<Reminder | null> {
   const userEmail = await getUserEmail();
   if (!userEmail) {

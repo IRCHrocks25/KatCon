@@ -11,9 +11,10 @@ interface KanbanColumnProps {
   color: string;
   tasks: Reminder[];
   onTaskClick: (task: Reminder) => void;
+  currentUserEmail?: string;
 }
 
-export function KanbanColumn({ id, title, color, tasks, onTaskClick }: KanbanColumnProps) {
+export function KanbanColumn({ id, title, color, tasks, onTaskClick, currentUserEmail }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id,
   });
@@ -47,6 +48,7 @@ export function KanbanColumn({ id, title, color, tasks, onTaskClick }: KanbanCol
                 key={task.id}
                 task={task}
                 onClick={() => onTaskClick(task)}
+                currentUserEmail={currentUserEmail}
               />
             ))}
           </div>

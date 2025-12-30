@@ -68,12 +68,13 @@ export function KanbanView({ reminders, setReminders }: KanbanViewProps) {
     loadRemindersIfNeeded();
   }, [reminders.length, user, isLoading, setReminders]);
 
-  // Filter to only show tasks assigned to the current user
-  const assignedTasks = useMemo(() => {
+  // Filter to show tasks where user is creator OR assigned
+  const userTasks = useMemo(() => {
     if (!user?.email) return [];
 
-    // Only show tasks where the current user is explicitly assigned
+    // Show tasks where the current user is the creator OR explicitly assigned
     return reminders.filter((reminder) =>
+      reminder.createdBy.toLowerCase() === user.email?.toLowerCase() ||
       reminder.assignedTo.some(
         (assignedEmail) =>
           assignedEmail.toLowerCase() === user.email?.toLowerCase()
@@ -90,7 +91,7 @@ export function KanbanView({ reminders, setReminders }: KanbanViewProps) {
       done: [],
     };
 
-    assignedTasks.forEach((reminder) => {
+    userTasks.forEach((reminder) => {
       // Map legacy statuses to Kanban statuses
       let status: KanbanStatus = "backlog";
       if (reminder.status === "in_progress") {
@@ -121,7 +122,7 @@ export function KanbanView({ reminders, setReminders }: KanbanViewProps) {
     });
 
     return grouped;
-  }, [assignedTasks]);
+  }, [userTasks]);
 
   const activeTask = activeId ? reminders.find((r) => r.id === activeId) : null;
 
@@ -293,6 +294,7 @@ export function KanbanView({ reminders, setReminders }: KanbanViewProps) {
               color={column.color}
               tasks={tasksByStatus[column.id]}
               onTaskClick={handleTaskClick}
+              currentUserEmail={user?.email}
             />
           ))}
         </div>

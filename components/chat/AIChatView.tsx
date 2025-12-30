@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AIChatInput } from "@/components/ui/ai-chat-input";
 import {
   CheckSquare,
@@ -19,8 +19,9 @@ import { TasksSummaryWidget } from "@/components/reminders/TasksSummaryWidget";
 import { RemindersModal } from "@/components/reminders/RemindersModal";
 import { TaskDetailsModal } from "@/components/reminders/TaskDetailsModal";
 import type { Reminder } from "@/lib/supabase/reminders";
+import { createReminder } from "@/lib/supabase/reminders";
 import { robustFetch } from "@/lib/utils/fetch";
-import { getStorageItem, setStorageItem } from "@/lib/utils/storage";
+import { getStorageItem, setStorageItem, removeStorageItem } from "@/lib/utils/storage";
 
 interface Message {
   id: string;
@@ -47,6 +48,60 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
   const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
   const [selectedTask, setSelectedTask] = useState<Reminder | null>(null);
   const [showTaskDetailsModal, setShowTaskDetailsModal] = useState(false);
+  const [previousUserEmail, setPreviousUserEmail] = useState<string | null>(null);
+
+  // Load messages from localStorage when user logs in (but not on logout)
+  useEffect(() => {
+    const currentUserEmail = user?.email || null;
+
+    // Only load messages when logging in (user goes from null to non-null)
+    // Don't load when logging out (user goes from non-null to null)
+    if (currentUserEmail && !previousUserEmail) {
+      const savedMessages = getStorageItem("chatMessages");
+      if (savedMessages) {
+        try {
+          const parsedMessages = JSON.parse(savedMessages).map((msg: Omit<Message, 'timestamp'> & { timestamp: string }) => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp),
+          }));
+          setMessages(parsedMessages);
+        } catch (error) {
+          console.error("Error loading saved chat messages:", error);
+        }
+      }
+    }
+
+    // Don't load messages when logging out - just clear them
+    if (!currentUserEmail && previousUserEmail) {
+      setMessages([]);
+    }
+
+    setPreviousUserEmail(currentUserEmail);
+  }, [user?.email, previousUserEmail]);
+
+  // Save messages to localStorage with debouncing for better performance
+  useEffect(() => {
+    if (messages.length > 0) {
+      // Debounce saves to avoid excessive localStorage writes
+      const timeoutId = setTimeout(() => {
+        // Limit conversation history to last 50 messages to prevent storage bloat
+        const messagesToSave = messages.slice(-50);
+        setStorageItem("chatMessages", JSON.stringify(messagesToSave));
+      }, 500); // 500ms debounce
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [messages]);
+
+  // Clear messages when user logs out
+  useEffect(() => {
+    if (!user) {
+      setMessages([]);
+      removeStorageItem("chatMessages");
+      removeStorageItem("chatSessionId");
+      setSessionId(null);
+    }
+  }, [user]);
 
   // Get or generate sessionId
   const getSessionId = (): string => {
@@ -140,32 +195,12 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
 
             const assignedTo = assignees.length > 0 ? assignees : undefined;
 
-            const response = await robustFetch("/api/reminders/create", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                title: reminderData.task,
-                description: reminderData.notes || undefined,
-                dueDate: new Date(reminderData.datetime).toISOString(),
-                assignedTo: assignedTo,
-                userEmail: user?.email || null,
-              }),
-              retries: 0,
-              timeout: 30000,
+            const reminder = await createReminder({
+              title: reminderData.task,
+              description: reminderData.notes,
+              dueDate: new Date(reminderData.datetime),
+              assignedTo: assignedTo,
             });
-
-            if (!response.ok) {
-              const errorData = await response.json().catch(() => ({}));
-              throw new Error(
-                errorData.error ||
-                  errorData.details ||
-                  "Failed to create reminder"
-              );
-            }
-
-            const reminder = await response.json();
 
             setReminders((prev) => {
               const updated = [...prev, reminder];
