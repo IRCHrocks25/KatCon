@@ -47,6 +47,18 @@ export function TaskDetailsModal({
     : reminder.myStatus || reminder.status;
   const isCompleted = displayStatus === "done";
 
+  const getStatusDisplay = (status: string) => {
+    const statusMap = {
+      backlog: { label: "Backlog", color: "bg-gray-600/20 text-gray-300" },
+      in_progress: { label: "In Progress", color: "bg-blue-600/20 text-blue-400" },
+      review: { label: "Review", color: "bg-yellow-600/20 text-yellow-400" },
+      done: { label: "Completed", color: "bg-green-600/20 text-green-400" },
+      hidden: { label: "Hidden", color: "bg-red-600/20 text-red-400" },
+    };
+
+    return statusMap[status as keyof typeof statusMap] || { label: status, color: "bg-gray-600/20 text-gray-300" };
+  };
+
   const formatDueDate = (date: Date) => {
     const now = new Date();
     const dueDate = new Date(date);
@@ -160,13 +172,9 @@ export function TaskDetailsModal({
                   {/* Status and Creator */}
                   <div className="flex items-center gap-4 text-sm text-gray-400">
                     <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        isCompleted
-                          ? "bg-green-600/20 text-green-400"
-                          : "bg-gray-700/50 text-gray-300"
-                      }`}
+                      className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusDisplay(displayStatus).color}`}
                     >
-                      {isCompleted ? "Completed" : "Pending"}
+                      {getStatusDisplay(displayStatus).label}
                     </span>
                     {reminder.createdBy && (
                       <span>

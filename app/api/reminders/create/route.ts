@@ -19,7 +19,7 @@ interface DatabaseReminder {
 interface ReminderAssignment {
   id: string;
   reminder_id: string;
-  user_email: string;
+  assignedto: string;
   status: "backlog" | "in_progress" | "review" | "done" | "hidden";
   created_at: string;
 }
@@ -88,7 +88,7 @@ function dbToAppReminder(
     dueDate: dbReminder.due_date ? new Date(dbReminder.due_date) : undefined,
     status: dbReminder.status,
     createdBy: dbReminder.user_id,
-    assignedTo: assignments.map((a) => a.user_email),
+    assignedTo: assignments.map((a) => a.assignedto),
     createdAt: new Date(dbReminder.created_at), // Include created_at for sorting
   };
 }
@@ -181,7 +181,7 @@ export async function POST(request: NextRequest) {
     if (finalAssignedTo.length > 0) {
       const assignments = finalAssignedTo.map((email: string) => ({
         reminder_id: reminderData.id,
-        user_email: email.trim().toLowerCase(),
+        assignedto: email.trim().toLowerCase(),
         status: "backlog" as const,
       }));
 

@@ -179,24 +179,17 @@ export function TasksSummaryWidget({
     };
   }, [reminders]);
 
-  // Handle toggle complete
-  const handleToggleComplete = async (id: string) => {
-    const reminder = reminders.find((r) => r.id === id);
-    if (!reminder) return;
-
-    const isCreator = reminder.createdBy === currentUser?.email;
-    const currentStatus = isCreator
-      ? reminder.status
-      : reminder.myStatus || reminder.status;
-    const newStatus = currentStatus === "pending" ? "done" : "pending";
-
+  // Handle status update
+  const handleStatusUpdate = async (id: string, newStatus: "backlog" | "in_progress" | "review" | "done" | "hidden") => {
     setTogglingId(id);
+    setMenuOpenId(null);
     try {
       const updatedReminder = await updateReminderStatus(id, newStatus);
       if (updatedReminder) {
         setReminders((prev) =>
           prev.map((r) => (r.id === id ? updatedReminder : r))
         );
+        toast.success(`Task marked as ${getStatusDisplay(newStatus).label.toLowerCase()}`);
       }
     } catch (error) {
       console.error("Error updating task:", error);
@@ -432,28 +425,8 @@ export function TasksSummaryWidget({
                   onClick={() => handleViewDetails(reminder)}
                 >
                   <div className="p-4 flex gap-3">
-                    {/* Checkbox */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleToggleComplete(reminder.id);
-                      }}
-                      disabled={isToggling}
-                      className={`
-                        mt-0.5 w-5 h-5 rounded-full border-2 flex-shrink-0
-                        flex items-center justify-center transition
-                        ${
-                          isToggling
-                            ? "opacity-50 cursor-not-allowed"
-                            : "cursor-pointer"
-                        }
-                        border-gray-500 hover:border-purple-500
-                      `}
-                    >
-                      {isToggling && (
-                        <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      )}
-                    </button>
+                    {/* Status Indicator */}
+                    <div className={`mt-0.5 w-3 h-3 rounded-full flex-shrink-0 ${getStatusDisplay(reminder.status).color}`} />
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
@@ -563,7 +536,55 @@ export function TasksSummaryWidget({
                               className="fixed inset-0 z-[100]"
                               onClick={() => setMenuOpenId(null)}
                             />
-                            <div className="absolute right-0 top-8 z-[101] bg-gray-800 border border-gray-700 rounded-lg shadow-2xl py-1 min-w-[120px]">
+                            <div className="absolute right-0 top-8 z-[101] bg-gray-800 border border-gray-700 rounded-lg shadow-2xl py-1 min-w-[160px]">
+                              {/* Status Updates */}
+                              <div className="px-3 py-2 border-b border-gray-700">
+                                <p className="text-xs text-gray-500 font-medium mb-2">Update Status</p>
+                                <div className="space-y-1">
+                                  {reminder.status !== "backlog" && (
+                                    <button
+                                      onClick={() => handleStatusUpdate(reminder.id, "backlog")}
+                                      disabled={isToggling}
+                                      className="w-full px-2 py-1 text-left text-xs text-gray-300 hover:bg-gray-700 rounded flex items-center gap-2"
+                                    >
+                                      <div className="w-2 h-2 rounded-full bg-gray-500" />
+                                      Backlog
+                                    </button>
+                                  )}
+                                  {reminder.status !== "in_progress" && (
+                                    <button
+                                      onClick={() => handleStatusUpdate(reminder.id, "in_progress")}
+                                      disabled={isToggling}
+                                      className="w-full px-2 py-1 text-left text-xs text-gray-300 hover:bg-gray-700 rounded flex items-center gap-2"
+                                    >
+                                      <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                      In Progress
+                                    </button>
+                                  )}
+                                  {reminder.status !== "review" && (
+                                    <button
+                                      onClick={() => handleStatusUpdate(reminder.id, "review")}
+                                      disabled={isToggling}
+                                      className="w-full px-2 py-1 text-left text-xs text-gray-300 hover:bg-gray-700 rounded flex items-center gap-2"
+                                    >
+                                      <div className="w-2 h-2 rounded-full bg-yellow-500" />
+                                      Review
+                                    </button>
+                                  )}
+                                  {reminder.status !== "done" && (
+                                    <button
+                                      onClick={() => handleStatusUpdate(reminder.id, "done")}
+                                      disabled={isToggling}
+                                      className="w-full px-2 py-1 text-left text-xs text-gray-300 hover:bg-gray-700 rounded flex items-center gap-2"
+                                    >
+                                      <div className="w-2 h-2 rounded-full bg-green-500" />
+                                      Done
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Actions */}
                               <button
                                 onClick={() => {
                                   setMenuOpenId(null);

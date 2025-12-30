@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AIChatInput } from "@/components/ui/ai-chat-input";
 import {
   CheckSquare,
@@ -50,13 +50,39 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
   const [showTaskDetailsModal, setShowTaskDetailsModal] = useState(false);
   const [previousUserEmail, setPreviousUserEmail] = useState<string | null>(null);
 
-  // Load messages from localStorage when user logs in (but not on logout)
+  // Ref for auto-scrolling to bottom
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Effect 1: Handle user authentication changes (login/logout/different user)
   useEffect(() => {
     const currentUserEmail = user?.email || null;
+    console.log("[AI CHAT] Auth change:", currentUserEmail || "null");
 
-    // Only load messages when logging in (user goes from null to non-null)
-    // Don't load when logging out (user goes from non-null to null)
-    if (currentUserEmail && !previousUserEmail) {
+    // Clear on logout (user becomes null)
+    if (!currentUserEmail && previousUserEmail) {
+      console.log("[AI CHAT] Clearing chat on logout");
+      setMessages([]);
+      removeStorageItem("chatMessages");
+      removeStorageItem("chatSessionId");
+      setSessionId(null);
+    }
+
+    // Clear when different user logs in
+    if (currentUserEmail && previousUserEmail && currentUserEmail !== previousUserEmail) {
+      console.log("[AI CHAT] Clearing chat for different user");
+      setMessages([]);
+      removeStorageItem("chatMessages");
+      removeStorageItem("chatSessionId");
+      setSessionId(null);
+    }
+
+    setPreviousUserEmail(currentUserEmail);
+  }, [user?.email, previousUserEmail]);
+
+  // Effect 2: Load messages when user is available (first time or after auth)
+  useEffect(() => {
+    if (user?.email && messages.length === 0) {
+      console.log("[AI CHAT] Loading chat from storage");
       const savedMessages = getStorageItem("chatMessages");
       if (savedMessages) {
         try {
@@ -70,18 +96,12 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
         }
       }
     }
+  }, [user?.email, messages.length]);
 
-    // Don't load messages when logging out - just clear them
-    if (!currentUserEmail && previousUserEmail) {
-      setMessages([]);
-    }
-
-    setPreviousUserEmail(currentUserEmail);
-  }, [user?.email, previousUserEmail]);
-
-  // Save messages to localStorage with debouncing for better performance
+  // Effect 3: Save messages to localStorage with debouncing
   useEffect(() => {
-    if (messages.length > 0) {
+    if (messages.length > 0 && user?.email) {
+      console.log("[AI CHAT] Saving chat to storage");
       // Debounce saves to avoid excessive localStorage writes
       const timeoutId = setTimeout(() => {
         // Limit conversation history to last 50 messages to prevent storage bloat
@@ -91,17 +111,14 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
 
       return () => clearTimeout(timeoutId);
     }
-  }, [messages]);
+  }, [messages, user?.email]);
 
-  // Clear messages when user logs out
+  // Effect 4: Auto-scroll to bottom when messages change
   useEffect(() => {
-    if (!user) {
-      setMessages([]);
-      removeStorageItem("chatMessages");
-      removeStorageItem("chatSessionId");
-      setSessionId(null);
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [user]);
+  }, [messages, isLoading]);
 
   // Get or generate sessionId
   const getSessionId = (): string => {
@@ -470,6 +487,8 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
                     )}
                   </div>
                 </AnimatePresence>
+                {/* Invisible element for auto-scroll */}
+                <div ref={messagesEndRef} />
               </div>
             </motion.div>
           )}

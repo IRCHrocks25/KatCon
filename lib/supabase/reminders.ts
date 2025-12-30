@@ -55,7 +55,7 @@ interface DatabaseReminder {
 interface ReminderAssignment {
   id: string;
   reminder_id: string;
-  user_email: string;
+  assignedto: string;
   status: "backlog" | "in_progress" | "review" | "done" | "hidden";
   created_at: string;
 }
@@ -114,26 +114,14 @@ async function dbToAppReminder(
   const normalizedUserEmail = currentUserEmail?.toLowerCase();
   const myAssignment = normalizedUserEmail
     ? assignments.find(
-        (a) => a.user_email?.toLowerCase() === normalizedUserEmail
+        (a) => a.assignedto?.toLowerCase() === normalizedUserEmail
       )
     : null;
 
-  console.log("[REMINDER] dbToAppReminder converting:", {
-    reminderId: dbReminder.id,
-    currentUserEmail,
-    assignmentsCount: assignments.length,
-    myAssignment: myAssignment
-      ? {
-          id: myAssignment.id,
-          status: myAssignment.status,
-          user_email: myAssignment.user_email,
-        }
-      : null,
-    allAssignments: assignments.map((a) => ({
-      user_email: a.user_email,
-      status: a.status,
-    })),
-  });
+  // Debug logging for reminder conversion (only in development)
+  if (isDev && assignments.length > 0) {
+    console.log(`[REMINDER] Converting reminder ${dbReminder.id}: ${assignments.length} assignments`);
+  }
 
   return {
     id: dbReminder.id,
@@ -146,7 +134,7 @@ async function dbToAppReminder(
     lastStatusChangeAt: new Date(dbReminder.last_status_change_at),
     snoozedUntil: dbReminder.snoozed_until ? new Date(dbReminder.snoozed_until) : undefined,
     createdBy: dbReminder.user_id,
-    assignedTo: assignments.map((a) => a.user_email),
+    assignedTo: assignments.map((a) => a.assignedto),
   };
 }
 
@@ -162,7 +150,7 @@ export async function getReminders(): Promise<Reminder[]> {
   const { data: assignedReminders } = await supabase
     .from("reminder_assignments")
     .select("reminder_id")
-    .eq("user_email", userEmail)
+    .eq("assignedto", userEmail)
     .neq("status", "hidden");
 
   const assignedReminderIds =
@@ -315,9 +303,9 @@ export async function updateReminder(
       throw new Error(`Failed to fetch existing assignments: ${fetchExistingError.message}`);
     }
 
-    const existingEmails = (existingAssignments || []).map(a => a.user_email?.toLowerCase() || '');
+    const existingEmails = (existingAssignments || []).map(a => a.assignedto?.toLowerCase() || '');
     const existingStatuses = new Map(
-      (existingAssignments || []).map(a => [a.user_email?.toLowerCase() || '', a.status])
+      (existingAssignments || []).map(a => [a.assignedto?.toLowerCase() || '', a.status])
     );
 
     // Determine which assignments to add, keep, and remove
@@ -331,7 +319,7 @@ export async function updateReminder(
         .from("reminder_assignments")
         .delete()
         .eq("reminder_id", id)
-        .in("user_email", emailsToRemove);
+        .in("assignedto", emailsToRemove);
 
       if (deleteError) {
         if (isDev) console.error("Error deleting assignments:", deleteError);
@@ -343,7 +331,7 @@ export async function updateReminder(
     if (emailsToAdd.length > 0) {
       const newAssignments = emailsToAdd.map((email) => ({
         reminder_id: id,
-        user_email: email,
+        assignedto: email,
         status: "backlog" as const,
       }));
 
@@ -427,7 +415,7 @@ export async function updateReminderStatus(
     .from("reminder_assignments")
     .select("id, status")
     .eq("reminder_id", id)
-    .eq("user_email", userEmail)
+    .eq("assignedto", userEmail)
     .single();
 
   const isAssigned = !!assignment;
@@ -605,9 +593,9 @@ export async function updateReminderStatus(
     "[REMINDER] Fetched assignments:",
     assignmentsData?.map((a) => ({
       id: a.id,
-      user_email: a.user_email,
+      assignedto: a.assignedto,
       status: a.status,
-      isCurrentUser: a.user_email === userEmail,
+      isCurrentUser: a.assignedto === userEmail,
     }))
   );
 
@@ -649,9 +637,9 @@ export async function updateReminderKanban(
   // Check if user is assigned to this reminder
   const { data: assignment, error: assignmentError } = await supabase
     .from("reminder_assignments")
-    .select("id, user_email")
+    .select("id, assignedto")
     .eq("reminder_id", id)
-    .eq("user_email", userEmail.toLowerCase())
+    .eq("assignedto", userEmail.toLowerCase())
     .single();
 
   console.log(`[KANBAN] Assignment check result:`, {
@@ -785,7 +773,7 @@ export async function getStaleTasks(): Promise<Reminder[]> {
   const { data: assignedReminders } = await supabase
     .from("reminder_assignments")
     .select("reminder_id")
-    .eq("user_email", userEmail)
+    .eq("assignedto", userEmail)
     .neq("status", "hidden")
     .neq("status", "done");
 
@@ -854,7 +842,7 @@ export async function snoozeTask(id: string): Promise<Reminder | null> {
     .from("reminder_assignments")
     .select("id")
     .eq("reminder_id", id)
-    .eq("user_email", userEmail)
+    .eq("assignedto", userEmail)
     .single();
 
   if (!assignment) {
@@ -939,7 +927,7 @@ async function getStaleTasksForUser(userEmail: string): Promise<Reminder[]> {
   const { data: assignedReminders } = await supabase
     .from("reminder_assignments")
     .select("reminder_id")
-    .eq("user_email", userEmail)
+    .eq("assignedto", userEmail)
     .neq("status", "hidden")
     .neq("status", "done");
 
