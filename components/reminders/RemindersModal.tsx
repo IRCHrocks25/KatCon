@@ -258,7 +258,7 @@ export function RemindersModal({
     const currentStatus = isCreator
       ? reminder.status
       : reminder.myStatus || reminder.status;
-    const newStatus = currentStatus === "pending" ? "done" : "pending";
+    const newStatus = currentStatus === "backlog" ? "done" : "backlog";
 
     setTogglingId(id);
     try {

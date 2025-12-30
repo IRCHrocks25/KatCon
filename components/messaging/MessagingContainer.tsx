@@ -1692,13 +1692,13 @@ export function MessagingContainer({
                 >
                   <ListTodo size={20} />
                   <span className="text-sm hidden sm:inline">Tasks</span>
-                  {reminders.filter((r) => r.status === "pending").length >
+                  {reminders.filter((r) => r.status !== "done" && r.status !== "hidden").length >
                     0 && (
                     <span className="absolute -top-1 -right-1 w-5 h-5 bg-purple-600 rounded-full text-white text-xs flex items-center justify-center font-semibold">
-                      {reminders.filter((r) => r.status === "pending").length >
+                      {reminders.filter((r) => r.status !== "done" && r.status !== "hidden").length >
                       9
                         ? "9+"
-                        : reminders.filter((r) => r.status === "pending")
+                        : reminders.filter((r) => r.status !== "done" && r.status !== "hidden")
                             .length}
                     </span>
                   )}

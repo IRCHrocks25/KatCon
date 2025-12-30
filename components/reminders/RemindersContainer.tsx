@@ -560,7 +560,7 @@ export function RemindersContainer({
     const currentStatus = isCreator
       ? reminder.status
       : reminder.myStatus || reminder.status;
-    const newStatus = currentStatus === "pending" ? "done" : "pending";
+    const newStatus = currentStatus === "backlog" ? "done" : "backlog";
 
     console.log("[UI] Toggle clicked:", {
       id,
