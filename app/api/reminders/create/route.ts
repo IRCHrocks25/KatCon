@@ -10,7 +10,7 @@ interface DatabaseReminder {
   title: string;
   description: string | null;
   due_date: string | null;
-  status: "pending" | "done" | "hidden";
+  status: "backlog" | "in_progress" | "review" | "done" | "hidden";
   created_at: string;
   updated_at: string;
 }
@@ -20,7 +20,7 @@ interface ReminderAssignment {
   id: string;
   reminder_id: string;
   user_email: string;
-  status: "pending" | "done" | "hidden";
+  status: "backlog" | "in_progress" | "review" | "done" | "hidden";
   created_at: string;
 }
 
@@ -36,7 +36,7 @@ interface ProfileEmail {
  */
 async function expandTeamAssignments(
   assignedTo: string[],
-  supabaseClient: any
+  supabaseClient: ReturnType<typeof createAuthenticatedClient>
 ): Promise<string[]> {
   const expandedEmails: string[] = [];
   const teamTypes: AccountType[] = [];
@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
         title: title,
         description: description || null,
         due_date: dueDate ? new Date(dueDate).toISOString() : null,
-        status: "pending",
+        status: "backlog",
         last_status_change_at: new Date().toISOString(),
       })
       .select()
@@ -182,7 +182,7 @@ export async function POST(request: NextRequest) {
       const assignments = finalAssignedTo.map((email: string) => ({
         reminder_id: reminderData.id,
         user_email: email.trim().toLowerCase(),
-        status: "pending" as const,
+        status: "backlog" as const,
       }));
 
       const { error: assignmentError } = await supabase

@@ -27,8 +27,8 @@ export interface Reminder {
   title: string;
   description?: string;
   dueDate?: Date;
-  status: "backlog" | "in_progress" | "review" | "done" | "pending" | "hidden"; // Overall reminder status (creator's view)
-  myStatus?: "backlog" | "in_progress" | "review" | "done" | "pending" | "hidden"; // Current user's assignment status
+  status: "backlog" | "in_progress" | "review" | "done" | "hidden"; // Overall reminder status (creator's view)
+  myStatus?: "backlog" | "in_progress" | "review" | "done" | "hidden"; // Current user's assignment status
   position?: number; // Position for Kanban ordering within columns
   lastStatusChangeAt?: Date; // When the status was last changed
   snoozedUntil?: Date; // When the task is snoozed until
@@ -43,7 +43,7 @@ interface DatabaseReminder {
   title: string;
   description: string | null;
   due_date: string | null;
-  status: "backlog" | "in_progress" | "review" | "done" | "pending" | "hidden";
+  status: "backlog" | "in_progress" | "review" | "done" | "hidden";
   position: number;
   last_status_change_at: string;
   snoozed_until: string | null;
@@ -56,7 +56,7 @@ interface ReminderAssignment {
   id: string;
   reminder_id: string;
   user_email: string;
-  status: "backlog" | "in_progress" | "review" | "done" | "pending" | "hidden";
+  status: "backlog" | "in_progress" | "review" | "done" | "hidden";
   created_at: string;
 }
 
@@ -391,7 +391,7 @@ export async function updateReminder(
 // For creators, updates the reminder status directly
 export async function updateReminderStatus(
   id: string,
-  status: "backlog" | "in_progress" | "review" | "done" | "pending" | "hidden"
+  status: "backlog" | "in_progress" | "review" | "done" | "hidden"
 ): Promise<Reminder | null> {
   const userEmail = await getUserEmail();
   if (!userEmail) {
