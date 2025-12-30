@@ -394,7 +394,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
                       >
                         {message.type === "user" ? (
                           <div className="bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 text-white px-3.5 py-2 rounded-xl rounded-tr-sm max-w-[80%] shadow-lg">
-                            <p className="text-[13px] font-medium break-words">
+                            <p className="text-[13px] font-medium break-words whitespace-pre-wrap">
                               {message.text}
                             </p>
                             <p className="text-[10px] text-white/70 mt-0.5 text-right">
@@ -406,7 +406,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
                           </div>
                         ) : (
                           <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 text-gray-300 px-3.5 py-2 rounded-xl rounded-tl-sm max-w-[80%] shadow-lg">
-                            <p className="text-[13px] font-medium break-words">
+                            <p className="text-[13px] font-medium break-words whitespace-pre-wrap">
                               {message.text}
                             </p>
                             <p className="text-[10px] text-gray-400 mt-0.5 text-left">
