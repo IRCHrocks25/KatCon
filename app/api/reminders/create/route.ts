@@ -12,6 +12,7 @@ interface DatabaseReminder {
   description: string | null;
   due_date: string | null;
   status: "backlog" | "in_progress" | "review" | "done" | "hidden";
+  priority: "low" | "medium" | "high" | "urgent";
   created_at: string;
   updated_at: string;
 }
@@ -88,6 +89,7 @@ function dbToAppReminder(
     description: dbReminder.description || undefined,
     dueDate: dbReminder.due_date ? new Date(dbReminder.due_date) : undefined,
     status: dbReminder.status,
+    priority: dbReminder.priority,
     createdBy: dbReminder.user_id,
     assignedTo: assignments.map((a) => a.assignedto),
     createdAt: new Date(dbReminder.created_at), // Include created_at for sorting
@@ -104,7 +106,7 @@ export const POST = moderateRateLimit(async (request: NextRequest) => {
 
     const { user } = authResult;
     const body = await request.json();
-    const { title, description, dueDate, assignedTo } = body;
+    const { title, description, dueDate, assignedTo, channelId, priority = "medium" } = body;
 
     // Validate request body
     if (!title) {
@@ -116,6 +118,23 @@ export const POST = moderateRateLimit(async (request: NextRequest) => {
 
     // Create authenticated Supabase client
     const supabase = createAuthenticatedClient(request.headers.get("authorization")!.substring(7));
+
+    // Validate channel membership if channelId is provided
+    if (channelId) {
+      const { data: membership, error: membershipError } = await supabase
+        .from("conversation_participants")
+        .select("conversation_id")
+        .eq("conversation_id", channelId)
+        .eq("user_id", user.id)
+        .single();
+
+      if (membershipError || !membership) {
+        return NextResponse.json(
+          { error: "You are not a member of this channel" },
+          { status: 403 }
+        );
+      }
+    }
 
     // Default to assigning to creator if no assignedTo provided
     const rawAssignedTo = assignedTo && assignedTo.length > 0 ? assignedTo : [user.email];
@@ -164,8 +183,10 @@ export const POST = moderateRateLimit(async (request: NextRequest) => {
         title: title,
         description: description || null,
         due_date: dueDate ? new Date(dueDate).toISOString() : null,
+        priority: priority,
         status: "backlog",
         last_status_change_at: new Date().toISOString(),
+        channel_id: channelId || null,
       })
       .select()
       .single();

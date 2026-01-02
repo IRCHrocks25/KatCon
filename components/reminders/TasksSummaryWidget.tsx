@@ -419,9 +419,8 @@ export function TasksSummaryWidget({
                   animate={{ opacity: 1, y: 0 }}
                   className={`
                     relative bg-gray-800/60 rounded-lg border-l-4 ${styles.border}
-                    hover:bg-gray-800/80 transition-colors group cursor-pointer
+                    hover:bg-gray-800/80 transition-colors group
                   `}
-                  onClick={() => handleViewDetails(reminder)}
                 >
                   <div className="p-4 flex gap-3">
                     {/* Status Indicator */}
@@ -429,9 +428,24 @@ export function TasksSummaryWidget({
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-medium leading-tight text-white">
-                        {reminder.title}
-                      </h3>
+                  {/* Title with Priority */}
+                  <div className="flex items-start gap-2">
+                    <h3 className="text-sm font-medium leading-tight text-white flex-1">
+                      {reminder.title}
+                    </h3>
+                    {/* Priority Badge */}
+                    <div className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                      reminder.priority === "urgent"
+                        ? "bg-red-600 text-white"
+                        : reminder.priority === "high"
+                        ? "bg-orange-600 text-white"
+                        : reminder.priority === "low"
+                        ? "bg-green-600 text-white"
+                        : "bg-gray-500 text-gray-300"
+                    }`}>
+                      {reminder.priority.toUpperCase()}
+                    </div>
+                  </div>
 
                       {reminder.description && (
                         <p className="text-xs mt-1 line-clamp-2 text-gray-400">

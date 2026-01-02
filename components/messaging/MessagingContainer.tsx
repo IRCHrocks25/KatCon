@@ -10,6 +10,8 @@ import {
   RefreshCw,
   Search,
   Pin,
+  KanbanSquare,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -38,6 +40,7 @@ import { CreateChannelModal } from "./CreateChannelModal";
 import { ChannelSettingsDialog } from "./ChannelSettingsDialog";
 import { FilesModal, invalidateFilesCache } from "./FilesModal";
 import { RemindersModal } from "@/components/reminders/RemindersModal";
+import { KanbanView } from "@/components/kanban/KanbanView";
 import { MessageSearch } from "./MessageSearch";
 import { PinnedMessagesPanel } from "./PinnedMessagesPanel";
 import type { Reminder } from "@/lib/supabase/reminders";
@@ -81,6 +84,13 @@ export function MessagingContainer({
   >(null);
   const [showFilesModal, setShowFilesModal] = useState(false);
   const [showRemindersModal, setShowRemindersModal] = useState(false);
+  const [initialEditingReminder, setInitialEditingReminder] = useState<Reminder | null>(null);
+
+  // Callback for opening task modal from Kanban
+  const handleOpenTaskModal = useCallback((editingReminder?: Reminder) => {
+    setInitialEditingReminder(editingReminder || null);
+    setShowRemindersModal(true);
+  }, []);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [activeSearchResultId, setActiveSearchResultId] = useState<string>("");
@@ -89,6 +99,7 @@ export function MessagingContainer({
   const [searchResultIds, setSearchResultIds] = useState<string[]>([]);
   const [isPinnedMessagesOpen, setIsPinnedMessagesOpen] = useState(false);
   const [pinnedMessageIds, setPinnedMessageIds] = useState<string[]>([]);
+  const [isKanbanModalOpen, setIsKanbanModalOpen] = useState(false);
 
   // Refresh pinned message IDs
   const refreshPinnedMessageIds = useCallback(async (conversationId: string) => {
@@ -1685,24 +1696,17 @@ export function MessagingContainer({
                   <FolderOpen size={20} />
                   <span className="text-sm hidden sm:inline">Files</span>
                 </button>
-                <button
-                  onClick={() => setShowRemindersModal(true)}
-                  className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition flex items-center gap-2 relative"
-                  title="View tasks"
-                >
-                  <ListTodo size={20} />
-                  <span className="text-sm hidden sm:inline">Tasks</span>
-                  {reminders.filter((r) => r.status !== "done" && r.status !== "hidden").length >
-                    0 && (
-                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-purple-600 rounded-full text-white text-xs flex items-center justify-center font-semibold">
-                      {reminders.filter((r) => r.status !== "done" && r.status !== "hidden").length >
-                      9
-                        ? "9+"
-                        : reminders.filter((r) => r.status !== "done" && r.status !== "hidden")
-                            .length}
-                    </span>
-                  )}
-                </button>
+
+                {activeConversation?.type === "channel" && (
+                  <button
+                    onClick={() => setIsKanbanModalOpen(true)}
+                    className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition flex items-center gap-2"
+                    title="Open Kanban board"
+                  >
+                    <KanbanSquare size={20} />
+                    <span className="text-sm hidden sm:inline">Kanban</span>
+                  </button>
+                )}
               </div>
               </div>
 
@@ -1819,10 +1823,17 @@ export function MessagingContainer({
 
       {/* Reminders Modal */}
       <RemindersModal
+        key={showRemindersModal ? 'open' : 'closed'} // Force remount to reset state
         isOpen={showRemindersModal}
-        onClose={() => setShowRemindersModal(false)}
+        onClose={() => {
+          setShowRemindersModal(false);
+          setInitialEditingReminder(null);
+        }}
         reminders={reminders}
         setReminders={setReminders}
+        channelId={activeConversation?.type === "channel" ? (activeConversationId || undefined) : undefined}
+        initialShowForm={!!initialEditingReminder}
+        initialEditingReminder={initialEditingReminder}
       />
 
       {/* Pinned Messages Panel */}
@@ -1833,6 +1844,60 @@ export function MessagingContainer({
           onClose={() => setIsPinnedMessagesOpen(false)}
           onMessageClick={handleLoadSearchMessage}
         />
+      )}
+
+      {/* Channel Kanban Modal */}
+      {activeConversation?.type === "channel" && (
+        <div
+          className={`fixed inset-0 z-50 transition-opacity duration-300 ${
+            isKanbanModalOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+          }`}
+        >
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            onClick={() => setIsKanbanModalOpen(false)}
+          />
+
+          {/* Modal Content */}
+          <div className="absolute inset-4 md:inset-8 lg:inset-12 bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="flex-shrink-0 border-b border-gray-800 bg-gray-900/95 backdrop-blur-sm">
+              <div className="flex items-center justify-between px-6 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center">
+                    <KanbanSquare size={18} className="text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-white">
+                      {getConversationDisplayName(activeConversation)} - Kanban Board
+                    </h2>
+                    <p className="text-sm text-gray-400">
+                      Project management for this channel
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsKanbanModalOpen(false)}
+                  className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition"
+                  title="Close Kanban board"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            {/* Kanban Content */}
+            <div className="flex-1 overflow-hidden">
+              <KanbanView
+                reminders={reminders}
+                setReminders={setReminders}
+                channelId={activeConversationId || undefined}
+                onOpenTaskModal={handleOpenTaskModal}
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

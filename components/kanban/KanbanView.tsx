@@ -13,6 +13,7 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import type { Reminder } from "@/lib/supabase/reminders";
 import { updateReminderKanban, getReminders } from "@/lib/supabase/reminders";
@@ -23,6 +24,8 @@ import { TaskDetailsModal } from "@/components/reminders/TaskDetailsModal";
 interface KanbanViewProps {
   reminders: Reminder[];
   setReminders: React.Dispatch<React.SetStateAction<Reminder[]>>;
+  channelId?: string; // If provided, only show tasks for this channel
+  onOpenTaskModal?: (editingReminder?: Reminder) => void; // Callback to open task creation modal
 }
 
 type KanbanStatus = "backlog" | "in_progress" | "review" | "done";
@@ -34,12 +37,13 @@ const KANBAN_COLUMNS: { id: KanbanStatus; title: string; color: string }[] = [
   { id: "done", title: "Done", color: "bg-green-600" },
 ];
 
-export function KanbanView({ reminders, setReminders }: KanbanViewProps) {
+export function KanbanView({ reminders, setReminders, channelId, onOpenTaskModal }: KanbanViewProps) {
   const { user } = useAuth();
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [selectedTask, setSelectedTask] = useState<Reminder | null>(null);
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Reminder | null>(null);
+  const [showTaskDetailsModal, setShowTaskDetailsModal] = useState(false);
+
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -68,19 +72,26 @@ export function KanbanView({ reminders, setReminders }: KanbanViewProps) {
     loadRemindersIfNeeded();
   }, [reminders.length, user, isLoading, setReminders]);
 
-  // Filter to show tasks where user is creator OR assigned
+  // Filter to show tasks where user is creator OR assigned, and optionally by channel
   const userTasks = useMemo(() => {
     if (!user?.email) return [];
 
     // Show tasks where the current user is the creator OR explicitly assigned
-    return reminders.filter((reminder) =>
+    let filteredTasks = reminders.filter((reminder) =>
       reminder.createdBy.toLowerCase() === user.email?.toLowerCase() ||
       reminder.assignedTo.some(
         (assignedEmail) =>
           assignedEmail.toLowerCase() === user.email?.toLowerCase()
       )
     );
-  }, [reminders, user]);
+
+    // If channelId is specified, further filter to only show tasks for this channel
+    if (channelId) {
+      filteredTasks = filteredTasks.filter((reminder) => reminder.channelId === channelId);
+    }
+
+    return filteredTasks;
+  }, [reminders, user, channelId]);
 
   // Group tasks by status and sort by position
   const tasksByStatus = useMemo(() => {
@@ -261,22 +272,34 @@ export function KanbanView({ reminders, setReminders }: KanbanViewProps) {
   };
 
   const handleTaskClick = (task: Reminder) => {
+    // Open task details modal
     setSelectedTask(task);
-    setShowDetailsModal(true);
+    setShowTaskDetailsModal(true);
   };
 
-  const handleCloseDetailsModal = () => {
+  const handleCloseTaskDetailsModal = () => {
     setSelectedTask(null);
-    setShowDetailsModal(false);
+    setShowTaskDetailsModal(false);
   };
 
   return (
     <div className="h-full w-full bg-gray-900/50 backdrop-blur-sm p-4">
-      <div className="mb-4">
-        <h1 className="text-xl font-bold text-white mb-1">Kanban Board</h1>
-        <p className="text-gray-400 text-sm">
-          Drag and drop tasks to organize your workflow
-        </p>
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-white mb-1">Kanban Board</h1>
+          <p className="text-gray-400 text-sm">
+            Click cards to view details • Drag and drop to organize
+          </p>
+        </div>
+        {channelId && onOpenTaskModal && (
+          <button
+            onClick={() => onOpenTaskModal()}
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition flex items-center gap-2 font-medium"
+          >
+            <Plus size={18} />
+            Add Task
+          </button>
+        )}
       </div>
 
       <DndContext
@@ -311,13 +334,21 @@ export function KanbanView({ reminders, setReminders }: KanbanViewProps) {
       {/* Task Details Modal */}
       <TaskDetailsModal
         reminder={selectedTask}
-        isOpen={showDetailsModal}
-        onClose={handleCloseDetailsModal}
-        onEdit={() => {}} // Not implemented in v1
-        onDelete={() => {}} // Not implemented in v1
-        onToggleComplete={() => {}} // Not implemented in v1
-        isToggling={false}
-        isDeleting={false}
+        isOpen={showTaskDetailsModal}
+        onClose={handleCloseTaskDetailsModal}
+        onEdit={(reminder) => {
+          // Open the edit modal via the callback
+          onOpenTaskModal?.(reminder);
+          setShowTaskDetailsModal(false);
+        }}
+        onDelete={(id) => {
+          // Handle delete if needed
+          setShowTaskDetailsModal(false);
+        }}
+        onToggleComplete={(id) => {
+          // Handle toggle complete
+          setShowTaskDetailsModal(false);
+        }}
       />
     </div>
   );

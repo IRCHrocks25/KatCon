@@ -19,6 +19,7 @@ import {
   updateReminder,
   updateReminderStatus,
   deleteReminder,
+  createReminder,
   type Reminder,
 } from "@/lib/supabase/reminders";
 import { robustFetch } from "@/lib/utils/fetch";
@@ -34,6 +35,7 @@ interface RemindersModalProps {
   setReminders: React.Dispatch<React.SetStateAction<Reminder[]>>;
   initialShowForm?: boolean;
   initialEditingReminder?: Reminder | null;
+  channelId?: string; // If provided, tasks will be associated with this channel
 }
 
 type TabType = "my-tasks" | "assigned-by-me" | "completed";
@@ -52,6 +54,7 @@ export function RemindersModal({
   setReminders,
   initialShowForm = false,
   initialEditingReminder = null,
+  channelId,
 }: RemindersModalProps) {
   const { user: currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>("my-tasks");
@@ -284,6 +287,8 @@ export function RemindersModal({
     }
     setEditingReminder(reminder);
     setShowForm(true);
+    // Ensure we're on the first tab when editing
+    setActiveTab("my-tasks");
   };
 
   // Handle delete
@@ -313,6 +318,7 @@ export function RemindersModal({
     description: string;
     dueDate: string;
     assignedTo: string[];
+    priority: "low" | "medium" | "high" | "urgent";
   }) => {
     setIsSubmitting(true);
     try {
@@ -322,6 +328,7 @@ export function RemindersModal({
           title: data.title,
           description: data.description || undefined,
           dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
+          priority: data.priority,
           assignedTo: data.assignedTo.length > 0 ? data.assignedTo : undefined,
         });
 
@@ -330,32 +337,16 @@ export function RemindersModal({
         );
         toast.success("Task updated");
       } else {
-        // Create new reminder
-        const response = await robustFetch("/api/reminders/create", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: data.title,
-            description: data.description || undefined,
-            dueDate: data.dueDate
-              ? new Date(data.dueDate).toISOString()
-              : undefined,
-            assignedTo:
-              data.assignedTo.length > 0 ? data.assignedTo : undefined,
-            userEmail: currentUser?.email || null,
-          }),
-          retries: 0,
-          timeout: 30000,
+        // Create new reminder using the proper Supabase client function
+        const reminder = await createReminder({
+          title: data.title,
+          description: data.description || undefined,
+          dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
+          priority: data.priority,
+          assignedTo: data.assignedTo.length > 0 ? data.assignedTo : undefined,
+          channelId: channelId || undefined,
         });
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(
-            errorData.error || errorData.details || "Failed to create task"
-          );
-        }
-
-        const reminder = await response.json();
         setReminders((prev) => [reminder, ...prev]);
         toast.success("Task created");
       }
@@ -406,6 +397,7 @@ export function RemindersModal({
               onToggleComplete={handleToggleComplete}
               onEdit={handleEdit}
               onDelete={handleDelete}
+              onViewDetails={undefined} // Disable view details modal in list view
               isToggling={togglingId === reminder.id}
               isDeleting={deletingId === reminder.id}
             />
@@ -423,7 +415,7 @@ export function RemindersModal({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+        className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
         onClick={onClose}
       >
         <motion.div
@@ -603,6 +595,7 @@ export function RemindersModal({
                       onToggleComplete={handleToggleComplete}
                       onEdit={handleEdit}
                       onDelete={handleDelete}
+                      onViewDetails={undefined} // Disable view details modal in list view
                       isToggling={togglingId === reminder.id}
                       isDeleting={deletingId === reminder.id}
                     />

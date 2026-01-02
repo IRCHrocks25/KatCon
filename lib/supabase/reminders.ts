@@ -5,9 +5,29 @@ import type { AccountType } from "./auth";
  * Helper function to get authenticated headers for API calls
  */
 async function getAuthHeaders(): Promise<HeadersInit> {
-  const {
+  // First try to get current session
+  let {
     data: { session },
   } = await supabase.auth.getSession();
+
+  // If no session or it's expired, try to refresh it
+  if (!session?.access_token || (session.expires_at && session.expires_at * 1000 < Date.now())) {
+    if (isDev) console.log("[AUTH] Session expired or missing, attempting refresh");
+
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+
+    if (refreshError) {
+      if (isDev) console.error("[AUTH] Session refresh failed:", refreshError);
+      throw new Error("Session expired. Please log in again.");
+    }
+
+    if (refreshData.session) {
+      session = refreshData.session;
+      if (isDev) console.log("[AUTH] Session refreshed successfully");
+    } else {
+      throw new Error("Session expired. Please log in again.");
+    }
+  }
 
   const headers: HeadersInit = {
     "Content-Type": "application/json",
@@ -15,6 +35,8 @@ async function getAuthHeaders(): Promise<HeadersInit> {
 
   if (session?.access_token) {
     headers["Authorization"] = `Bearer ${session.access_token}`;
+  } else {
+    throw new Error("No valid authentication token available");
   }
 
   return headers;
@@ -32,8 +54,10 @@ export interface Reminder {
   position?: number; // Position for Kanban ordering within columns
   lastStatusChangeAt?: Date; // When the status was last changed
   snoozedUntil?: Date; // When the task is snoozed until
+  priority: "low" | "medium" | "high" | "urgent"; // Task priority level
   createdBy: string; // Email of the creator
   assignedTo: string[]; // Array of emails of assigned users
+  channelId?: string; // ID of the channel this task belongs to (null for global tasks)
 }
 
 // Database reminder format (matches Supabase schema)
@@ -47,6 +71,8 @@ interface DatabaseReminder {
   position: number;
   last_status_change_at: string;
   snoozed_until: string | null;
+  priority: "low" | "medium" | "high" | "urgent"; // Task priority level
+  channel_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -133,8 +159,10 @@ async function dbToAppReminder(
     position: dbReminder.position, // Position for Kanban ordering
     lastStatusChangeAt: new Date(dbReminder.last_status_change_at),
     snoozedUntil: dbReminder.snoozed_until ? new Date(dbReminder.snoozed_until) : undefined,
+    priority: dbReminder.priority || "medium", // Priority level
     createdBy: dbReminder.user_id,
     assignedTo: assignments.map((a) => a.assignedto),
+    channelId: dbReminder.channel_id || undefined,
   };
 }
 
@@ -233,6 +261,7 @@ export async function getReminders(): Promise<Reminder[]> {
 export async function createReminder(
   reminder: Omit<Reminder, "id" | "status" | "createdBy" | "assignedTo"> & {
     assignedTo?: string[];
+    channelId?: string;
   }
 ): Promise<Reminder> {
   const headers = await getAuthHeaders();
@@ -244,7 +273,9 @@ export async function createReminder(
       title: reminder.title,
       description: reminder.description,
       dueDate: reminder.dueDate,
+      priority: reminder.priority,
       assignedTo: reminder.assignedTo,
+      channelId: reminder.channelId,
     }),
   });
 

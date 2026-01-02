@@ -2,11 +2,9 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Calendar, MessageSquare, Clock, AlertTriangle } from "lucide-react";
+import { Calendar, MessageSquare, Clock } from "lucide-react";
 import type { Reminder } from "@/lib/supabase/reminders";
-import { isStaleTask, snoozeTask } from "@/lib/supabase/reminders";
-import { toast } from "sonner";
-import { useState } from "react";
+import { isStaleTask } from "@/lib/supabase/reminders";
 
 interface KanbanCardProps {
   task: Reminder;
@@ -25,7 +23,7 @@ export function KanbanCard({ task, onClick, isDragging = false, currentUserEmail
     isDragging: isSortableDragging,
   } = useSortable({ id: task.id });
 
-  const [isSnoozing, setIsSnoozing] = useState(false);
+
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -61,19 +59,7 @@ export function KanbanCard({ task, onClick, isDragging = false, currentUserEmail
     task.createdBy.toLowerCase() === currentUserEmail.toLowerCase() &&
     !task.assignedTo.some(email => email.toLowerCase() === currentUserEmail.toLowerCase());
 
-  const handleSnooze = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsSnoozing(true);
-    try {
-      await snoozeTask(task.id);
-      toast.success("Task snoozed for 3 days");
-    } catch (error) {
-      console.error("Error snoozing task:", error);
-      toast.error("Failed to snooze task");
-    } finally {
-      setIsSnoozing(false);
-    }
-  };
+
 
   return (
     <div
@@ -94,10 +80,24 @@ export function KanbanCard({ task, onClick, isDragging = false, currentUserEmail
         </div>
       )}
 
-      {/* Task Title */}
-      <h4 className="text-white font-medium text-sm mb-2 line-clamp-2">
-        {task.title}
-      </h4>
+      {/* Task Title with Priority */}
+      <div className="flex items-start gap-2 mb-2">
+        <h4 className="text-white font-medium text-sm flex-1 line-clamp-2">
+          {task.title}
+        </h4>
+        {/* Priority Indicator */}
+        <div className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+          task.priority === "urgent"
+            ? "bg-red-600 text-white"
+            : task.priority === "high"
+            ? "bg-orange-600 text-white"
+            : task.priority === "low"
+            ? "bg-green-600 text-white"
+            : "bg-gray-500 text-gray-300"
+        }`}>
+          {task.priority.toUpperCase()}
+        </div>
+      </div>
 
       {/* Task Description Preview */}
       {task.description && (
@@ -140,27 +140,7 @@ export function KanbanCard({ task, onClick, isDragging = false, currentUserEmail
         </div>
       </div>
 
-      {/* Quick Actions for Stale Tasks (hover) */}
-      {isStale && !isDragging && !isSortableDragging && (
-        <div className="absolute inset-0 bg-black/20 rounded-lg opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onClick(); // Open task details
-            }}
-            className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-2 py-1 rounded font-medium transition"
-          >
-            Open
-          </button>
-          <button
-            onClick={handleSnooze}
-            disabled={isSnoozing}
-            className="bg-amber-600 hover:bg-amber-500 text-white text-xs px-2 py-1 rounded font-medium transition disabled:opacity-50"
-          >
-            {isSnoozing ? "..." : "Snooze"}
-          </button>
-        </div>
-      )}
+
     </div>
   );
 }

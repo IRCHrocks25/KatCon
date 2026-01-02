@@ -10,10 +10,12 @@ import {
   ChevronDown,
   Check,
   Loader2,
+  Hash,
 } from "lucide-react";
 import type { Reminder } from "@/lib/supabase/reminders";
 import { getAllUsers, type UserWithTeam } from "@/lib/supabase/users";
 import type { AccountType } from "@/lib/supabase/auth";
+import { getConversations, type Conversation } from "@/lib/supabase/messaging";
 
 interface ReminderFormProps {
   initialData?: Reminder;
@@ -22,6 +24,8 @@ interface ReminderFormProps {
     description: string;
     dueDate: string;
     assignedTo: string[];
+    priority: "low" | "medium" | "high" | "urgent";
+    channelId?: string;
   }) => Promise<void>;
   onCancel: () => void;
   isSubmitting: boolean;
@@ -43,16 +47,39 @@ export function ReminderForm({
   const [assignedTo, setAssignedTo] = useState<string[]>(
     initialData?.assignedTo || []
   );
+  const [priority, setPriority] = useState<"low" | "medium" | "high" | "urgent">(
+    initialData?.priority || "medium"
+  );
+  const [channelId, setChannelId] = useState<string>(initialData?.channelId || "");
+
+  // Sync state with initialData prop changes
+  useEffect(() => {
+    setTitle(initialData?.title || "");
+    setDescription(initialData?.description || "");
+    setDueDate(
+      initialData?.dueDate
+        ? new Date(initialData.dueDate).toISOString().slice(0, 16)
+        : ""
+    );
+    setAssignedTo(initialData?.assignedTo || []);
+    setPriority(initialData?.priority || "medium");
+    setChannelId(initialData?.channelId || "");
+  }, [initialData]);
 
   const [allUsers, setAllUsers] = useState<UserWithTeam[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [isLoadingConversations, setIsLoadingConversations] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showChannelDropdown, setShowChannelDropdown] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [channelSearchQuery, setChannelSearchQuery] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const channelDropdownRef = useRef<HTMLDivElement>(null);
 
   const isEditing = !!initialData;
 
-  // Fetch users on mount
+  // Fetch users and conversations on mount
   useEffect(() => {
     const fetchUsers = async () => {
       setIsLoadingUsers(true);
@@ -65,7 +92,21 @@ export function ReminderForm({
         setIsLoadingUsers(false);
       }
     };
+
+    const fetchConversations = async () => {
+      setIsLoadingConversations(true);
+      try {
+        const convs = await getConversations();
+        setConversations(convs);
+      } catch (error) {
+        console.error("Error fetching conversations:", error);
+      } finally {
+        setIsLoadingConversations(false);
+      }
+    };
+
     fetchUsers();
+    fetchConversations();
   }, []);
 
   // Close dropdown on click outside
@@ -77,15 +118,21 @@ export function ReminderForm({
       ) {
         setShowDropdown(false);
       }
+      if (
+        channelDropdownRef.current &&
+        !channelDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowChannelDropdown(false);
+      }
     };
 
-    if (showDropdown) {
+    if (showDropdown || showChannelDropdown) {
       document.addEventListener("mousedown", handleClickOutside);
     }
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [showDropdown]);
+  }, [showDropdown, showChannelDropdown]);
 
   // Group users by team
   const usersByTeam = allUsers.reduce((acc, user) => {
@@ -131,6 +178,19 @@ export function ReminderForm({
     return { display: assignment, isTeam: false };
   };
 
+  // Filter channels based on search
+  const filteredChannels = conversations.filter((channel) =>
+    channel.name?.toLowerCase().includes(channelSearchQuery.toLowerCase()) ||
+    channel.type.toLowerCase().includes(channelSearchQuery.toLowerCase())
+  );
+
+  const selectedChannel = conversations.find((conv) => conv.id === channelId);
+
+  const handleChannelSelect = (channelId: string) => {
+    setChannelId(channelId === "none" ? "" : channelId);
+    setShowChannelDropdown(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
@@ -140,6 +200,8 @@ export function ReminderForm({
       description: description.trim(),
       dueDate,
       assignedTo,
+      priority,
+      channelId: channelId || undefined,
     });
   };
 
@@ -173,6 +235,32 @@ export function ReminderForm({
           rows={3}
           className="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
         />
+      </div>
+
+      {/* Priority */}
+      <div>
+        <label className="text-sm text-gray-400 block mb-2">Priority</label>
+        <div className="flex gap-2">
+          {[
+            { value: "low", label: "Low", color: "bg-green-600" },
+            { value: "medium", label: "Medium", color: "bg-yellow-600" },
+            { value: "high", label: "High", color: "bg-orange-600" },
+            { value: "urgent", label: "Urgent", color: "bg-red-600" },
+          ].map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setPriority(option.value as "low" | "medium" | "high" | "urgent")}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition ${
+                priority === option.value
+                  ? `${option.color} text-white`
+                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Due Date */}
@@ -369,6 +457,139 @@ export function ReminderForm({
         )}
       </div>
 
+      {/* Channel */}
+      <div className="space-y-2 relative" ref={channelDropdownRef}>
+        <label className="text-sm text-gray-400 flex items-center gap-2">
+          <Hash size={14} />
+          Channel (optional)
+        </label>
+
+        {/* Dropdown Trigger */}
+        <button
+          type="button"
+          onClick={() => setShowChannelDropdown(!showChannelDropdown)}
+          disabled={isLoadingConversations}
+          className="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg text-left flex items-center justify-between hover:border-gray-500 transition disabled:opacity-50"
+        >
+          <span className="text-gray-400">
+            {selectedChannel
+              ? `${selectedChannel.name || "Unnamed Channel"} (${selectedChannel.type})`
+              : "No channel (global task)"}
+          </span>
+          <ChevronDown
+            size={18}
+            className={`text-gray-400 transition-transform ${
+              showChannelDropdown ? "rotate-180" : ""
+            }`}
+          />
+        </button>
+
+        {/* Dropdown Menu */}
+        {showChannelDropdown && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="absolute z-[100] w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-2xl max-h-64 overflow-hidden flex flex-col"
+          >
+            {/* Search */}
+            <div className="p-2 border-b border-gray-700">
+              <input
+                type="text"
+                placeholder="Search channels..."
+                value={channelSearchQuery}
+                onChange={(e) => setChannelSearchQuery(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-900/50 border border-gray-600 rounded text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                autoFocus
+              />
+            </div>
+
+            {/* Options */}
+            <div className="overflow-y-auto flex-1 custom-scrollbar">
+              {isLoadingConversations ? (
+                <div className="p-4 text-center text-gray-400">
+                  <Loader2 size={20} className="animate-spin mx-auto mb-2" />
+                  <span className="text-sm">Loading channels...</span>
+                </div>
+              ) : (
+                <>
+                  {/* No channel option */}
+                  <button
+                    type="button"
+                    onClick={() => handleChannelSelect("none")}
+                    className="w-full px-3 py-2 flex items-center gap-3 hover:bg-gray-700/50 rounded transition"
+                  >
+                    <div
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                        !channelId
+                          ? "bg-purple-600 border-purple-600"
+                          : "border-gray-600"
+                      }`}
+                    >
+                      {!channelId && <Check size={12} className="text-white" />}
+                    </div>
+                    <div className="flex-1 text-left">
+                      <div className="text-sm text-white font-medium">
+                        No channel (global task)
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Task will be available to all assigned users
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Channels */}
+                  {filteredChannels.length > 0 && (
+                    <div className="p-2">
+                      <div className="text-xs text-gray-500 font-medium px-2 py-1 uppercase tracking-wider">
+                        Channels
+                      </div>
+                      {filteredChannels.map((channel) => {
+                        const isSelected = channelId === channel.id;
+
+                        return (
+                          <button
+                            key={channel.id}
+                            type="button"
+                            onClick={() => handleChannelSelect(channel.id)}
+                            className="w-full px-3 py-2 flex items-center gap-3 hover:bg-gray-700/50 rounded transition"
+                          >
+                            <div
+                              className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                                isSelected
+                                  ? "bg-purple-600 border-purple-600"
+                                  : "border-gray-600"
+                              }`}
+                            >
+                              {isSelected && <Check size={12} className="text-white" />}
+                            </div>
+                            <Hash size={16} className="text-blue-400" />
+                            <div className="flex-1 text-left">
+                              <div className="text-sm text-white font-medium">
+                                {channel.name || "Unnamed Channel"}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {channel.type} • {channel.participants.length} members
+                                {channel.isPrivate && " • Private"}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {filteredChannels.length === 0 && !isLoadingConversations && (
+                    <div className="p-4 text-center text-gray-500 text-sm">
+                      No channels found
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </div>
+
       {/* Actions */}
       <div className="flex gap-3 pt-2">
         <button
@@ -399,4 +620,3 @@ export function ReminderForm({
     </motion.form>
   );
 }
-

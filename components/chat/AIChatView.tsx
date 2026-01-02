@@ -278,6 +278,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
               title: reminderData.task,
               description: reminderData.notes,
               dueDate: new Date(reminderData.datetime),
+              priority: "medium",
               assignedTo: assignedTo,
             });
 

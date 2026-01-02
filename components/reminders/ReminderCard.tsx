@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import {
   Check,
@@ -11,8 +11,10 @@ import {
   User,
   Users,
   AlertCircle,
+  Hash,
 } from "lucide-react";
 import type { Reminder } from "@/lib/supabase/reminders";
+import { getConversations, type Conversation } from "@/lib/supabase/messaging";
 
 interface ReminderCardProps {
   reminder: Reminder;
@@ -38,12 +40,36 @@ export function ReminderCard({
   isDeleting,
 }: ReminderCardProps) {
   const [showMenu, setShowMenu] = useState(false);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loadingConversations, setLoadingConversations] = useState(false);
 
   const isCreator = reminder.createdBy === currentUserEmail;
   const displayStatus = isCreator
     ? reminder.status
     : reminder.myStatus || reminder.status;
   const isCompleted = displayStatus === "done";
+
+  // Load conversations if we have a channelId and haven't loaded them yet
+  useEffect(() => {
+    const loadConversations = async () => {
+      if (reminder.channelId && conversations.length === 0 && !loadingConversations) {
+        setLoadingConversations(true);
+        try {
+          const convs = await getConversations();
+          setConversations(convs);
+        } catch (error) {
+          console.error("Error loading conversations for channel indicator:", error);
+        } finally {
+          setLoadingConversations(false);
+        }
+      }
+    };
+
+    loadConversations();
+  }, [reminder.channelId, conversations.length, loadingConversations]);
+
+  // Find the channel this reminder belongs to
+  const channel = conversations.find((conv) => conv.id === reminder.channelId);
 
   // Determine priority based on due date
   const getPriority = (): Priority => {
@@ -184,13 +210,28 @@ export function ReminderCard({
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <h3
-            className={`text-sm font-medium leading-tight ${
-              isCompleted ? "text-gray-500 line-through" : "text-white"
-            }`}
-          >
-            {reminder.title}
-          </h3>
+                  {/* Title with Priority */}
+                  <div className="flex items-start gap-2">
+                    <h3
+                      className={`text-sm font-medium leading-tight flex-1 ${
+                        isCompleted ? "text-gray-500 line-through" : "text-white"
+                      }`}
+                    >
+                      {reminder.title}
+                    </h3>
+                    {/* Priority Badge */}
+                    <div className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                      reminder.priority === "urgent"
+                        ? "bg-red-600 text-white"
+                        : reminder.priority === "high"
+                        ? "bg-orange-600 text-white"
+                        : reminder.priority === "low"
+                        ? "bg-green-600 text-white"
+                        : "bg-gray-500 text-gray-300"
+                    }`}>
+                      {(reminder.priority || "medium").toUpperCase()}
+                    </div>
+                  </div>
 
           {reminder.description && (
             <p
@@ -233,6 +274,14 @@ export function ReminderCard({
             {!isCreator && reminder.createdBy && (
               <div className="flex items-center gap-1 text-xs text-gray-500">
                 <span>by {reminder.createdBy.split("@")[0]}</span>
+              </div>
+            )}
+
+            {/* Channel indicator */}
+            {channel && (
+              <div className="flex items-center gap-1 text-xs text-blue-400">
+                <Hash size={12} />
+                <span>{channel.name || "Channel"}</span>
               </div>
             )}
           </div>

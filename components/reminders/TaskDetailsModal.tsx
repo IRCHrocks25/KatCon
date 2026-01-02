@@ -160,13 +160,28 @@ export function TaskDetailsModal({
                         <Circle size={16} className="text-gray-400" />
                       )}
                     </button>
+                  {/* Title with Priority */}
+                  <div className="flex items-start gap-3 flex-1">
                     <h2
-                      className={`text-xl font-semibold ${
+                      className={`text-xl font-semibold flex-1 ${
                         isCompleted ? "text-gray-500 line-through" : "text-white"
                       }`}
                     >
                       {reminder.title}
                     </h2>
+                    {/* Priority Badge */}
+                    <div className={`px-2 py-1 rounded-lg text-sm font-semibold ${
+                      reminder.priority === "urgent"
+                        ? "bg-red-600 text-white"
+                        : reminder.priority === "high"
+                        ? "bg-orange-600 text-white"
+                        : reminder.priority === "low"
+                        ? "bg-green-600 text-white"
+                        : "bg-gray-600 text-white"
+                    }`}>
+                      {reminder.priority.toUpperCase()}
+                    </div>
+                  </div>
                   </div>
 
                   {/* Status and Creator */}
