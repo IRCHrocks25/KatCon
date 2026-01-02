@@ -12,6 +12,7 @@ import {
   Plus,
   Edit,
   Trash2,
+  Eye,
 } from "lucide-react";
 import type { AccountType, UserRole } from "@/lib/supabase/auth";
 import {
@@ -19,6 +20,7 @@ import {
   setStorageItem,
   removeStorageItem,
 } from "@/lib/utils/storage";
+import { AdminKanbanView } from "./AdminKanbanView";
 
 interface UserProfile {
   id: string;
@@ -79,7 +81,12 @@ export function AdminDashboard() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showKanbanView, setShowKanbanView] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+  const [kanbanViewUser, setKanbanViewUser] = useState<{
+    email: string;
+    name?: string;
+  } | null>(null);
 
   // Form states
   const [createForm, setCreateForm] = useState({
@@ -669,6 +676,19 @@ export function AdminDashboard() {
                       <td className="px-4 py-3">
                         <div className="flex gap-1">
                           <button
+                            onClick={() => {
+                              setKanbanViewUser({
+                                email: user.email,
+                                name: user.fullname,
+                              });
+                              setShowKanbanView(true);
+                            }}
+                            className="px-2 py-1 bg-purple-600 hover:bg-purple-500 text-white text-xs rounded transition"
+                            title="View kanban board"
+                          >
+                            <Eye size={12} />
+                          </button>
+                          <button
                             onClick={() => openEditModal(user)}
                             disabled={actionLoading === user.id}
                             className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded transition disabled:opacity-50"
@@ -954,6 +974,18 @@ export function AdminDashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Admin Kanban View Modal */}
+      {showKanbanView && kanbanViewUser && (
+        <AdminKanbanView
+          userEmail={kanbanViewUser.email}
+          userName={kanbanViewUser.name}
+          onClose={() => {
+            setShowKanbanView(false);
+            setKanbanViewUser(null);
+          }}
+        />
       )}
     </div>
   );
