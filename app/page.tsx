@@ -1,7 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
-import { MessageSquare, Users, LogOut, User, KanbanSquare } from "lucide-react";
+import {
+  MessageSquare,
+  Users,
+  LogOut,
+  User,
+  KanbanSquare,
+  Shield,
+} from "lucide-react";
 import { motion } from "motion/react";
 import { useAuth } from "@/contexts/AuthContext";
 import { LoginForm } from "@/components/auth/LoginForm";
@@ -15,11 +22,12 @@ import {
 import { AIChatView } from "@/components/chat/AIChatView";
 import { ProfileView } from "@/components/profile/ProfileView";
 import { KanbanView } from "@/components/kanban/KanbanView";
+import { AdminDashboard } from "@/components/admin/AdminDashboard";
 
 // Lazy load heavy components
 const MessagesView = lazy(() => import("@/components/messaging/MessagesView"));
 
-type TabType = "chat" | "messages" | "kanban" | "profile";
+type TabType = "chat" | "messages" | "kanban" | "profile" | "admin";
 
 export default function Home() {
   const { user, loading: authLoading, logout } = useAuth();
@@ -28,7 +36,11 @@ export default function Home() {
   // Tab state with session storage persistence
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     const saved = getStorageItem("activeTab");
-    return saved === "chat" || saved === "messages" || saved === "kanban" || saved === "profile"
+    return saved === "chat" ||
+      saved === "messages" ||
+      saved === "kanban" ||
+      saved === "profile" ||
+      saved === "admin"
       ? (saved as TabType)
       : "chat";
   });
@@ -137,6 +149,19 @@ export default function Home() {
               <User size={18} />
               <span className="font-medium">Profile</span>
             </button>
+            {user?.role === "admin" && (
+              <button
+                onClick={() => setActiveTab("admin")}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                  activeTab === "admin"
+                    ? "bg-gradient-to-r from-red-600/20 via-orange-500/20 to-yellow-500/20 text-white border-b-2 border-red-500"
+                    : "text-gray-400 hover:text-white hover:bg-gray-800/50"
+                }`}
+              >
+                <Shield size={18} />
+                <span className="font-medium">Admin</span>
+              </button>
+            )}
           </div>
 
           {/* Right Actions */}
@@ -147,7 +172,7 @@ export default function Home() {
               onOpenTask={(taskId) => {
                 // For now, just switch to kanban tab
                 // In the future, we could open a task details modal
-                setActiveTab('kanban');
+                setActiveTab("kanban");
               }}
             />
 
@@ -172,27 +197,30 @@ export default function Home() {
       {/* Main Content Area */}
       <div className="flex-1 relative overflow-hidden">
         <motion.div
-          key={activeTab}
-          initial={{ opacity: 0, x: activeTab === "chat" ? -20 : activeTab === "messages" ? 20 : 0 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: activeTab === "chat" ? 20 : activeTab === "messages" ? -20 : 0 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
           className="w-full h-full"
         >
-          <Suspense fallback={
-            <div className="w-full h-full flex items-center justify-center">
-              <div className="w-8 h-8 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
-            </div>
-          }>
+          <Suspense
+            fallback={
+              <div className="w-full h-full flex items-center justify-center">
+                <div className="w-8 h-8 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+              </div>
+            }
+          >
             {activeTab === "chat" ? (
               <AIChatView reminders={reminders} setReminders={setReminders} />
             ) : activeTab === "messages" ? (
               <MessagesView reminders={reminders} setReminders={setReminders} />
             ) : activeTab === "kanban" ? (
               <KanbanView reminders={reminders} setReminders={setReminders} />
-            ) : (
+            ) : activeTab === "profile" ? (
               <ProfileView reminders={reminders} setReminders={setReminders} />
-            )}
+            ) : activeTab === "admin" ? (
+              <AdminDashboard />
+            ) : null}
           </Suspense>
         </motion.div>
       </div>

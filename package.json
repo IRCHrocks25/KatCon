@@ -8,7 +8,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:security": "node test-security.js"
+    "test:security": "node test-security.js",
+    "setup-admin": "node scripts/setup-admin.js",
+    "create-admin": "node scripts/create-admin.js"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -50,6 +50,8 @@ export function AuthProvider({
 
   // Track if we're in the middle of checking approval (sign-in or sign-up)
   const isCheckingApprovalRef = React.useRef(false);
+  // Track if we're currently fetching profile to prevent duplicate fetches
+  const profileFetchingRef = React.useRef<string | null>(null);
 
   useEffect(() => {
     // Set up auth state listener - simple, like the working implementation
@@ -70,18 +72,30 @@ export function AuthProvider({
       setSession(session);
 
       if (session?.user) {
-        // Build basic user object - profile will be fetched separately if needed
-        setUser({
-          id: session.user.id,
-          email: session.user.email || "",
-          // Profile data will be lazy-loaded later if needed
-          accountType: undefined,
-          fullname: undefined,
-          username: undefined,
-          avatarUrl: undefined,
+        // Preserve existing profile data if user ID hasn't changed
+        setUser((prev) => {
+          // If same user, preserve profile data to avoid unnecessary refetches
+          if (prev?.id === session.user.id && prev.accountType) {
+            return {
+              ...prev,
+              id: session.user.id,
+              email: session.user.email || prev.email || "",
+              // Keep all existing profile data
+            };
+          }
+          // New user or no profile data - reset (profile will be lazy-loaded)
+          return {
+            id: session.user.id,
+            email: session.user.email || "",
+            accountType: undefined,
+            fullname: undefined,
+            username: undefined,
+            avatarUrl: undefined,
+          };
         });
       } else {
         setUser(null);
+        profileFetchingRef.current = null; // Clear ref on logout
       }
 
       setLoading(false);
@@ -92,6 +106,7 @@ export function AuthProvider({
       setSession(session);
 
       if (session?.user) {
+        // On mount, always start fresh (no profile data yet)
         setUser({
           id: session.user.id,
           email: session.user.email || "",
@@ -102,6 +117,7 @@ export function AuthProvider({
         });
       } else {
         setUser(null);
+        profileFetchingRef.current = null;
       }
 
       setLoading(false);
@@ -112,23 +128,41 @@ export function AuthProvider({
 
   // Lazy-load profile data after session is confirmed (for UI display)
   useEffect(() => {
-    if (user?.id && !user.accountType) {
-      // Only fetch if we don't have profile data yet
-      fetchUserProfile(user.id).then((profile) => {
-        if (profile) {
-          setUser((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  accountType: profile.account_type as AccountType,
-                  fullname: profile.fullname,
-                  username: profile.username,
-                  avatarUrl: profile.avatar_url,
-                }
-              : null
-          );
-        }
-      });
+    // Only fetch if:
+    // 1. We have a user ID
+    // 2. We don't have profile data yet
+    // 3. We're not already fetching for this user ID
+    if (
+      user?.id &&
+      !user.accountType &&
+      profileFetchingRef.current !== user.id
+    ) {
+      profileFetchingRef.current = user.id; // Mark as fetching
+      fetchUserProfile(user.id)
+        .then((profile) => {
+          profileFetchingRef.current = null; // Clear when done
+          if (profile) {
+            setUser((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    accountType: profile.account_type as AccountType,
+                    fullname: profile.fullname,
+                    username: profile.username,
+                    avatarUrl: profile.avatar_url,
+                    role: profile.role,
+                    approved: profile.approved,
+                  }
+                : null
+            );
+          }
+        })
+        .catch(() => {
+          profileFetchingRef.current = null; // Clear on error too
+        });
+    } else if (!user?.id) {
+      // Clear ref when user logs out
+      profileFetchingRef.current = null;
     }
   }, [user?.id, user?.accountType]);
 
@@ -138,20 +172,20 @@ export function AuthProvider({
 
     const updateExpiredStatuses = async () => {
       try {
-        const response = await fetch('/api/user/update-expired-statuses', {
-          method: 'POST',
+        const response = await fetch("/api/user/update-expired-statuses", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
         });
 
         if (response.ok) {
-          console.log('[STATUS] Updated expired user statuses');
+          console.log("[STATUS] Updated expired user statuses");
         } else {
-          console.warn('[STATUS] Failed to update expired statuses');
+          console.warn("[STATUS] Failed to update expired statuses");
         }
       } catch (error) {
-        console.warn('[STATUS] Error updating expired statuses:', error);
+        console.warn("[STATUS] Error updating expired statuses:", error);
       }
     };
 
@@ -224,10 +258,15 @@ export function AuthProvider({
 
         // Set user status to Available when logged in (expires after 24 hours of inactivity)
         try {
-          const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours from now
+          const expiresAt = new Date(
+            Date.now() + 24 * 60 * 60 * 1000
+          ).toISOString(); // 24 hours from now
           await setUserStatus("Available", "🟢", expiresAt);
         } catch (statusError) {
-          console.error("[AUTH] Failed to set available status on login:", statusError);
+          console.error(
+            "[AUTH] Failed to set available status on login:",
+            statusError
+          );
           // Don't fail login for this - it's not critical
         }
       }
@@ -245,7 +284,10 @@ export function AuthProvider({
       try {
         await setUserStatus("Offline", "⚫");
       } catch (statusError) {
-        console.error("[AUTH] Failed to set offline status on logout:", statusError);
+        console.error(
+          "[AUTH] Failed to set offline status on logout:",
+          statusError
+        );
         // Don't fail logout for this - it's not critical
       }
 
@@ -278,6 +320,8 @@ export function AuthProvider({
                 fullname: profile.fullname,
                 username: profile.username,
                 avatarUrl: profile.avatar_url,
+                role: profile.role,
+                approved: profile.approved,
               }
             : null
         );
@@ -298,7 +342,15 @@ export function AuthProvider({
       logout: handleLogout,
       refreshProfile: handleRefreshProfile,
     }),
-    [user, session, loading, handleSignUp, handleSignIn, handleLogout, handleRefreshProfile]
+    [
+      user,
+      session,
+      loading,
+      handleSignUp,
+      handleSignIn,
+      handleLogout,
+      handleRefreshProfile,
+    ]
   );
 
   if (loading) {

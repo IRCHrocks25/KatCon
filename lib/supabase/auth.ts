@@ -14,6 +14,8 @@ export type AccountType =
   | "COPYWRITING"
   | "OTHERS";
 
+export type UserRole = "user" | "admin";
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -21,6 +23,8 @@ export interface AuthUser {
   fullname?: string;
   username?: string;
   avatarUrl?: string;
+  role?: UserRole;
+  approved?: boolean;
 }
 
 interface ProfileData {
@@ -29,6 +33,7 @@ interface ProfileData {
   username?: string;
   avatar_url?: string;
   approved?: boolean;
+  role?: UserRole;
 }
 
 /**
@@ -61,7 +66,7 @@ export async function fetchUserProfile(
 
     const fetchPromise = supabase
       .from("profiles")
-      .select("account_type, fullname, username, avatar_url, approved")
+      .select("account_type, fullname, username, avatar_url, approved, role")
       .eq("id", userId)
       .single();
 
@@ -137,6 +142,8 @@ export function buildAuthUser(
     fullname: profile?.fullname || undefined,
     username: profile?.username || undefined,
     avatarUrl: profile?.avatar_url || undefined,
+    role: profile?.role || "user",
+    approved: profile?.approved || false,
   };
 }
 
