@@ -49,9 +49,14 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
   const [selectedTask, setSelectedTask] = useState<Reminder | null>(null);
   const [showTaskDetailsModal, setShowTaskDetailsModal] = useState(false);
   const [previousUserEmail, setPreviousUserEmail] = useState<string | null>(null);
+  const [lastActivity, setLastActivity] = useState<number>(Date.now());
 
   // Ref for auto-scrolling to bottom
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Helper functions for user-scoped storage
+  const getUserStorageKey = (key: string, userEmail: string) => `${key}_${userEmail}`;
+  const getUserActivityKey = (userEmail: string) => `chatActivity_${userEmail}`;
 
   // Effect 1: Handle user authentication changes (login/logout/different user)
   useEffect(() => {
@@ -62,18 +67,24 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
     if (!currentUserEmail && previousUserEmail) {
       console.log("[AI CHAT] Clearing chat on logout");
       setMessages([]);
-      removeStorageItem("chatMessages");
-      removeStorageItem("chatSessionId");
+      // Clear all user-scoped data
+      removeStorageItem(getUserStorageKey("chatMessages", previousUserEmail));
+      removeStorageItem(getUserStorageKey("chatSessionId", previousUserEmail));
+      removeStorageItem(getUserActivityKey(previousUserEmail));
       setSessionId(null);
+      setLastActivity(Date.now());
     }
 
     // Clear when different user logs in
     if (currentUserEmail && previousUserEmail && currentUserEmail !== previousUserEmail) {
       console.log("[AI CHAT] Clearing chat for different user");
       setMessages([]);
-      removeStorageItem("chatMessages");
-      removeStorageItem("chatSessionId");
+      // Clear previous user's data
+      removeStorageItem(getUserStorageKey("chatMessages", previousUserEmail));
+      removeStorageItem(getUserStorageKey("chatSessionId", previousUserEmail));
+      removeStorageItem(getUserActivityKey(previousUserEmail));
       setSessionId(null);
+      setLastActivity(Date.now());
     }
 
     setPreviousUserEmail(currentUserEmail);
@@ -82,8 +93,24 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
   // Effect 2: Load messages when user is available (first time or after auth)
   useEffect(() => {
     if (user?.email && messages.length === 0) {
-      console.log("[AI CHAT] Loading chat from storage");
-      const savedMessages = getStorageItem("chatMessages");
+      console.log("[AI CHAT] Loading chat from storage for user:", user.email);
+
+      // Check if chat data has expired (8 hours)
+      const activityKey = getUserActivityKey(user.email);
+      const lastActivityStr = getStorageItem(activityKey);
+      const lastActivity = lastActivityStr ? parseInt(lastActivityStr, 10) : 0;
+      const eightHoursAgo = Date.now() - (8 * 60 * 60 * 1000); // 8 hours in milliseconds
+
+      if (lastActivity < eightHoursAgo) {
+        console.log("[AI CHAT] Chat data expired (8+ hours), clearing");
+        removeStorageItem(getUserStorageKey("chatMessages", user.email));
+        removeStorageItem(getUserStorageKey("chatSessionId", user.email));
+        removeStorageItem(activityKey);
+        setLastActivity(Date.now());
+        return;
+      }
+
+      const savedMessages = getStorageItem(getUserStorageKey("chatMessages", user.email));
       if (savedMessages) {
         try {
           const parsedMessages = JSON.parse(savedMessages).map((msg: Omit<Message, 'timestamp'> & { timestamp: string }) => ({
@@ -91,6 +118,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
             timestamp: new Date(msg.timestamp),
           }));
           setMessages(parsedMessages);
+          setLastActivity(Date.now());
         } catch (error) {
           console.error("Error loading saved chat messages:", error);
         }
@@ -101,12 +129,14 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
   // Effect 3: Save messages to localStorage with debouncing
   useEffect(() => {
     if (messages.length > 0 && user?.email) {
-      console.log("[AI CHAT] Saving chat to storage");
+      console.log("[AI CHAT] Saving chat to storage for user:", user.email);
       // Debounce saves to avoid excessive localStorage writes
       const timeoutId = setTimeout(() => {
         // Limit conversation history to last 50 messages to prevent storage bloat
         const messagesToSave = messages.slice(-50);
-        setStorageItem("chatMessages", JSON.stringify(messagesToSave));
+        setStorageItem(getUserStorageKey("chatMessages", user.email), JSON.stringify(messagesToSave));
+        setStorageItem(getUserActivityKey(user.email), Date.now().toString());
+        setLastActivity(Date.now());
       }, 500); // 500ms debounce
 
       return () => clearTimeout(timeoutId);
@@ -128,10 +158,42 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
 
     const newSessionId = crypto.randomUUID();
     setSessionId(newSessionId);
-    setStorageItem("chatSessionId", newSessionId);
+    if (user?.email) {
+      setStorageItem(getUserStorageKey("chatSessionId", user.email), newSessionId);
+    }
 
     return newSessionId;
   };
+
+  // Effect 5: Periodically check for expired chat data (every 30 minutes)
+  useEffect(() => {
+    if (!user?.email) return;
+
+    const checkExpiredData = () => {
+      const activityKey = getUserActivityKey(user.email);
+      const lastActivityStr = getStorageItem(activityKey);
+      const lastActivity = lastActivityStr ? parseInt(lastActivityStr, 10) : 0;
+      const eightHoursAgo = Date.now() - (8 * 60 * 60 * 1000); // 8 hours in milliseconds
+
+      if (lastActivity < eightHoursAgo) {
+        console.log("[AI CHAT] Auto-cleanup: Chat data expired, clearing");
+        setMessages([]);
+        removeStorageItem(getUserStorageKey("chatMessages", user.email));
+        removeStorageItem(getUserStorageKey("chatSessionId", user.email));
+        removeStorageItem(activityKey);
+        setSessionId(null);
+        setLastActivity(Date.now());
+      }
+    };
+
+    // Check immediately
+    checkExpiredData();
+
+    // Then check every 30 minutes
+    const interval = setInterval(checkExpiredData, 30 * 60 * 1000); // 30 minutes
+
+    return () => clearInterval(interval);
+  }, [user?.email]);
 
   const handleSendMessage = async (text: string) => {
     if (!text.trim()) {

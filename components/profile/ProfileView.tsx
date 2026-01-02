@@ -8,7 +8,7 @@ import {
   validateAvatarFile,
 } from "@/lib/supabase/avatar-upload";
 import { toast } from "sonner";
-import { Loader2, Mail, Circle } from "lucide-react";
+import { Loader2, Mail, Circle, Lock } from "lucide-react";
 import type { Reminder } from "@/lib/supabase/reminders";
 import { UserStatusSelector } from "@/components/user/UserStatusSelector";
 import { getUserStatus, type UserStatus } from "@/lib/supabase/messaging";
@@ -19,7 +19,7 @@ interface ProfileViewProps {
 }
 
 export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
-  const { user, refreshProfile } = useAuth();
+  const { user, refreshProfile, logout } = useAuth();
   const [username, setUsername] = useState(user?.username || "");
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -27,6 +27,9 @@ export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isStatusSelectorOpen, setIsStatusSelectorOpen] = useState(false);
   const [userStatus, setUserStatus] = useState<UserStatus | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   // Update local state when user changes
   useEffect(() => {
@@ -172,6 +175,62 @@ export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
   const handleCancelUpload = () => {
     setAvatarPreview(null);
     setSelectedFile(null);
+  };
+
+  const handleChangePassword = async () => {
+    if (!user) return;
+
+    // Client-side validation
+    if (newPassword.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+
+    try {
+      setIsChangingPassword(true);
+
+      // Import supabase client
+      const { supabase } = await import("@/lib/supabase/client");
+
+      // Update password using Supabase Auth
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (error) {
+        console.error("Error updating password:", error);
+        toast.error(
+          error.message || "Failed to update password"
+        );
+        return;
+      }
+
+      // Clear form fields
+      setNewPassword("");
+      setConfirmPassword("");
+
+      toast.success("Password updated successfully", {
+        description: "For security, you will be logged out. Please log in with your new password."
+      });
+
+      // Force logout after successful password change for security
+      setTimeout(() => {
+        logout();
+      }, 2000);
+
+    } catch (error) {
+      console.error("Error changing password:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update password"
+      );
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   const hasChanges = username !== (user?.username || "");
@@ -390,6 +449,62 @@ export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
               <div>
                 <p className="text-white">{user?.email}</p>
                 <p className="text-sm text-gray-400">Email cannot be changed</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Change Password Section */}
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 mb-6">
+            <h3 className="text-xl font-semibold mb-6">Change Password</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  New Password
+                </label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password"
+                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Minimum 6 characters
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Confirm New Password
+                </label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm new password"
+                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              {/* Change Password Button */}
+              <div className="flex justify-end">
+                <button
+                  onClick={handleChangePassword}
+                  disabled={isChangingPassword || !newPassword || !confirmPassword}
+                  className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {isChangingPassword ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    <>
+                      <Lock size={16} />
+                      Change Password
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           </div>

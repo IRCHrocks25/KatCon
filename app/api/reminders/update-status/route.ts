@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { moderateRateLimit } from "@/lib/utils/rate-limit";
 
-export async function POST(request: NextRequest) {
+export const POST = moderateRateLimit(async (request: NextRequest) => {
   try {
     const body = await request.json();
     const { id, status } = body;
@@ -158,5 +159,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
+});

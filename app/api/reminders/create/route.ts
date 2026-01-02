@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateAuth, createAuthenticatedClient } from "@/lib/auth/middleware";
 import { checkUserExists, validateEmailFormat } from "@/lib/supabase/users";
+import { moderateRateLimit } from "@/lib/utils/rate-limit";
 import type { AccountType } from "@/lib/supabase/auth";
 
 // Database reminder format (matches Supabase schema)
@@ -93,7 +94,7 @@ function dbToAppReminder(
   };
 }
 
-export async function POST(request: NextRequest) {
+export const POST = moderateRateLimit(async (request: NextRequest) => {
   try {
     // Validate JWT token and get authenticated user
     const authResult = await validateAuth(request);
@@ -257,4 +258,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

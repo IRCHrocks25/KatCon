@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { fileUploadRateLimit } from "@/lib/utils/rate-limit";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const BUCKET_NAME = "avatars";
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
-export async function POST(request: NextRequest) {
+export const POST = fileUploadRateLimit(async (request: NextRequest) => {
   try {
     const authHeader = request.headers.get("authorization");
     if (!authHeader) {
@@ -144,4 +145,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
