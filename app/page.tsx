@@ -23,6 +23,7 @@ import { AIChatView } from "@/components/chat/AIChatView";
 import { ProfileView } from "@/components/profile/ProfileView";
 import { KanbanView } from "@/components/kanban/KanbanView";
 import { AdminDashboard } from "@/components/admin/AdminDashboard";
+import { RemindersModal } from "@/components/reminders/RemindersModal";
 
 // Lazy load heavy components
 const MessagesView = lazy(() => import("@/components/messaging/MessagesView"));
@@ -32,6 +33,9 @@ type TabType = "chat" | "messages" | "kanban" | "profile" | "admin";
 export default function Home() {
   const { user, loading: authLoading, logout } = useAuth();
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [showRemindersModal, setShowRemindersModal] = useState(false);
+  const [initialEditingReminder, setInitialEditingReminder] = useState<Reminder | null>(null);
+  const [forceShowCreateForm, setForceShowCreateForm] = useState(false);
 
   // Tab state with session storage persistence
   const [activeTab, setActiveTab] = useState<TabType>(() => {
@@ -215,7 +219,15 @@ export default function Home() {
             ) : activeTab === "messages" ? (
               <MessagesView reminders={reminders} setReminders={setReminders} />
             ) : activeTab === "kanban" ? (
-              <KanbanView reminders={reminders} setReminders={setReminders} />
+              <KanbanView
+                reminders={reminders}
+                setReminders={setReminders}
+                onOpenTaskModal={(editingReminder) => {
+                  setInitialEditingReminder(editingReminder || null);
+                  setForceShowCreateForm(!editingReminder); // Force create form if no editing reminder
+                  setShowRemindersModal(true);
+                }}
+              />
             ) : activeTab === "profile" ? (
               <ProfileView reminders={reminders} setReminders={setReminders} />
             ) : activeTab === "admin" ? (
@@ -224,6 +236,21 @@ export default function Home() {
           </Suspense>
         </motion.div>
       </div>
+
+      {/* Reminders Modal */}
+      <RemindersModal
+        isOpen={showRemindersModal}
+        onClose={() => {
+          setShowRemindersModal(false);
+          setInitialEditingReminder(null);
+          setForceShowCreateForm(false);
+        }}
+        reminders={reminders}
+        setReminders={setReminders}
+        initialShowForm={!!initialEditingReminder}
+        initialEditingReminder={initialEditingReminder}
+        forceShowCreateForm={forceShowCreateForm}
+      />
     </div>
   );
 }

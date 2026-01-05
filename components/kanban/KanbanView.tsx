@@ -13,13 +13,14 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
-import { Plus } from "lucide-react";
+import { Plus, Filter, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import type { Reminder } from "@/lib/supabase/reminders";
 import { updateReminderKanban, getReminders } from "@/lib/supabase/reminders";
 import { KanbanColumn } from "@/components/kanban/KanbanColumn";
 import { KanbanCard } from "@/components/kanban/KanbanCard";
 import { TaskDetailsModal } from "@/components/reminders/TaskDetailsModal";
+import { getConversations, type Conversation } from "@/lib/supabase/messaging";
 
 interface KanbanViewProps {
   reminders: Reminder[];
@@ -37,13 +38,22 @@ const KANBAN_COLUMNS: { id: KanbanStatus; title: string; color: string }[] = [
   { id: "done", title: "Done", color: "bg-green-600" },
 ];
 
-export function KanbanView({ reminders, setReminders, channelId, onOpenTaskModal }: KanbanViewProps) {
+export function KanbanView({
+  reminders,
+  setReminders,
+  channelId,
+  onOpenTaskModal,
+}: KanbanViewProps) {
   const { user } = useAuth();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Reminder | null>(null);
   const [showTaskDetailsModal, setShowTaskDetailsModal] = useState(false);
-
+  const [channelFilter, setChannelFilter] = useState<string>("all"); // "all" or channel ID
+  const [availableChannels, setAvailableChannels] = useState<Conversation[]>(
+    []
+  );
+  const [showChannelFilter, setShowChannelFilter] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -52,6 +62,24 @@ export function KanbanView({ reminders, setReminders, channelId, onOpenTaskModal
       },
     })
   );
+
+  // Load channels when component mounts
+  useEffect(() => {
+    const loadChannels = async () => {
+      try {
+        const conversations = await getConversations();
+        // Filter to only show channels (not DMs)
+        const channels = conversations.filter(
+          (conv) => conv.type === "channel"
+        );
+        setAvailableChannels(channels);
+      } catch (error) {
+        console.error("Error loading channels for Kanban:", error);
+      }
+    };
+
+    loadChannels();
+  }, []);
 
   // Load reminders when component mounts if not already loaded
   useEffect(() => {
@@ -72,26 +100,36 @@ export function KanbanView({ reminders, setReminders, channelId, onOpenTaskModal
     loadRemindersIfNeeded();
   }, [reminders.length, user, isLoading, setReminders]);
 
-  // Filter to show tasks where user is creator OR assigned, and optionally by channel
+  // Filter to show tasks where user is creator OR assigned, and by channel filter
   const userTasks = useMemo(() => {
     if (!user?.email) return [];
 
     // Show tasks where the current user is the creator OR explicitly assigned
-    let filteredTasks = reminders.filter((reminder) =>
-      reminder.createdBy.toLowerCase() === user.email?.toLowerCase() ||
-      reminder.assignedTo.some(
-        (assignedEmail) =>
-          assignedEmail.toLowerCase() === user.email?.toLowerCase()
-      )
+    let filteredTasks = reminders.filter(
+      (reminder) =>
+        reminder.createdBy.toLowerCase() === user.email?.toLowerCase() ||
+        reminder.assignedTo.some(
+          (assignedEmail) =>
+            assignedEmail.toLowerCase() === user.email?.toLowerCase()
+        )
     );
 
-    // If channelId is specified, further filter to only show tasks for this channel
+    // Apply channel filter
+    if (channelFilter !== "all") {
+      filteredTasks = filteredTasks.filter(
+        (reminder) => reminder.channelId === channelFilter
+      );
+    }
+
+    // If channelId is specified (when opened from channel kanban), further filter to only show tasks for this channel
     if (channelId) {
-      filteredTasks = filteredTasks.filter((reminder) => reminder.channelId === channelId);
+      filteredTasks = filteredTasks.filter(
+        (reminder) => reminder.channelId === channelId
+      );
     }
 
     return filteredTasks;
-  }, [reminders, user, channelId]);
+  }, [reminders, user, channelId, channelFilter]);
 
   // Group tasks by status and sort by position
   const tasksByStatus = useMemo(() => {
@@ -282,16 +320,95 @@ export function KanbanView({ reminders, setReminders, channelId, onOpenTaskModal
     setShowTaskDetailsModal(false);
   };
 
+  const selectedChannelFilter = availableChannels.find(
+    (c) => c.id === channelFilter
+  );
+
   return (
     <div className="h-full w-full bg-gray-900/50 backdrop-blur-sm p-4">
       <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-white mb-1">Kanban Board</h1>
-          <p className="text-gray-400 text-sm">
-            Click cards to view details • Drag and drop to organize
-          </p>
+        <div className="flex items-center gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-white mb-1">Kanban Board</h1>
+            <p className="text-gray-400 text-sm">
+              Click cards to view details • Drag and drop to organize
+            </p>
+          </div>
+
+          {/* Channel Filter Dropdown - Only show when not in channel context */}
+          {!channelId && (
+            <div className="relative">
+              <button
+                onClick={() => setShowChannelFilter(!showChannelFilter)}
+                className="flex items-center gap-2 px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm hover:bg-gray-700/50 transition"
+              >
+                <Filter size={16} />
+                {channelFilter === "all"
+                  ? "All Tasks"
+                  : selectedChannelFilter?.name || "Channel"}
+                <ChevronDown
+                  size={14}
+                  className={`transition-transform ${
+                    showChannelFilter ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+
+              {showChannelFilter && (
+                <div className="absolute top-full left-0 mt-1 w-64 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50">
+                  <div className="p-2">
+                    {/* All Tasks Option */}
+                    <button
+                      onClick={() => {
+                        setChannelFilter("all");
+                        setShowChannelFilter(false);
+                      }}
+                      className={`w-full px-3 py-2 text-left rounded transition ${
+                        channelFilter === "all"
+                          ? "bg-purple-600/20 text-purple-400"
+                          : "text-gray-300 hover:bg-gray-700/50"
+                      }`}
+                    >
+                      All Tasks
+                    </button>
+
+                    {/* Channel Options */}
+                    {availableChannels.map((channel) => (
+                      <button
+                        key={channel.id}
+                        onClick={() => {
+                          setChannelFilter(channel.id);
+                          setShowChannelFilter(false);
+                        }}
+                        className={`w-full px-3 py-2 text-left rounded transition ${
+                          channelFilter === channel.id
+                            ? "bg-purple-600/20 text-purple-400"
+                            : "text-gray-300 hover:bg-gray-700/50"
+                        }`}
+                      >
+                        {channel.name || "Unnamed Channel"}
+                        {channel.isPrivate && (
+                          <span className="text-xs text-gray-500 ml-2">
+                            (Private)
+                          </span>
+                        )}
+                      </button>
+                    ))}
+
+                    {availableChannels.length === 0 && (
+                      <div className="px-3 py-2 text-gray-500 text-sm">
+                        No channels available
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
-        {channelId && onOpenTaskModal && (
+
+        {/* Add Task Button - Always visible */}
+        {onOpenTaskModal && (
           <button
             onClick={() => onOpenTaskModal()}
             className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition flex items-center gap-2 font-medium"
@@ -308,7 +425,7 @@ export function KanbanView({ reminders, setReminders, channelId, onOpenTaskModal
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex gap-3 h-[calc(100%-6rem)] overflow-x-auto pb-4">
+        <div className="flex gap-2 justify-evenly h-[calc(100%-6rem)] overflow-x-auto pb-4">
           {KANBAN_COLUMNS.map((column) => (
             <KanbanColumn
               key={column.id}
@@ -322,13 +439,13 @@ export function KanbanView({ reminders, setReminders, channelId, onOpenTaskModal
           ))}
         </div>
 
-          <DragOverlay>
-            {activeTask ? (
-              <div className="rotate-3 opacity-90">
-                <KanbanCard task={activeTask} onClick={() => {}} isDragging />
-              </div>
-            ) : null}
-          </DragOverlay>
+        <DragOverlay>
+          {activeTask ? (
+            <div className="rotate-3 opacity-90">
+              <KanbanCard task={activeTask} onClick={() => {}} isDragging />
+            </div>
+          ) : null}
+        </DragOverlay>
       </DndContext>
 
       {/* Task Details Modal */}
