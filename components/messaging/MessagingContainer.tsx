@@ -89,8 +89,12 @@ export function MessagingContainer({
   // Callback for opening task modal from Kanban
   const handleOpenTaskModal = useCallback((editingReminder?: Reminder) => {
     setInitialEditingReminder(editingReminder || null);
+    setForceShowCreateForm(!editingReminder); // Force show create form if no editing reminder
     setShowRemindersModal(true);
   }, []);
+
+  // Force show create form when opening from kanban board
+  const [forceShowCreateForm, setForceShowCreateForm] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [activeSearchResultId, setActiveSearchResultId] = useState<string>("");
@@ -1828,12 +1832,14 @@ export function MessagingContainer({
         onClose={() => {
           setShowRemindersModal(false);
           setInitialEditingReminder(null);
+          setForceShowCreateForm(false);
         }}
         reminders={reminders}
         setReminders={setReminders}
         channelId={activeConversation?.type === "channel" ? (activeConversationId || undefined) : undefined}
         initialShowForm={!!initialEditingReminder}
         initialEditingReminder={initialEditingReminder}
+        forceShowCreateForm={forceShowCreateForm}
       />
 
       {/* Pinned Messages Panel */}

@@ -29,6 +29,7 @@ interface ReminderFormProps {
   }) => Promise<void>;
   onCancel: () => void;
   isSubmitting: boolean;
+  channelId?: string; // Pre-selected channel ID for new tasks
 }
 
 export function ReminderForm({
@@ -36,6 +37,7 @@ export function ReminderForm({
   onSubmit,
   onCancel,
   isSubmitting,
+  channelId: preSelectedChannelId,
 }: ReminderFormProps) {
   const [title, setTitle] = useState(initialData?.title || "");
   const [description, setDescription] = useState(initialData?.description || "");
@@ -63,8 +65,10 @@ export function ReminderForm({
     );
     setAssignedTo(initialData?.assignedTo || []);
     setPriority(initialData?.priority || "medium");
-    setChannelId(initialData?.channelId || "");
-  }, [initialData]);
+    // For editing existing tasks, use the task's channelId
+    // For new tasks, use the pre-selected channelId if provided
+    setChannelId(initialData?.channelId || preSelectedChannelId || "");
+  }, [initialData, preSelectedChannelId]);
 
   const [allUsers, setAllUsers] = useState<UserWithTeam[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
@@ -178,11 +182,13 @@ export function ReminderForm({
     return { display: assignment, isTeam: false };
   };
 
-  // Filter channels based on search
-  const filteredChannels = conversations.filter((channel) =>
-    channel.name?.toLowerCase().includes(channelSearchQuery.toLowerCase()) ||
-    channel.type.toLowerCase().includes(channelSearchQuery.toLowerCase())
-  );
+  // Filter channels based on search (only show channels, not DMs)
+  const filteredChannels = conversations
+    .filter((channel) => channel.type === "channel") // Only show channels, exclude DMs
+    .filter((channel) =>
+      channel.name?.toLowerCase().includes(channelSearchQuery.toLowerCase()) ||
+      channel.type.toLowerCase().includes(channelSearchQuery.toLowerCase())
+    );
 
   const selectedChannel = conversations.find((conv) => conv.id === channelId);
 

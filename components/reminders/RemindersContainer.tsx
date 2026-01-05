@@ -423,6 +423,7 @@ export function RemindersContainer({
           dueDate: newReminder.dueDate
             ? new Date(newReminder.dueDate)
             : undefined,
+          priority: "medium", // Default priority for updates
           assignedTo:
             newReminder.assignedTo.length > 0
               ? newReminder.assignedTo

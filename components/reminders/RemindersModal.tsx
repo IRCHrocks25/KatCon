@@ -35,16 +35,8 @@ interface RemindersModalProps {
   setReminders: React.Dispatch<React.SetStateAction<Reminder[]>>;
   initialShowForm?: boolean;
   initialEditingReminder?: Reminder | null;
+  forceShowCreateForm?: boolean; // Force show create form regardless of other conditions
   channelId?: string; // If provided, tasks will be associated with this channel
-}
-
-type TabType = "my-tasks" | "assigned-by-me" | "completed";
-
-interface GroupedReminders {
-  overdue: Reminder[];
-  today: Reminder[];
-  upcoming: Reminder[];
-  noDate: Reminder[];
 }
 
 export function RemindersModal({
@@ -54,8 +46,18 @@ export function RemindersModal({
   setReminders,
   initialShowForm = false,
   initialEditingReminder = null,
+  forceShowCreateForm = false,
   channelId,
 }: RemindersModalProps) {
+
+type TabType = "my-tasks" | "assigned-by-me" | "completed";
+
+interface GroupedReminders {
+  overdue: Reminder[];
+  today: Reminder[];
+  upcoming: Reminder[];
+  noDate: Reminder[];
+}
   const { user: currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>("my-tasks");
   const [searchQuery, setSearchQuery] = useState("");
@@ -66,17 +68,18 @@ export function RemindersModal({
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // Show form immediately when modal opens with initialShowForm or initialEditingReminder
+  // Show form immediately when modal opens with initialShowForm, initialEditingReminder, or forceShowCreateForm
   useEffect(() => {
     if (isOpen) {
       if (initialEditingReminder) {
         setEditingReminder(initialEditingReminder);
         setShowForm(true);
-      } else if (initialShowForm) {
+      } else if (initialShowForm || forceShowCreateForm) {
+        setEditingReminder(null);
         setShowForm(true);
       }
     }
-  }, [isOpen, initialShowForm, initialEditingReminder]);
+  }, [isOpen, initialShowForm, initialEditingReminder, forceShowCreateForm]);
 
   // Fetch reminders
   const fetchReminders = useCallback(
@@ -564,6 +567,7 @@ export function RemindersModal({
                       onSubmit={handleFormSubmit}
                       onCancel={handleCancelForm}
                       isSubmitting={isSubmitting}
+                      channelId={channelId}
                     />
                   </div>
                 </motion.div>
