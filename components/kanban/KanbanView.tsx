@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useChannels } from "@/contexts/ChannelsContext";
 import {
   DndContext,
   DragEndEvent,
@@ -45,14 +46,12 @@ export function KanbanView({
   onOpenTaskModal,
 }: KanbanViewProps) {
   const { user } = useAuth();
+  const { channels: availableChannels } = useChannels();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Reminder | null>(null);
   const [showTaskDetailsModal, setShowTaskDetailsModal] = useState(false);
   const [channelFilter, setChannelFilter] = useState<string>("all"); // "all" or channel ID
-  const [availableChannels, setAvailableChannels] = useState<Conversation[]>(
-    []
-  );
   const [showChannelFilter, setShowChannelFilter] = useState(false);
 
   const sensors = useSensors(
@@ -63,23 +62,7 @@ export function KanbanView({
     })
   );
 
-  // Load channels when component mounts
-  useEffect(() => {
-    const loadChannels = async () => {
-      try {
-        const conversations = await getConversations();
-        // Filter to only show channels (not DMs)
-        const channels = conversations.filter(
-          (conv) => conv.type === "channel"
-        );
-        setAvailableChannels(channels);
-      } catch (error) {
-        console.error("Error loading channels for Kanban:", error);
-      }
-    };
 
-    loadChannels();
-  }, []);
 
   // Load reminders when component mounts if not already loaded
   useEffect(() => {
@@ -435,6 +418,7 @@ export function KanbanView({
               tasks={tasksByStatus[column.id]}
               onTaskClick={handleTaskClick}
               currentUserEmail={user?.email}
+              availableChannels={availableChannels}
             />
           ))}
         </div>

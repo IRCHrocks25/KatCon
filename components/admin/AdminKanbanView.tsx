@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useChannels } from "@/contexts/ChannelsContext";
 import { toast } from "sonner";
 import type { Reminder } from "@/lib/supabase/reminders";
 import { KanbanColumn } from "@/components/kanban/KanbanColumn";
@@ -26,6 +27,7 @@ interface AdminKanbanViewProps {
 
 export function AdminKanbanView({ userEmail, userName, onClose }: AdminKanbanViewProps) {
   const { session } = useAuth();
+  const { channels: availableChannels } = useChannels();
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Reminder | null>(null);
@@ -178,6 +180,7 @@ export function AdminKanbanView({ userEmail, userName, onClose }: AdminKanbanVie
                   tasks={tasksByStatus[column.id]}
                   onTaskClick={handleTaskClick}
                   currentUserEmail={userEmail || undefined}
+                  availableChannels={availableChannels}
                 />
               ))}
             </div>
@@ -199,4 +202,3 @@ export function AdminKanbanView({ userEmail, userName, onClose }: AdminKanbanVie
     </div>
   );
 }
-

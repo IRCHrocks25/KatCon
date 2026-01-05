@@ -3,6 +3,7 @@
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import type { Reminder } from "@/lib/supabase/reminders";
+import type { Conversation } from "@/lib/supabase/messaging";
 import { KanbanCard } from "@/components/kanban/KanbanCard";
 
 interface KanbanColumnProps {
@@ -12,9 +13,10 @@ interface KanbanColumnProps {
   tasks: Reminder[];
   onTaskClick: (task: Reminder) => void;
   currentUserEmail?: string;
+  availableChannels?: Conversation[];
 }
 
-export function KanbanColumn({ id, title, color, tasks, onTaskClick, currentUserEmail }: KanbanColumnProps) {
+export function KanbanColumn({ id, title, color, tasks, onTaskClick, currentUserEmail, availableChannels }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id,
   });
@@ -49,6 +51,7 @@ export function KanbanColumn({ id, title, color, tasks, onTaskClick, currentUser
                 task={task}
                 onClick={() => onTaskClick(task)}
                 currentUserEmail={currentUserEmail}
+                availableChannels={availableChannels}
               />
             ))}
           </div>

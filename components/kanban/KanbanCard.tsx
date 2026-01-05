@@ -2,18 +2,20 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Calendar, MessageSquare, Clock } from "lucide-react";
+import { Calendar, MessageSquare, Clock, Hash } from "lucide-react";
 import type { Reminder } from "@/lib/supabase/reminders";
 import { isStaleTask } from "@/lib/supabase/reminders";
+import type { Conversation } from "@/lib/supabase/messaging";
 
 interface KanbanCardProps {
   task: Reminder;
   onClick: () => void;
   isDragging?: boolean;
   currentUserEmail?: string;
+  availableChannels?: Conversation[];
 }
 
-export function KanbanCard({ task, onClick, isDragging = false, currentUserEmail }: KanbanCardProps) {
+export function KanbanCard({ task, onClick, isDragging = false, currentUserEmail, availableChannels }: KanbanCardProps) {
   const {
     attributes,
     listeners,
@@ -56,8 +58,11 @@ export function KanbanCard({ task, onClick, isDragging = false, currentUserEmail
 
   // Check if current user is creator but not assigned to this task
   const isCreatorNotAssigned = currentUserEmail &&
-    task.createdBy.toLowerCase() === currentUserEmail.toLowerCase() &&
-    !task.assignedTo.some(email => email.toLowerCase() === currentUserEmail.toLowerCase());
+    task.createdBy?.toLowerCase() === currentUserEmail.toLowerCase() &&
+    !task.assignedTo.some(email => email?.toLowerCase() === currentUserEmail.toLowerCase());
+
+  // Get channel information for this task
+  const taskChannel = availableChannels?.find(channel => channel.id === task.channelId);
 
 
 
@@ -80,22 +85,32 @@ export function KanbanCard({ task, onClick, isDragging = false, currentUserEmail
         </div>
       )}
 
-      {/* Task Title with Priority */}
+      {/* Task Title with Priority and Channel Tag */}
       <div className="flex items-start gap-2 mb-2">
         <h4 className="text-white font-medium text-sm flex-1 line-clamp-2">
           {task.title}
         </h4>
-        {/* Priority Indicator */}
-        <div className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-          task.priority === "urgent"
-            ? "bg-red-600 text-white"
-            : task.priority === "high"
-            ? "bg-orange-600 text-white"
-            : task.priority === "low"
-            ? "bg-green-600 text-white"
-            : "bg-gray-500 text-gray-300"
-        }`}>
-          {task.priority.toUpperCase()}
+        <div className="flex items-center gap-1">
+          {/* Priority Indicator */}
+          <div className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+            task.priority === "urgent"
+              ? "bg-red-600 text-white"
+              : task.priority === "high"
+              ? "bg-orange-600 text-white"
+              : task.priority === "low"
+              ? "bg-green-600 text-white"
+              : "bg-gray-500 text-gray-300"
+          }`}>
+            {task.priority?.toUpperCase() || "MEDIUM"}
+          </div>
+
+          {/* Channel Tag - Only show if task belongs to a channel */}
+          {taskChannel && (
+            <div className="flex items-center gap-1 text-xs font-medium text-purple-300 bg-purple-600/20 px-1.5 py-0.5 rounded border border-purple-600/30">
+              <Hash size={10} />
+              <span>{taskChannel.name || "Channel"}</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -118,7 +133,7 @@ export function KanbanCard({ task, onClick, isDragging = false, currentUserEmail
           )}
 
           {/* Message Origin Indicator */}
-          {task.createdBy !== task.assignedTo[0] && (
+          {task.createdBy && task.createdBy !== task.assignedTo[0] && (
             <div className="flex items-center gap-1 text-xs text-blue-400">
               <MessageSquare size={12} />
               <span>From chat</span>
@@ -129,7 +144,7 @@ export function KanbanCard({ task, onClick, isDragging = false, currentUserEmail
         {/* Assignee Avatar Placeholder */}
         <div className="flex items-center gap-1">
           <div className="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
-            {task.assignedTo[0]?.charAt(0).toUpperCase() || "?"}
+            {task.assignedTo[0]?.charAt(0)?.toUpperCase() || "?"}
           </div>
           {/* Creator but not assigned indicator */}
           {isCreatorNotAssigned && (

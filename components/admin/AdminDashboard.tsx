@@ -13,6 +13,7 @@ import {
   Edit,
   Trash2,
   Eye,
+  Search,
 } from "lucide-react";
 import type { AccountType, UserRole } from "@/lib/supabase/auth";
 import {
@@ -87,6 +88,9 @@ export function AdminDashboard() {
     email: string;
     name?: string;
   } | null>(null);
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Form states
   const [createForm, setCreateForm] = useState({
@@ -254,6 +258,20 @@ export function AdminDashboard() {
 
   const getPendingUsers = () => users.filter((u) => !u.approved);
   const getApprovedUsers = () => users.filter((u) => u.approved);
+
+  // Filter users based on search query
+  const filteredUsers = users.filter((user) => {
+    if (!searchQuery.trim()) return true;
+
+    const query = searchQuery.toLowerCase();
+    return (
+      user.email.toLowerCase().includes(query) ||
+      user.fullname?.toLowerCase().includes(query) ||
+      user.username?.toLowerCase().includes(query) ||
+      user.account_type.toLowerCase().includes(query) ||
+      user.role.toLowerCase().includes(query)
+    );
+  });
 
   // CRUD handlers
   const handleCreateUser = async () => {
@@ -578,7 +596,22 @@ export function AdminDashboard() {
 
         {/* All Users Section */}
         <div>
-          <h2 className="text-lg font-semibold mb-4 text-white">All Users</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-white">All Users</h2>
+
+            {/* Search Input */}
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search users..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent w-64"
+              />
+            </div>
+          </div>
+
           <div className="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -605,7 +638,7 @@ export function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-700">
-                  {users.map((user) => (
+                  {filteredUsers.map((user) => (
                     <tr key={user.id} className="hover:bg-gray-700/50">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">

@@ -17,6 +17,7 @@ import {
   Trash2,
   User,
   Users,
+  Hash,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Reminder } from "@/lib/supabase/reminders";
@@ -26,6 +27,7 @@ import {
   deleteReminder,
 } from "@/lib/supabase/reminders";
 import { useAuth } from "@/contexts/AuthContext";
+import { useChannels } from "@/contexts/ChannelsContext";
 import { supabase } from "@/lib/supabase/client";
 import { TaskDetailsModal } from "./TaskDetailsModal";
 
@@ -55,12 +57,12 @@ export function TasksSummaryWidget({
   onViewTaskDetails,
 }: TasksSummaryWidgetProps) {
   const { user: currentUser } = useAuth();
+  const { channels: availableChannels } = useChannels();
   const [isExpanded, setIsExpanded] = useState(true);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-
 
   // Fetch reminders
   const fetchReminders = useCallback(
@@ -180,7 +182,10 @@ export function TasksSummaryWidget({
   }, [reminders]);
 
   // Handle status update
-  const handleStatusUpdate = async (id: string, newStatus: "backlog" | "in_progress" | "review" | "done" | "hidden") => {
+  const handleStatusUpdate = async (
+    id: string,
+    newStatus: "backlog" | "in_progress" | "review" | "done" | "hidden"
+  ) => {
     setTogglingId(id);
     setMenuOpenId(null);
     try {
@@ -189,7 +194,9 @@ export function TasksSummaryWidget({
         setReminders((prev) =>
           prev.map((r) => (r.id === id ? updatedReminder : r))
         );
-        toast.success(`Task marked as ${getStatusDisplay(newStatus).label.toLowerCase()}`);
+        toast.success(
+          `Task marked as ${getStatusDisplay(newStatus).label.toLowerCase()}`
+        );
       }
     } catch (error) {
       console.error("Error updating task:", error);
@@ -223,7 +230,7 @@ export function TasksSummaryWidget({
 
   // Handle view details
   const handleViewDetails = (reminder: Reminder) => {
-    console.log('Task card clicked:', reminder.id);
+    console.log("Task card clicked:", reminder.id);
     onViewTaskDetails?.(reminder);
   };
 
@@ -316,7 +323,12 @@ export function TasksSummaryWidget({
       hidden: { label: "Hidden", color: "bg-red-500" },
     };
 
-    return statusMap[status as keyof typeof statusMap] || { label: status, color: "bg-gray-500" };
+    return (
+      statusMap[status as keyof typeof statusMap] || {
+        label: status,
+        color: "bg-gray-500",
+      }
+    );
   };
 
   // Collapsed state
@@ -424,28 +436,34 @@ export function TasksSummaryWidget({
                 >
                   <div className="p-4 flex gap-3">
                     {/* Status Indicator */}
-                    <div className={`mt-0.5 w-3 h-3 rounded-full flex-shrink-0 ${getStatusDisplay(reminder.status).color}`} />
+                    <div
+                      className={`mt-0.5 w-3 h-3 rounded-full flex-shrink-0 ${
+                        getStatusDisplay(reminder.status).color
+                      }`}
+                    />
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
-                  {/* Title with Priority */}
-                  <div className="flex items-start gap-2">
-                    <h3 className="text-sm font-medium leading-tight text-white flex-1">
-                      {reminder.title}
-                    </h3>
-                    {/* Priority Badge */}
-                    <div className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                      reminder.priority === "urgent"
-                        ? "bg-red-600 text-white"
-                        : reminder.priority === "high"
-                        ? "bg-orange-600 text-white"
-                        : reminder.priority === "low"
-                        ? "bg-green-600 text-white"
-                        : "bg-gray-500 text-gray-300"
-                    }`}>
-                      {reminder.priority.toUpperCase()}
-                    </div>
-                  </div>
+                      {/* Title with Priority */}
+                      <div className="flex items-start gap-2">
+                        <h3 className="text-sm font-medium leading-tight text-white flex-1">
+                          {reminder.title}
+                        </h3>
+                        {/* Priority Badge */}
+                        <div
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                            reminder.priority === "urgent"
+                              ? "bg-red-600 text-white"
+                              : reminder.priority === "high"
+                              ? "bg-orange-600 text-white"
+                              : reminder.priority === "low"
+                              ? "bg-green-600 text-white"
+                              : "bg-gray-500 text-gray-300"
+                          }`}
+                        >
+                          {reminder.priority.toUpperCase()}
+                        </div>
+                      </div>
 
                       {reminder.description && (
                         <p className="text-xs mt-1 line-clamp-2 text-gray-400">
@@ -456,7 +474,11 @@ export function TasksSummaryWidget({
                       {/* Meta info */}
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2">
                         {/* Status Badge */}
-                        <div className={`px-2 py-1 rounded text-xs font-medium text-white ${getStatusDisplay(reminder.status).color}`}>
+                        <div
+                          className={`px-2 py-1 rounded text-xs font-medium text-white ${
+                            getStatusDisplay(reminder.status).color
+                          }`}
+                        >
                           {getStatusDisplay(reminder.status).label}
                         </div>
 
@@ -552,11 +574,18 @@ export function TasksSummaryWidget({
                             <div className="absolute right-0 top-8 z-[101] bg-gray-800 border border-gray-700 rounded-lg shadow-2xl py-1 min-w-[160px]">
                               {/* Status Updates */}
                               <div className="px-3 py-2 border-b border-gray-700">
-                                <p className="text-xs text-gray-500 font-medium mb-2">Update Status</p>
+                                <p className="text-xs text-gray-500 font-medium mb-2">
+                                  Update Status
+                                </p>
                                 <div className="space-y-1">
                                   {reminder.status !== "backlog" && (
                                     <button
-                                      onClick={() => handleStatusUpdate(reminder.id, "backlog")}
+                                      onClick={() =>
+                                        handleStatusUpdate(
+                                          reminder.id,
+                                          "backlog"
+                                        )
+                                      }
                                       disabled={isToggling}
                                       className="w-full px-2 py-1 text-left text-xs text-gray-300 hover:bg-gray-700 rounded flex items-center gap-2"
                                     >
@@ -566,7 +595,12 @@ export function TasksSummaryWidget({
                                   )}
                                   {reminder.status !== "in_progress" && (
                                     <button
-                                      onClick={() => handleStatusUpdate(reminder.id, "in_progress")}
+                                      onClick={() =>
+                                        handleStatusUpdate(
+                                          reminder.id,
+                                          "in_progress"
+                                        )
+                                      }
                                       disabled={isToggling}
                                       className="w-full px-2 py-1 text-left text-xs text-gray-300 hover:bg-gray-700 rounded flex items-center gap-2"
                                     >
@@ -576,7 +610,12 @@ export function TasksSummaryWidget({
                                   )}
                                   {reminder.status !== "review" && (
                                     <button
-                                      onClick={() => handleStatusUpdate(reminder.id, "review")}
+                                      onClick={() =>
+                                        handleStatusUpdate(
+                                          reminder.id,
+                                          "review"
+                                        )
+                                      }
                                       disabled={isToggling}
                                       className="w-full px-2 py-1 text-left text-xs text-gray-300 hover:bg-gray-700 rounded flex items-center gap-2"
                                     >
@@ -586,7 +625,9 @@ export function TasksSummaryWidget({
                                   )}
                                   {reminder.status !== "done" && (
                                     <button
-                                      onClick={() => handleStatusUpdate(reminder.id, "done")}
+                                      onClick={() =>
+                                        handleStatusUpdate(reminder.id, "done")
+                                      }
                                       disabled={isToggling}
                                       className="w-full px-2 py-1 text-left text-xs text-gray-300 hover:bg-gray-700 rounded flex items-center gap-2"
                                     >
@@ -598,6 +639,16 @@ export function TasksSummaryWidget({
                               </div>
 
                               {/* Actions */}
+                              <button
+                                onClick={() => {
+                                  setMenuOpenId(null);
+                                  onViewTaskDetails?.(reminder);
+                                }}
+                                className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2"
+                              >
+                                <ExternalLink size={14} />
+                                View Details
+                              </button>
                               <button
                                 onClick={() => {
                                   setMenuOpenId(null);
@@ -655,7 +706,6 @@ export function TasksSummaryWidget({
           Add Task
         </button>
       </div>
-
     </motion.div>
   );
 }

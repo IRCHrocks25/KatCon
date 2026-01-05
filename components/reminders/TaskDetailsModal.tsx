@@ -12,9 +12,11 @@ import {
   Circle,
   Edit,
   Trash2,
+  Hash,
 } from "lucide-react";
 import type { Reminder } from "@/lib/supabase/reminders";
 import { useAuth } from "@/contexts/AuthContext";
+import { useChannels } from "@/contexts/ChannelsContext";
 
 interface TaskDetailsModalProps {
   reminder: Reminder | null;
@@ -38,8 +40,12 @@ export function TaskDetailsModal({
   isDeleting = false,
 }: TaskDetailsModalProps) {
   const { user } = useAuth();
+  const { channels: availableChannels } = useChannels();
 
   if (!reminder) return null;
+
+  // Get channel information for this task
+  const taskChannel = availableChannels?.find(channel => channel.id === reminder.channelId);
 
   const isCreator = reminder.createdBy === user?.email;
   const displayStatus = isCreator
@@ -160,7 +166,7 @@ export function TaskDetailsModal({
                         <Circle size={16} className="text-gray-400" />
                       )}
                     </button>
-                  {/* Title with Priority */}
+                  {/* Title with Priority and Channel Tag */}
                   <div className="flex items-start gap-3 flex-1">
                     <h2
                       className={`text-xl font-semibold flex-1 ${
@@ -169,17 +175,27 @@ export function TaskDetailsModal({
                     >
                       {reminder.title}
                     </h2>
-                    {/* Priority Badge */}
-                    <div className={`px-2 py-1 rounded-lg text-sm font-semibold ${
-                      reminder.priority === "urgent"
-                        ? "bg-red-600 text-white"
-                        : reminder.priority === "high"
-                        ? "bg-orange-600 text-white"
-                        : reminder.priority === "low"
-                        ? "bg-green-600 text-white"
-                        : "bg-gray-600 text-white"
-                    }`}>
-                      {reminder.priority.toUpperCase()}
+                    <div className="flex items-center gap-2">
+                      {/* Priority Badge */}
+                      <div className={`px-2 py-1 rounded-lg text-sm font-semibold ${
+                        reminder.priority === "urgent"
+                          ? "bg-red-600 text-white"
+                          : reminder.priority === "high"
+                          ? "bg-orange-600 text-white"
+                          : reminder.priority === "low"
+                          ? "bg-green-600 text-white"
+                          : "bg-gray-600 text-white"
+                      }`}>
+                        {reminder.priority?.toUpperCase() || "MEDIUM"}
+                      </div>
+
+                      {/* Channel Tag - Only show if task belongs to a channel */}
+                      {taskChannel && (
+                        <div className="flex items-center gap-1.5 text-sm font-medium text-purple-300 bg-purple-600/20 px-2.5 py-1 rounded-md border border-purple-600/30">
+                          <Hash size={14} />
+                          <span>{taskChannel.name || "Channel"}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                   </div>
