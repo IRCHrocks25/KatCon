@@ -225,6 +225,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
             message: text.trim(),
             timestamp: newMessage.timestamp.toISOString(),
             sessionId: currentSessionId,
+            userId: user?.id || null,
             userEmail: user?.email || null,
             userRole: user?.role || "user",
           }),
