@@ -243,6 +243,8 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
           datetime: string;
           assignees?: string[];
           notes?: string;
+          channelId?: string;
+          priority?: string;
         } | null = null;
 
         if (data.task && data.datetime) {
@@ -251,6 +253,8 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
             datetime: data.datetime,
             assignees: data.assignees,
             notes: data.notes,
+            channelId: data.channelId || data.channel_id,
+            priority: data.priority,
           };
         } else if (
           data.output &&
@@ -263,6 +267,8 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
             datetime: data.output.datetime,
             assignees: data.output.assignees,
             notes: data.output.notes,
+            channelId: data.output.channelId || data.output.channel_id,
+            priority: data.output.priority,
           };
         }
 
@@ -276,12 +282,19 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
 
             const assignedTo = assignees.length > 0 ? assignees : undefined;
 
+            // Validate priority from webhook response
+            const validPriorities = ["low", "medium", "high", "urgent"] as const;
+            const priority = validPriorities.includes(reminderData.priority as any)
+              ? reminderData.priority as "low" | "medium" | "high" | "urgent"
+              : "medium";
+
             const reminder = await createReminder({
               title: reminderData.task,
               description: reminderData.notes,
               dueDate: new Date(reminderData.datetime),
-              priority: "medium",
+              priority: priority,
               assignedTo: assignedTo,
+              channelId: reminderData.channelId,
             });
 
             setReminders((prev) => {
