@@ -119,27 +119,27 @@ export function AdminKanbanView({ userEmail, userName, onClose }: AdminKanbanVie
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-gray-900 rounded-lg border border-gray-700 w-full max-w-[95vw] h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
+      <div className="bg-gray-900 rounded-lg border border-gray-700 w-full max-w-[95vw] h-[95vh] sm:h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-700">
-          <div className="flex items-center gap-3">
-            <Eye className="text-purple-400" size={20} />
-            <div>
-              <h2 className="text-lg font-bold text-white">
+        <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-700">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+            <Eye className="text-purple-400 flex-shrink-0" size={18} />
+            <div className="min-w-0 flex-1">
+              <h2 className="text-base sm:text-lg font-bold text-white truncate">
                 {userName ? `${userName}'s Kanban Board` : "Team Kanban Board"}
               </h2>
-              <p className="text-sm text-gray-400">
+              <p className="text-xs sm:text-sm text-gray-400 truncate">
                 {userEmail || "All Users"} • View Only
               </p>
             </div>
-            <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 text-xs rounded border border-yellow-500/30">
+            <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 text-xs rounded border border-yellow-500/30 flex-shrink-0">
               Read Only
             </span>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-800 rounded-lg transition"
+            className="p-2 hover:bg-gray-800 rounded-lg transition flex-shrink-0 ml-2"
             aria-label="Close"
           >
             <X size={20} className="text-gray-400" />

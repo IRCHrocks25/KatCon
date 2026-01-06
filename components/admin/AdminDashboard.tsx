@@ -482,16 +482,17 @@ export function AdminDashboard() {
     <div className="h-full bg-black text-white overflow-auto">
       {/* Header */}
       <div className="border-b border-gray-800 bg-gray-950/95 backdrop-blur-sm">
-        <div className="flex items-center justify-between px-6 py-4">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4">
           <div>
-            <h1 className="text-xl font-bold text-white">Admin Dashboard</h1>
-            <p className="text-sm text-gray-400">
+            <h1 className="text-lg sm:text-xl font-bold text-white">Admin Dashboard</h1>
+            <p className="text-xs sm:text-sm text-gray-400">
               Manage users and system settings
             </p>
           </div>
+          {/* Create User button only on desktop */}
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition cursor-pointer"
+            className="hidden sm:flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition cursor-pointer"
           >
             <Plus size={16} />
             Create User
@@ -500,8 +501,8 @@ export function AdminDashboard() {
       </div>
 
       {/* Stats Cards */}
-      <div className="p-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="p-4 sm:p-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 sm:mb-6">
           <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
             <div className="flex items-center gap-3">
               <Users className="text-blue-400" size={24} />
@@ -596,23 +597,33 @@ export function AdminDashboard() {
 
         {/* All Users Section */}
         <div>
-          <div className="flex items-center justify-between mb-4">
+          {/* Mobile Create User Button */}
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition cursor-pointer w-full mb-4 sm:hidden"
+          >
+            <Plus size={16} />
+            Create User
+          </button>
+
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
             <h2 className="text-lg font-semibold text-white">All Users</h2>
 
             {/* Search Input */}
-            <div className="relative">
+            <div className="relative w-full sm:w-auto">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
                 placeholder="Search users..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent w-64"
+                className="pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent w-full sm:w-64"
               />
             </div>
           </div>
 
-          <div className="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden">
+          {/* Desktop Table View */}
+          <div className="hidden md:block bg-gray-800 border border-gray-700 rounded-lg overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-900">
@@ -776,6 +787,140 @@ export function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-3">
+            {filteredUsers.map((user) => (
+              <div key={user.id} className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center text-white font-bold flex-shrink-0">
+                      {(user.fullname || user.email).charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-white truncate">
+                        {user.fullname || "No name"}
+                      </p>
+                      <p className="text-sm text-gray-400 truncate">
+                        {user.email}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Joined {new Date(user.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                  <span
+                    className={`inline-flex px-2 py-1 text-xs font-medium rounded-full flex-shrink-0 ml-2 ${
+                      user.approved
+                        ? "bg-green-900/50 text-green-400"
+                        : "bg-yellow-900/50 text-yellow-400"
+                    }`}
+                  >
+                    {user.approved ? "Approved" : "Pending"}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Role</label>
+                    <select
+                      value={user.role}
+                      onChange={(e) =>
+                        handleUserAction(user.id, "update_role", {
+                          role: e.target.value,
+                        })
+                      }
+                      disabled={actionLoading === user.id}
+                      className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-purple-500"
+                    >
+                      <option value="user">User</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Type</label>
+                    <select
+                      value={user.account_type}
+                      onChange={(e) =>
+                        handleUserAction(user.id, "update_account_type", {
+                          accountType: e.target.value,
+                        })
+                      }
+                      disabled={actionLoading === user.id}
+                      className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-purple-500"
+                    >
+                      <option value="CRM">CRM</option>
+                      <option value="DEV">DEV</option>
+                      <option value="PM">PM</option>
+                      <option value="AI">AI</option>
+                      <option value="DESIGN">DESIGN</option>
+                      <option value="COPYWRITING">COPYWRITING</option>
+                      <option value="OTHERS">OTHERS</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-1">
+                  <button
+                    onClick={() => {
+                      setKanbanViewUser({
+                        email: user.email,
+                        name: user.fullname,
+                      });
+                      setShowKanbanView(true);
+                    }}
+                    className="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white text-xs rounded transition"
+                  >
+                    <Eye size={12} className="inline mr-1" />
+                    Kanban
+                  </button>
+                  <button
+                    onClick={() => openEditModal(user)}
+                    disabled={actionLoading === user.id}
+                    className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded transition disabled:opacity-50"
+                  >
+                    <Edit size={12} className="inline mr-1" />
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => openDeleteModal(user)}
+                    disabled={actionLoading === user.id}
+                    className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-xs rounded transition disabled:opacity-50"
+                  >
+                    <Trash2 size={12} className="inline mr-1" />
+                    Delete
+                  </button>
+                  {!user.approved && (
+                    <>
+                      <button
+                        onClick={() =>
+                          handleUserAction(user.id, "approve")
+                        }
+                        disabled={actionLoading === user.id}
+                        className="px-3 py-1 bg-green-600 hover:bg-green-500 text-white text-xs rounded transition disabled:opacity-50"
+                      >
+                        {actionLoading === user.id ? (
+                          <Loader2 size={12} className="animate-spin mr-1" />
+                        ) : (
+                          "✓"
+                        )}
+                        Approve
+                      </button>
+                      <button
+                        onClick={() =>
+                          handleUserAction(user.id, "reject")
+                        }
+                        disabled={actionLoading === user.id}
+                        className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-xs rounded transition disabled:opacity-50"
+                      >
+                        ✗ Reject
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
