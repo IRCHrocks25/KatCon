@@ -63,6 +63,7 @@ export function TasksSummaryWidget({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Fetch reminders
   const fetchReminders = useCallback(
@@ -70,6 +71,8 @@ export function TasksSummaryWidget({
       try {
         if (isRefresh) {
           setIsRefreshing(true);
+        } else {
+          setIsLoading(true);
         }
         const fetchedReminders = await getReminders();
         setReminders(fetchedReminders);
@@ -80,6 +83,7 @@ export function TasksSummaryWidget({
         console.error("Error fetching reminders:", error);
       } finally {
         setIsRefreshing(false);
+        setIsLoading(false);
       }
     },
     [setReminders]
@@ -405,7 +409,47 @@ export function TasksSummaryWidget({
 
       {/* Task List */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3">
-        {visibleTasks.length === 0 ? (
+        {isLoading ? (
+          // Loading skeleton
+          <div className="space-y-3">
+            {[...Array(3)].map((_, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.1 }}
+                className="relative bg-gray-800/60 rounded-lg border-l-4 border-l-gray-600 p-4 flex gap-3"
+              >
+                {/* Status Indicator Skeleton */}
+                <div className="mt-0.5 w-3 h-3 rounded-full bg-gray-600 animate-pulse flex-shrink-0" />
+
+                {/* Content Skeleton */}
+                <div className="flex-1 min-w-0 space-y-2">
+                  {/* Title Skeleton */}
+                  <div className="flex items-start gap-2">
+                    <div className="h-4 bg-gray-600 rounded animate-pulse flex-1 max-w-[200px]" />
+                    <div className="h-4 bg-gray-600 rounded animate-pulse w-12" />
+                  </div>
+
+                  {/* Description Skeleton */}
+                  <div className="space-y-1">
+                    <div className="h-3 bg-gray-700 rounded animate-pulse w-full max-w-[250px]" />
+                    <div className="h-3 bg-gray-700 rounded animate-pulse w-3/4 max-w-[180px]" />
+                  </div>
+
+                  {/* Meta info Skeleton */}
+                  <div className="flex items-center gap-3">
+                    <div className="h-5 bg-gray-600 rounded animate-pulse w-16" />
+                    <div className="h-3 bg-gray-700 rounded animate-pulse w-20" />
+                  </div>
+                </div>
+
+                {/* Menu Button Skeleton */}
+                <div className="w-6 h-6 bg-gray-700 rounded animate-pulse flex-shrink-0" />
+              </motion.div>
+            ))}
+          </div>
+        ) : visibleTasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-500 py-8">
             <ListTodo size={40} className="mb-3 opacity-40" />
             <p className="text-base">No pending tasks</p>
