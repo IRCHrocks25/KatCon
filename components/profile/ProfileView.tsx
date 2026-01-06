@@ -249,20 +249,20 @@ export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
     <div className="h-full w-full bg-black text-white flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex-shrink-0 border-b border-gray-800 bg-gray-950/95 backdrop-blur-sm">
-        <div className="flex items-center justify-between px-6 py-4">
+        <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4">
           {/* Left: Welcome Message */}
           <div>
-            <h1 className="text-xl font-bold text-white">
+            <h1 className="text-lg md:text-xl font-bold text-white">
               Welcome, {displayName}
             </h1>
-            <p className="text-sm text-gray-400">{currentDate}</p>
+            <p className="text-xs md:text-sm text-gray-400">{currentDate}</p>
           </div>
         </div>
       </div>
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto bg-gray-900">
-        <div className="max-w-6xl mx-auto p-6">
+        <div className="max-w-6xl mx-auto p-4 md:p-6">
           {/* Top Banner */}
           <div className="h-32 bg-gradient-to-r from-purple-600/20 via-pink-500/20 to-orange-500/20 rounded-t-lg mb-6"></div>
 
@@ -379,10 +379,10 @@ export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
           </div>
 
           {/* Profile Details Form */}
-          <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 mb-6">
-            <h3 className="text-xl font-semibold mb-6">Profile Details</h3>
-            <div className="grid grid-cols-2 gap-6">
-              {/* Left Column */}
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 md:p-6 mb-6">
+            <h3 className="text-lg md:text-xl font-semibold mb-4 md:mb-6">Profile Details</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+              {/* Full Name Field */}
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -392,7 +392,7 @@ export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
                     type="text"
                     value={user?.fullname || ""}
                     disabled
-                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-gray-400 cursor-not-allowed"
+                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 md:px-4 py-2 text-gray-400 cursor-not-allowed text-sm md:text-base"
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     Full name cannot be changed
@@ -400,7 +400,7 @@ export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
                 </div>
               </div>
 
-              {/* Right Column */}
+              {/* Username Field */}
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -412,7 +412,7 @@ export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="Enter username"
                     maxLength={30}
-                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 md:px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm md:text-base"
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     3-30 characters. Letters, numbers, underscores, and hyphens
@@ -423,11 +423,11 @@ export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
             </div>
 
             {/* Edit Button Below Fields */}
-            <div className="flex justify-end mt-6">
+            <div className="flex justify-end mt-4 md:mt-6">
               <button
                 onClick={handleSaveProfile}
                 disabled={!hasChanges || isSaving}
-                className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white font-medium rounded-lg transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-4 md:px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white font-medium rounded-lg transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm md:text-base"
               >
                 {isSaving ? (
                   <>
@@ -442,20 +442,20 @@ export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
           </div>
 
           {/* Email Address Section */}
-          <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 mb-6">
-            <h3 className="text-xl font-semibold mb-4">My Email Address</h3>
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 md:p-6 mb-6">
+            <h3 className="text-lg md:text-xl font-semibold mb-3 md:mb-4">My Email Address</h3>
             <div className="flex items-center gap-3">
-              <Mail size={18} className="text-purple-400" />
+              <Mail size={16} className="md:w-5 md:h-5 text-purple-400" />
               <div>
-                <p className="text-white">{user?.email}</p>
-                <p className="text-sm text-gray-400">Email cannot be changed</p>
+                <p className="text-white text-sm md:text-base">{user?.email}</p>
+                <p className="text-xs md:text-sm text-gray-400">Email cannot be changed</p>
               </div>
             </div>
           </div>
 
           {/* Change Password Section */}
-          <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 mb-6">
-            <h3 className="text-xl font-semibold mb-6">Change Password</h3>
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 md:p-6 mb-6">
+            <h3 className="text-lg md:text-xl font-semibold mb-4 md:mb-6">Change Password</h3>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -466,7 +466,7 @@ export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Enter new password"
-                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 md:px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm md:text-base"
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Minimum 6 characters
@@ -482,7 +482,7 @@ export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Confirm new password"
-                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 md:px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 text-sm md:text-base"
                 />
               </div>
 
@@ -491,7 +491,7 @@ export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
                 <button
                   onClick={handleChangePassword}
                   disabled={isChangingPassword || !newPassword || !confirmPassword}
-                  className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white font-medium rounded-lg transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-4 md:px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white font-medium rounded-lg transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm md:text-base"
                 >
                   {isChangingPassword ? (
                     <>
@@ -500,7 +500,7 @@ export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
                     </>
                   ) : (
                     <>
-                      <Lock size={16} />
+                      <Lock size={14} className="md:w-4 md:h-4" />
                       Change Password
                     </>
                   )}

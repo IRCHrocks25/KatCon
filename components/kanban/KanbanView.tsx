@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useChannels } from "@/contexts/ChannelsContext";
 import {
@@ -54,6 +54,9 @@ export function KanbanView({
   const [channelFilter, setChannelFilter] = useState<string>("all"); // "all" or channel ID
   const [showChannelFilter, setShowChannelFilter] = useState(false);
 
+  // Ref to track if we've already loaded reminders for this component instance
+  const hasLoadedRemindersRef = useRef(false);
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -67,13 +70,18 @@ export function KanbanView({
   // Load reminders when component mounts if not already loaded
   useEffect(() => {
     const loadRemindersIfNeeded = async () => {
-      if (reminders.length === 0 && user && !isLoading) {
+      // Only load if we haven't loaded before and conditions are met
+      if (!hasLoadedRemindersRef.current && reminders.length === 0 && user && !isLoading) {
         try {
+          console.log("[KANBAN] Loading reminders...");
           setIsLoading(true);
+          hasLoadedRemindersRef.current = true; // Mark as loaded immediately
           const fetchedReminders = await getReminders();
           setReminders(fetchedReminders);
+          console.log("[KANBAN] Reminders loaded successfully");
         } catch (error) {
           console.error("Error loading reminders for Kanban:", error);
+          hasLoadedRemindersRef.current = false; // Reset on error so we can retry
         } finally {
           setIsLoading(false);
         }
@@ -81,7 +89,7 @@ export function KanbanView({
     };
 
     loadRemindersIfNeeded();
-  }, [reminders.length, user, isLoading, setReminders]);
+  }, [user, setReminders]); // Simplified dependencies - only user and setReminders
 
   // Filter to show tasks where user is creator OR assigned, and by channel filter
   const userTasks = useMemo(() => {
@@ -308,27 +316,114 @@ export function KanbanView({
   );
 
   return (
-    <div className="h-full w-full bg-gray-900/50 backdrop-blur-sm p-4">
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
+    <div className="h-full w-full bg-gray-900/50 backdrop-blur-sm p-3 md:p-4">
+      <div className="mb-3 md:mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4">
+        <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
           <div>
-            <h1 className="text-xl font-bold text-white mb-1">Kanban Board</h1>
-            <p className="text-gray-400 text-sm">
+            <h1 className="text-lg md:text-xl font-bold text-white mb-1">Kanban Board</h1>
+            <p className="text-gray-400 text-xs md:text-sm">
               Click cards to view details • Drag and drop to organize
             </p>
           </div>
 
-          {/* Channel Filter Dropdown - Only show when not in channel context */}
+          {/* Mobile: Filter and Add Button in same row - Only when not in channel context */}
           {!channelId && (
-            <div className="relative">
+            <div className="flex md:hidden items-center justify-between w-full">
+              {/* Channel Filter Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowChannelFilter(!showChannelFilter)}
+                  className="flex items-center gap-2 px-2 py-1.5 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-xs hover:bg-gray-700/50 transition cursor-pointer"
+                >
+                  <Filter size={14} />
+                  <span>
+                    {channelFilter === "all" ? "All" : "Channel"}
+                  </span>
+                  <ChevronDown
+                    size={12}
+                    className={`transition-transform ${
+                      showChannelFilter ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+
+                {showChannelFilter && (
+                  <div className="absolute top-full left-0 mt-1 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50">
+                    <div className="p-1">
+                      {/* All Tasks Option */}
+                      <button
+                        onClick={() => {
+                          setChannelFilter("all");
+                          setShowChannelFilter(false);
+                        }}
+                        className={`w-full px-2 py-1.5 text-left rounded transition cursor-pointer text-xs ${
+                          channelFilter === "all"
+                            ? "bg-purple-600/20 text-purple-400"
+                            : "text-gray-300 hover:bg-gray-700/50"
+                        }`}
+                      >
+                        All Tasks
+                      </button>
+
+                      {/* Channel Options */}
+                      {availableChannels.map((channel) => (
+                        <button
+                          key={channel.id}
+                          onClick={() => {
+                            setChannelFilter(channel.id);
+                            setShowChannelFilter(false);
+                          }}
+                          className={`w-full px-2 py-1.5 text-left rounded transition cursor-pointer text-xs ${
+                            channelFilter === channel.id
+                              ? "bg-purple-600/20 text-purple-400"
+                              : "text-gray-300 hover:bg-gray-700/50"
+                          }`}
+                        >
+                          <span className="truncate">{channel.name || "Unnamed Channel"}</span>
+                          {channel.isPrivate && (
+                            <span className="text-[10px] text-gray-500 ml-1">
+                              (Private)
+                            </span>
+                          )}
+                        </button>
+                      ))}
+
+                      {availableChannels.length === 0 && (
+                        <div className="px-2 py-1.5 text-gray-500 text-xs">
+                          No channels available
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Add Task Button - Always visible on mobile */}
+              {onOpenTaskModal && (
+                <button
+                  onClick={() => onOpenTaskModal()}
+                  className="px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5 font-medium text-sm"
+                >
+                  <Plus size={16} />
+                  <span>Add</span>
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Desktop: Channel Filter Dropdown - Only show when not in channel context */}
+          {!channelId && (
+            <div className="hidden md:block relative">
               <button
                 onClick={() => setShowChannelFilter(!showChannelFilter)}
                 className="flex items-center gap-2 px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm hover:bg-gray-700/50 transition cursor-pointer"
               >
                 <Filter size={16} />
-                {channelFilter === "all"
-                  ? "All Tasks"
-                  : selectedChannelFilter?.name || "Channel"}
+                <span>
+                  {channelFilter === "all"
+                    ? "All Tasks"
+                    : selectedChannelFilter?.name || "Channel"}
+                </span>
                 <ChevronDown
                   size={14}
                   className={`transition-transform ${
@@ -346,7 +441,7 @@ export function KanbanView({
                         setChannelFilter("all");
                         setShowChannelFilter(false);
                       }}
-                      className={`w-full px-3 py-2 text-left rounded transition cursor-pointer ${
+                      className={`w-full px-3 py-2 text-left rounded transition cursor-pointer text-sm ${
                         channelFilter === "all"
                           ? "bg-purple-600/20 text-purple-400"
                           : "text-gray-300 hover:bg-gray-700/50"
@@ -363,13 +458,13 @@ export function KanbanView({
                           setChannelFilter(channel.id);
                           setShowChannelFilter(false);
                         }}
-                        className={`w-full px-3 py-2 text-left rounded transition cursor-pointer ${
+                        className={`w-full px-3 py-2 text-left rounded transition cursor-pointer text-sm ${
                           channelFilter === channel.id
                             ? "bg-purple-600/20 text-purple-400"
                             : "text-gray-300 hover:bg-gray-700/50"
                         }`}
                       >
-                        {channel.name || "Unnamed Channel"}
+                        <span className="truncate">{channel.name || "Unnamed Channel"}</span>
                         {channel.isPrivate && (
                           <span className="text-xs text-gray-500 ml-2">
                             (Private)
@@ -390,15 +485,18 @@ export function KanbanView({
           )}
         </div>
 
-        {/* Add Task Button - Always visible */}
+        {/* Add Task Button - Right side for both desktop and channel mobile views */}
         {onOpenTaskModal && (
-          <button
-            onClick={() => onOpenTaskModal()}
-            className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition cursor-pointer flex items-center gap-2 font-medium"
-          >
-            <Plus size={18} />
-            Add Task
-          </button>
+          <div className={`${channelId ? 'block' : 'hidden md:block'}`}>
+            <button
+              onClick={() => onOpenTaskModal()}
+              className="px-3 md:px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5 md:gap-2 font-medium text-sm md:text-base"
+            >
+              <Plus size={16} className="md:w-[18px] md:h-[18px]" />
+              <span className="hidden sm:inline md:inline">Add Task</span>
+              <span className="sm:hidden md:hidden">Add</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -408,7 +506,7 @@ export function KanbanView({
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex gap-2 justify-evenly h-[calc(100%-6rem)] overflow-x-auto pb-4">
+        <div className="flex gap-2 md:gap-3 justify-start md:justify-evenly h-[calc(100%-6rem)] overflow-x-auto pb-4 md:pb-4 px-1 md:px-0">
           {KANBAN_COLUMNS.map((column) => (
             <KanbanColumn
               key={column.id}

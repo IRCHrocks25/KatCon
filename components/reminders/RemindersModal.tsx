@@ -427,54 +427,54 @@ interface GroupedReminders {
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.95, opacity: 0 }}
           transition={{ type: "spring", damping: 25, stiffness: 300 }}
-          className="w-full max-w-3xl h-[85vh] bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+          className="w-full max-w-sm sm:max-w-md md:max-w-2xl lg:max-w-3xl xl:max-w-4xl h-[90vh] sm:h-[85vh] bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex-shrink-0 p-5 border-b border-gray-800 flex items-center justify-between bg-gray-900/80">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-purple-600/20 rounded-xl flex items-center justify-center">
-                <ListTodo size={22} className="text-purple-400" />
+          <div className="flex-shrink-0 p-3 sm:p-5 border-b border-gray-800 flex items-center justify-between bg-gray-900/80">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-purple-600/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                <ListTodo size={18} className="sm:w-[22px] sm:h-[22px] text-purple-400" />
               </div>
-              <div>
-                <h2 className="text-lg font-semibold text-white">My Tasks</h2>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-base sm:text-lg font-semibold text-white truncate">My Tasks</h2>
                 <p className="text-xs text-gray-500">
                   {tabCounts.myTasks + tabCounts.assignedByMe} active tasks
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
               <button
                 onClick={() => fetchReminders(true)}
                 disabled={isRefreshing}
-                className="p-2.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-xl transition cursor-pointer disabled:opacity-50"
+                className="p-2 sm:p-2.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-xl transition cursor-pointer disabled:opacity-50"
                 title="Refresh tasks"
               >
                 <RefreshCw
-                  size={18}
+                  size={16}
                   className={isRefreshing ? "animate-spin" : ""}
                 />
               </button>
               <button
                 onClick={onClose}
-                className="p-2.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-xl transition cursor-pointer"
+                className="p-2 sm:p-2.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-xl transition cursor-pointer"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
           </div>
 
           {/* Controls Bar */}
-          <div className="flex-shrink-0 p-4 border-b border-gray-800 space-y-4 bg-gray-900/50">
+          <div className="flex-shrink-0 p-3 sm:p-4 border-b border-gray-800 space-y-3 sm:space-y-4 bg-gray-900/50">
             {/* New Task Button + Search */}
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={() => {
                   setEditingReminder(null);
                   setShowForm(!showForm);
                 }}
-                className={`px-4 py-2.5 rounded-xl font-medium transition cursor-pointer flex items-center gap-2 ${
+                className={`px-3 sm:px-4 py-2.5 rounded-xl font-medium transition cursor-pointer flex items-center justify-center gap-2 ${
                   showForm
                     ? "bg-gray-700 text-gray-300"
                     : "bg-purple-600 hover:bg-purple-500 text-white"
@@ -487,23 +487,23 @@ interface GroupedReminders {
               <div className="flex-1 relative">
                 <Search
                   size={18}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"
+                  className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-gray-500"
                 />
                 <input
                   type="text"
                   placeholder="Search tasks..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-11 pr-4 py-2.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 text-sm"
+                  className="w-full pl-10 sm:pl-11 pr-4 py-2.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 text-sm"
                 />
               </div>
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => setActiveTab("my-tasks")}
-                className={`px-4 py-2 rounded-xl text-sm font-medium transition cursor-pointer ${
+                className={`px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition cursor-pointer flex-shrink-0 ${
                   activeTab === "my-tasks"
                     ? "bg-purple-600/20 text-purple-400 ring-1 ring-purple-500/30"
                     : "bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-gray-300"
@@ -519,7 +519,7 @@ interface GroupedReminders {
 
               <button
                 onClick={() => setActiveTab("assigned-by-me")}
-                className={`px-4 py-2 rounded-xl text-sm font-medium transition cursor-pointer ${
+                className={`px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition cursor-pointer flex-shrink-0 ${
                   activeTab === "assigned-by-me"
                     ? "bg-purple-600/20 text-purple-400 ring-1 ring-purple-500/30"
                     : "bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-gray-300"
@@ -535,7 +535,7 @@ interface GroupedReminders {
 
               <button
                 onClick={() => setActiveTab("completed")}
-                className={`px-4 py-2 rounded-xl text-sm font-medium transition cursor-pointer ${
+                className={`px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition cursor-pointer flex-shrink-0 ${
                   activeTab === "completed"
                     ? "bg-purple-600/20 text-purple-400 ring-1 ring-purple-500/30"
                     : "bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-gray-300"

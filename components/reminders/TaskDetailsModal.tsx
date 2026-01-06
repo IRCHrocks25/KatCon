@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   X,
@@ -17,6 +18,7 @@ import {
 import type { Reminder } from "@/lib/supabase/reminders";
 import { useAuth } from "@/contexts/AuthContext";
 import { useChannels } from "@/contexts/ChannelsContext";
+import { TaskDeleteConfirmationModal } from "@/components/ui/TaskDeleteConfirmationModal";
 
 interface TaskDetailsModalProps {
   reminder: Reminder | null;
@@ -41,6 +43,7 @@ export function TaskDetailsModal({
 }: TaskDetailsModalProps) {
   const { user } = useAuth();
   const { channels: availableChannels } = useChannels();
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
 
   if (!reminder) return null;
 
@@ -142,11 +145,11 @@ export function TaskDetailsModal({
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="fixed inset-4 md:inset-8 lg:inset-16 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col max-w-2xl mx-auto"
+            className="fixed inset-2 sm:inset-4 md:inset-8 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col max-w-4xl mx-auto"
           >
             {/* Header */}
             <div className={`border-l-4 ${getPriorityColor()} bg-gray-800/50`}>
-              <div className="p-6 flex items-start justify-between">
+              <div className="p-4 sm:p-6 flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
                     <button
@@ -166,38 +169,38 @@ export function TaskDetailsModal({
                         <Circle size={16} className="text-gray-400" />
                       )}
                     </button>
-                  {/* Title with Priority and Channel Tag */}
-                  <div className="flex items-start gap-3 flex-1">
-                    <h2
-                      className={`text-xl font-semibold flex-1 ${
-                        isCompleted ? "text-gray-500 line-through" : "text-white"
-                      }`}
-                    >
-                      {reminder.title}
-                    </h2>
-                    <div className="flex items-center gap-2">
-                      {/* Priority Badge */}
-                      <div className={`px-2 py-1 rounded-lg text-sm font-semibold ${
-                        reminder.priority === "urgent"
-                          ? "bg-red-600 text-white"
-                          : reminder.priority === "high"
-                          ? "bg-orange-600 text-white"
-                          : reminder.priority === "low"
-                          ? "bg-green-600 text-white"
-                          : "bg-gray-600 text-white"
-                      }`}>
-                        {reminder.priority?.toUpperCase() || "MEDIUM"}
-                      </div>
-
-                      {/* Channel Tag - Only show if task belongs to a channel */}
-                      {taskChannel && (
-                        <div className="flex items-center gap-1.5 text-sm font-medium text-purple-300 bg-purple-600/20 px-2.5 py-1 rounded-md border border-purple-600/30">
-                          <Hash size={14} />
-                          <span>{taskChannel.name || "Channel"}</span>
+                    {/* Title with Priority and Channel Tag */}
+                    <div className="flex items-start gap-3 flex-1">
+                      <h2
+                        className={`text-lg sm:text-xl font-semibold flex-1 ${
+                          isCompleted ? "text-gray-500 line-through" : "text-white"
+                        }`}
+                      >
+                        {reminder.title}
+                      </h2>
+                      <div className="flex items-center gap-2">
+                        {/* Priority Badge */}
+                        <div className={`px-2 py-1 rounded-lg text-sm font-semibold ${
+                          reminder.priority === "urgent"
+                            ? "bg-red-600 text-white"
+                            : reminder.priority === "high"
+                            ? "bg-orange-600 text-white"
+                            : reminder.priority === "low"
+                            ? "bg-green-600 text-white"
+                            : "bg-gray-600 text-white"
+                        }`}>
+                          {reminder.priority?.toUpperCase() || "MEDIUM"}
                         </div>
-                      )}
+
+                        {/* Channel Tag - Only show if task belongs to a channel */}
+                        {taskChannel && (
+                          <div className="flex items-center gap-1.5 text-sm font-medium text-purple-300 bg-purple-600/20 px-2.5 py-1 rounded-md border border-purple-600/30">
+                            <Hash size={14} />
+                            <span>{taskChannel.name || "Channel"}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
                   </div>
 
                   {/* Status and Creator */}
@@ -223,15 +226,15 @@ export function TaskDetailsModal({
                     <>
                       <button
                         onClick={() => onEdit?.(reminder)}
-                        className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition"
+                        className="hidden sm:block p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition"
                         title="Edit task"
                       >
                         <Edit size={18} />
                       </button>
                       <button
-                        onClick={() => onDelete?.(reminder.id)}
+                        onClick={() => setShowDeleteConfirmation(true)}
                         disabled={isDeleting}
-                        className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-800 rounded-lg transition disabled:opacity-50"
+                        className="hidden sm:block p-2 text-gray-400 hover:text-red-400 hover:bg-gray-800 rounded-lg transition disabled:opacity-50"
                         title="Delete task"
                       >
                         {isDeleting ? (
@@ -253,12 +256,12 @@ export function TaskDetailsModal({
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-2 sm:pb-6 space-y-4 sm:space-y-6">
               {/* Description */}
               {reminder.description && (
                 <div>
-                  <h3 className="text-sm font-medium text-gray-300 mb-2">Description</h3>
-                  <div className="bg-gray-800/50 rounded-lg p-4">
+                  <h3 className="text-sm sm:text-base font-medium text-gray-300 mb-2">Description</h3>
+                  <div className="bg-gray-800/50 rounded-lg p-3 sm:p-4">
                     <p className={`text-sm leading-relaxed ${isCompleted ? "text-gray-500 line-through" : "text-gray-200"}`}>
                       {reminder.description}
                     </p>
@@ -269,7 +272,7 @@ export function TaskDetailsModal({
               {/* Due Date */}
               {reminder.dueDate && (
                 <div>
-                  <h3 className="text-sm font-medium text-gray-300 mb-2">Due Date</h3>
+                  <h3 className="text-sm sm:text-base font-medium text-gray-300 mb-2">Due Date</h3>
                   <div className="flex items-center gap-2 text-sm">
                     <Clock size={16} className="text-gray-400" />
                     <span className={isCompleted ? "text-gray-500" : "text-white"}>
@@ -282,7 +285,7 @@ export function TaskDetailsModal({
               {/* Assignees */}
               {reminder.assignedTo && reminder.assignedTo.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-medium text-gray-300 mb-3">Assigned To</h3>
+                  <h3 className="text-sm sm:text-base font-medium text-gray-300 mb-3">Assigned To</h3>
                   <div className="space-y-2">
                     {reminder.assignedTo.map((assignment) => {
                       const { display, isTeam, isCurrentUser } = getAssignmentDisplay(assignment);
@@ -333,6 +336,18 @@ export function TaskDetailsModal({
               </div>
             </div>
           </motion.div>
+
+          {/* Delete Confirmation Modal */}
+          <TaskDeleteConfirmationModal
+            isOpen={showDeleteConfirmation}
+            onClose={() => setShowDeleteConfirmation(false)}
+            onConfirm={() => {
+              setShowDeleteConfirmation(false);
+              onDelete?.(reminder.id);
+            }}
+            taskTitle={reminder.title}
+            isDeleting={isDeleting}
+          />
         </>
       )}
     </AnimatePresence>

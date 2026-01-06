@@ -458,17 +458,17 @@ export function MessageInput({
         </div>
       )}
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 md:gap-3">
         {/* File picker button */}
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={isLoading || selectedFiles.length >= MAX_FILES}
-          className="h-[48px] w-[48px] flex items-center justify-center bg-gray-800/80 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 border border-gray-700 relative"
+          className="h-10 w-10 md:h-[48px] md:w-[48px] flex items-center justify-center bg-gray-800/80 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 border border-gray-700 relative"
           title={selectedFiles.length >= MAX_FILES ? `Maximum ${MAX_FILES} files reached` : "Attach files"}
         >
-          <Paperclip size={22} />
+          <Paperclip size={18} className="md:w-6 md:h-6" />
           {selectedFiles.length > 0 && (
-            <span className="absolute -top-1 -right-1 w-5 h-5 bg-purple-600 rounded-full text-white text-xs flex items-center justify-center">
+            <span className="absolute -top-1 -right-1 w-4 h-4 md:w-5 md:h-5 bg-purple-600 rounded-full text-white text-[10px] md:text-xs flex items-center justify-center">
               {selectedFiles.length}
             </span>
           )}
@@ -478,12 +478,12 @@ export function MessageInput({
         <button
           onClick={() => setShowEmojiPicker(!showEmojiPicker)}
           disabled={isLoading}
-          className={`h-[48px] w-[48px] flex items-center justify-center bg-gray-800/80 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 border border-gray-700 ${
+          className={`h-10 w-10 md:h-[48px] md:w-[48px] flex items-center justify-center bg-gray-800/80 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 border border-gray-700 ${
             showEmojiPicker ? "bg-purple-600/20 text-purple-400 border-purple-500" : ""
           }`}
           title="Add emoji"
         >
-          <Smile size={22} />
+          <Smile size={18} className="md:w-6 md:h-6" />
         </button>
 
         <textarea
@@ -492,7 +492,7 @@ export function MessageInput({
           onChange={(e) => setContent(e.target.value)}
           onKeyDown={handleKeyPress}
           placeholder={selectedFiles.length > 0 ? "Add a message (optional)..." : "Type a message..."}
-          className="flex-1 bg-gray-800/80 border-2 border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 resize-none focus:outline-none focus:border-purple-500 focus:bg-gray-800 h-[48px] max-h-32 overflow-y-auto transition-all [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-gray-500/50 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-button]:hidden [&::-webkit-scrollbar-corner]:hidden"
+          className="flex-1 bg-gray-800/80 border-2 border-gray-600 rounded-lg px-3 md:px-4 py-2.5 md:py-3 text-sm md:text-base text-white placeholder-gray-400 resize-none focus:outline-none focus:border-purple-500 focus:bg-gray-800 h-10 md:h-[48px] max-h-32 overflow-y-auto transition-all [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:bg-gray-500/50 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-button]:hidden [&::-webkit-scrollbar-corner]:hidden"
           style={{
             scrollbarWidth: "thin",
             scrollbarColor: "rgba(107, 114, 128, 0.3) transparent",
@@ -502,12 +502,12 @@ export function MessageInput({
         <button
           onClick={handleSend}
           disabled={!canSend || isLoading}
-          className="h-[48px] w-[48px] flex items-center justify-center bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 shadow-lg hover:shadow-purple-500/50"
+          className="h-10 w-10 md:h-[48px] md:w-[48px] flex items-center justify-center bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 shadow-lg hover:shadow-purple-500/50"
         >
           {isLoading ? (
-            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            <div className="w-3 h-3 md:w-5 md:h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
           ) : (
-            <Send size={22} />
+            <Send size={18} className="md:w-6 md:h-6" />
           )}
         </button>
       </div>

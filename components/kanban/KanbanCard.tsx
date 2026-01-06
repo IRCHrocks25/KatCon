@@ -72,27 +72,27 @@ export function KanbanCard({ task, onClick, isDragging = false, currentUserEmail
       style={style}
       {...attributes}
       {...listeners}
-      className={`bg-gray-700/50 border border-gray-600 rounded-lg p-4 cursor-pointer hover:bg-gray-600/50 hover:border-gray-500 transition-all relative ${
+      className={`bg-gray-700/50 border border-gray-600 rounded-lg p-3 md:p-4 cursor-pointer hover:bg-gray-600/50 hover:border-gray-500 transition-all relative ${
         isDragging || isSortableDragging ? "opacity-50 shadow-lg rotate-2" : ""
       }`}
       onClick={onClick}
     >
       {/* Stale Badge */}
       {isStale && (
-        <div className="absolute -top-1 -right-1 bg-amber-600/80 text-white text-[10px] px-1.5 py-0.5 rounded-full font-medium flex items-center gap-1">
-          <Clock size={8} />
-          Stale
+        <div className="absolute -top-1 -right-1 bg-amber-600/80 text-white text-[9px] md:text-[10px] px-1 md:px-1.5 py-0.5 rounded-full font-medium flex items-center gap-1">
+          <Clock size={7} className="md:w-2 md:h-2" />
+          <span className="hidden sm:inline">Stale</span>
         </div>
       )}
 
       {/* Task Title with Priority and Channel Tag */}
-      <div className="flex items-start gap-2 mb-2">
-        <h4 className="text-white font-medium text-sm flex-1 line-clamp-2">
+      <div className="flex items-start gap-1.5 md:gap-2 mb-2">
+        <h4 className="text-white font-medium text-xs md:text-sm flex-1 line-clamp-2">
           {task.title}
         </h4>
         <div className="flex items-center gap-1">
           {/* Priority Indicator */}
-          <div className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+          <div className={`px-1 md:px-1.5 py-0.5 rounded text-[9px] md:text-[10px] font-semibold ${
             task.priority === "urgent"
               ? "bg-red-600 text-white"
               : task.priority === "high"
@@ -106,9 +106,9 @@ export function KanbanCard({ task, onClick, isDragging = false, currentUserEmail
 
           {/* Channel Tag - Only show if task belongs to a channel */}
           {taskChannel && (
-            <div className="flex items-center gap-1 text-xs font-medium text-purple-300 bg-purple-600/20 px-1.5 py-0.5 rounded border border-purple-600/30">
-              <Hash size={10} />
-              <span>{taskChannel.name || "Channel"}</span>
+            <div className="flex items-center gap-1 text-[10px] md:text-xs font-medium text-purple-300 bg-purple-600/20 px-1 md:px-1.5 py-0.5 rounded border border-purple-600/30">
+              <Hash size={8} className="md:w-2.5 md:h-2.5" />
+              <span className="hidden sm:inline">{taskChannel.name || "Channel"}</span>
             </div>
           )}
         </div>
@@ -116,39 +116,39 @@ export function KanbanCard({ task, onClick, isDragging = false, currentUserEmail
 
       {/* Task Description Preview */}
       {task.description && (
-        <p className="text-gray-400 text-xs mb-3 line-clamp-2">
+        <p className="text-gray-400 text-[10px] md:text-xs mb-2 md:mb-3 line-clamp-2">
           {task.description}
         </p>
       )}
 
       {/* Task Metadata */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 md:gap-2">
           {/* Due Date */}
           {dueDateInfo && (
-            <div className={`flex items-center gap-1 text-xs ${dueDateInfo.color}`}>
-              <Calendar size={12} />
+            <div className={`flex items-center gap-1 text-[10px] md:text-xs ${dueDateInfo.color}`}>
+              <Calendar size={10} className="md:w-3 md:h-3" />
               <span>{dueDateInfo.text}</span>
             </div>
           )}
 
           {/* Message Origin Indicator */}
           {task.createdBy && task.createdBy !== task.assignedTo[0] && (
-            <div className="flex items-center gap-1 text-xs text-blue-400">
-              <MessageSquare size={12} />
-              <span>From chat</span>
+            <div className="flex items-center gap-1 text-[10px] md:text-xs text-blue-400">
+              <MessageSquare size={10} className="md:w-3 md:h-3" />
+              <span className="hidden sm:inline">From chat</span>
             </div>
           )}
         </div>
 
         {/* Assignee Avatar Placeholder */}
         <div className="flex items-center gap-1">
-          <div className="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
+          <div className="w-5 h-5 md:w-6 md:h-6 bg-purple-600 rounded-full flex items-center justify-center text-white text-[10px] md:text-xs font-semibold">
             {task.assignedTo[0]?.charAt(0)?.toUpperCase() || "?"}
           </div>
           {/* Creator but not assigned indicator */}
           {isCreatorNotAssigned && (
-            <div className="text-xs text-amber-400 font-medium" title="You created this task but it's assigned to someone else">
+            <div className="text-[10px] md:text-xs text-amber-400 font-medium" title="You created this task but it's assigned to someone else">
               →
             </div>
           )}

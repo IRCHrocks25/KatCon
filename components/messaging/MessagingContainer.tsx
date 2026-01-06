@@ -12,6 +12,7 @@ import {
   Pin,
   KanbanSquare,
   X,
+  MoreVertical,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -108,6 +109,7 @@ export function MessagingContainer({
   const [isPinnedMessagesOpen, setIsPinnedMessagesOpen] = useState(false);
   const [pinnedMessageIds, setPinnedMessageIds] = useState<string[]>([]);
   const [isKanbanModalOpen, setIsKanbanModalOpen] = useState(false);
+  const [showActionMenu, setShowActionMenu] = useState(false);
 
   // Refresh pinned message IDs
   const refreshPinnedMessageIds = useCallback(async (conversationId: string) => {
@@ -1597,136 +1599,138 @@ export function MessagingContainer({
   );
 
   return (
-    <div className="h-full w-full flex bg-black">
-      {/* Sidebar */}
-      <div className="relative z-0 w-80 border-r border-gray-800 flex flex-col bg-gray-900/50">
-        {/* Header */}
-        <div className="p-4 border-b border-gray-800 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <MessageSquare size={24} />
-            Messages
-          </h2>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleManualRefresh}
-              disabled={isRefreshing}
-              className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Refresh messages"
-            >
-              <RefreshCw
-                size={20}
-                className={isRefreshing ? "animate-spin" : ""}
-              />
-              <span className="text-sm hidden sm:inline">Refresh</span>
-            </button>
-            <button
-              onClick={() => setShowCreateChannel(true)}
-              className="p-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition cursor-pointer flex items-center justify-center"
-              title="New conversation"
-            >
-              <Plus size={20} />
-            </button>
+    <div className="h-full w-full bg-black relative">
+      {/* Desktop Layout */}
+      <div className="hidden lg:flex h-full">
+        {/* Desktop Sidebar */}
+        <div className="relative z-0 w-80 border-r border-gray-800 flex flex-col bg-gray-900/50">
+          {/* Header */}
+          <div className="p-4 border-b border-gray-800 flex items-center justify-between">
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <MessageSquare size={24} />
+              Messages
+            </h2>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleManualRefresh}
+                disabled={isRefreshing}
+                className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Refresh messages"
+              >
+                <RefreshCw
+                  size={20}
+                  className={isRefreshing ? "animate-spin" : ""}
+                />
+                <span className="text-sm hidden sm:inline">Refresh</span>
+              </button>
+              <button
+                onClick={() => setShowCreateChannel(true)}
+                className="p-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition cursor-pointer flex items-center justify-center"
+                title="New conversation"
+              >
+                <Plus size={20} />
+              </button>
+            </div>
           </div>
+
+          {/* Conversation List */}
+          {isLoadingConversations ? (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="w-6 h-6 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+            </div>
+          ) : (
+            <ConversationList
+              conversations={conversations}
+              activeConversationId={activeConversationId}
+              onSelectConversation={handleSelectConversation}
+              onOpenChannelSettings={(conversationId) =>
+                setShowChannelSettingsForId(conversationId)
+              }
+            />
+          )}
         </div>
 
-        {/* Conversation List */}
-        {isLoadingConversations ? (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="w-6 h-6 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
-          </div>
-        ) : (
-          <ConversationList
-            conversations={conversations}
-            activeConversationId={activeConversationId}
-            onSelectConversation={handleSelectConversation}
-            onOpenChannelSettings={(conversationId) =>
-              setShowChannelSettingsForId(conversationId)
-            }
-          />
-        )}
-      </div>
-
-      {/* Main Chat Area */}
+        {/* Desktop Main Chat Area */}
       <div className="flex-1 flex flex-col min-h-0">
         {activeConversation ? (
           <>
             {/* Chat Header */}
             <div className="flex-shrink-0 border-b border-gray-800 bg-gray-900">
               <div className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {/* Avatar for DM or Icon for Channel */}
-                {activeConversation.type === "channel" ? (
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center">
-                    <Hash size={20} className="text-white" />
-                  </div>
-                ) : (
-                  (() => {
-                    const other = getOtherParticipant(activeConversation);
-                    return (
-                      <Avatar
-                        src={other?.avatarUrl || null}
-                        name={other?.username || other?.fullname || undefined}
-                        email={other?.email || undefined}
-                        size="lg"
-                      />
-                    );
-                  })()
-                )}
-                <div>
-                  <h3 className="text-white font-semibold text-lg">
-                    {getConversationDisplayName(activeConversation)}
-                  </h3>
-                  {activeConversation.type === "dm" ? (
-                    <p className="text-xs text-gray-400">
-                      {getOtherParticipant(activeConversation)?.email || ""}
-                    </p>
+                <div className="flex items-center gap-3">
+                  {/* Avatar for DM or Icon for Channel */}
+                  {activeConversation.type === "channel" ? (
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center">
+                      <Hash size={20} className="text-white" />
+                    </div>
                   ) : (
-                    activeConversation.description && (
+                    (() => {
+                      const other = getOtherParticipant(activeConversation);
+                      return (
+                        <Avatar
+                          src={other?.avatarUrl || null}
+                          name={other?.username || other?.fullname || undefined}
+                          email={other?.email || undefined}
+                          size="lg"
+                        />
+                      );
+                    })()
+                  )}
+                  <div>
+                    <h3 className="text-white font-semibold text-lg">
+                      {getConversationDisplayName(activeConversation)}
+                    </h3>
+                    {activeConversation.type === "dm" ? (
                       <p className="text-xs text-gray-400">
-                        {activeConversation.description}
+                        {getOtherParticipant(activeConversation)?.email || ""}
                       </p>
-                    )
+                    ) : (
+                      activeConversation.description && (
+                        <p className="text-xs text-gray-400">
+                          {activeConversation.description}
+                        </p>
+                      )
+                    )}
+                  </div>
+                </div>
+                {/* Header Buttons */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsSearchOpen(true)}
+                    className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2"
+                    title="Search messages (Ctrl+F)"
+                  >
+                    <Search size={20} />
+                    <span className="text-sm hidden sm:inline">Search</span>
+                  </button>
+                  <button
+                    onClick={() => setIsPinnedMessagesOpen(true)}
+                    className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2"
+                    title="Pinned messages"
+                  >
+                    <Pin size={20} />
+                    <span className="text-sm hidden sm:inline">Pinned</span>
+                  </button>
+                  <button
+                    onClick={() => setShowFilesModal(true)}
+                    className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2"
+                    title="View shared files"
+                  >
+                    <FolderOpen size={20} />
+                    <span className="text-sm hidden sm:inline">Files</span>
+                  </button>
+
+                  {activeConversation?.type === "channel" && (
+                    <button
+                      onClick={() => setIsKanbanModalOpen(true)}
+                      className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2"
+                      title="Open Kanban board"
+                    >
+                      <KanbanSquare size={20} />
+                      <span className="text-sm hidden sm:inline">Kanban</span>
+                    </button>
                   )}
                 </div>
-              </div>
-              {/* Header Buttons */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setIsSearchOpen(true)}
-                  className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2"
-                  title="Search messages (Ctrl+F)"
-                >
-                  <Search size={20} />
-                  <span className="text-sm hidden sm:inline">Search</span>
-                </button>
-                <button
-                  onClick={() => setIsPinnedMessagesOpen(true)}
-                  className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2"
-                  title="Pinned messages"
-                >
-                  <Pin size={20} />
-                  <span className="text-sm hidden sm:inline">Pinned</span>
-                </button>
-                <button
-                  onClick={() => setShowFilesModal(true)}
-                  className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2"
-                  title="View shared files"
-                >
-                  <FolderOpen size={20} />
-                  <span className="text-sm hidden sm:inline">Files</span>
-                </button>
-
-                {activeConversation?.type === "channel" && (
-                  <button
-                    onClick={() => setIsKanbanModalOpen(true)}
-                    className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2"
-                    title="Open Kanban board"
-                  >
-                    <KanbanSquare size={20} />
-                    <span className="text-sm hidden sm:inline">Kanban</span>
-                  </button>
-                )}
-              </div>
               </div>
 
               {/* Search Bar */}
@@ -1808,130 +1812,353 @@ export function MessagingContainer({
           />
         )}
       </div>
+    </div>
 
-      {/* Channel Settings Dialog */}
-      <ChannelSettingsDialog
-        open={Boolean(showChannelSettingsForId)}
-        conversation={
-          conversations.find((c) => c.id === showChannelSettingsForId) || null
-        }
-        onClose={() => setShowChannelSettingsForId(null)}
-        onParticipantsChanged={async () => {
-          await refreshConversations();
-        }}
-      />
+    {/* Mobile Layout */}
+    <div className="lg:hidden h-full">
+      {!activeConversationId ? (
+        /* Conversations List View */
+        <div className="h-full flex flex-col bg-gray-900/50">
+          {/* Header */}
+          <div className="p-4 border-b border-gray-800 flex items-center justify-between">
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <MessageSquare size={24} />
+              Messages
+            </h2>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleManualRefresh}
+                disabled={isRefreshing}
+                className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Refresh messages"
+              >
+                <RefreshCw
+                  size={20}
+                  className={isRefreshing ? "animate-spin" : ""}
+                />
+                <span className="text-sm">Refresh</span>
+              </button>
+              <button
+                onClick={() => setShowCreateChannel(true)}
+                className="p-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition cursor-pointer flex items-center justify-center"
+                title="New conversation"
+              >
+                <Plus size={20} />
+              </button>
+            </div>
+          </div>
 
-      {/* Create Channel Modal */}
-      {showCreateChannel && (
-        <CreateChannelModal
-          onClose={() => setShowCreateChannel(false)}
-          onCreate={handleCreateChannel}
-          onCreateDM={handleCreateDM}
-        />
-      )}
+          {/* Conversation List */}
+          {isLoadingConversations ? (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="w-6 h-6 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+            </div>
+          ) : (
+            <ConversationList
+              conversations={conversations}
+              activeConversationId={activeConversationId}
+              onSelectConversation={(conversationId) => {
+                handleSelectConversation(conversationId);
+              }}
+              onOpenChannelSettings={(conversationId) =>
+                setShowChannelSettingsForId(conversationId)
+              }
+            />
+          )}
+        </div>
+      ) : activeConversation ? (
+        /* Chat View with Back Button */
+        <div className="h-full flex flex-col bg-black">
+          {/* Chat Header with Back Button */}
+          <div className="flex-shrink-0 border-b border-gray-800 bg-gray-900">
+            <div className="p-3 flex items-center gap-2">
+              <button
+                onClick={() => setActiveConversationId(null)}
+                className="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer"
+                title="Back to conversations"
+              >
+                <X size={16} />
+              </button>
 
-      {/* Files Modal */}
-      {activeConversation && (
-        <FilesModal
-          isOpen={showFilesModal}
-          onClose={() => setShowFilesModal(false)}
-          conversationId={activeConversation.id}
-          conversationName={getConversationDisplayName(activeConversation)}
-        />
-      )}
-
-      {/* Reminders Modal */}
-      <RemindersModal
-        key={showRemindersModal ? 'open' : 'closed'} // Force remount to reset state
-        isOpen={showRemindersModal}
-        onClose={() => {
-          setShowRemindersModal(false);
-          setInitialEditingReminder(null);
-          setForceShowCreateForm(false);
-        }}
-        reminders={reminders}
-        setReminders={setReminders}
-        channelId={activeConversation?.type === "channel" ? (activeConversationId || undefined) : undefined}
-        initialShowForm={!!initialEditingReminder}
-        initialEditingReminder={initialEditingReminder}
-        forceShowCreateForm={forceShowCreateForm}
-      />
-
-      {/* Pinned Messages Panel */}
-      {activeConversation && (
-        <PinnedMessagesPanel
-          conversationId={activeConversation.id}
-          isOpen={isPinnedMessagesOpen}
-          onClose={() => setIsPinnedMessagesOpen(false)}
-          onMessageClick={handleLoadSearchMessage}
-        />
-      )}
-
-      {/* Channel Kanban Modal */}
-      {activeConversation?.type === "channel" && (
-        <div
-          className={`fixed inset-0 z-50 transition-opacity duration-300 ${
-            isKanbanModalOpen ? "opacity-100" : "opacity-0 pointer-events-none"
-          }`}
-        >
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-            onClick={() => setIsKanbanModalOpen(false)}
-          />
-
-          {/* Modal Content */}
-          <div className="absolute inset-4 md:inset-8 lg:inset-12 bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
-            {/* Modal Header */}
-            <div className="flex-shrink-0 border-b border-gray-800 bg-gray-900/95 backdrop-blur-sm">
-              <div className="flex items-center justify-between px-6 py-4">
-                <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                {/* Avatar for DM or Icon for Channel */}
+                {activeConversation.type === "channel" ? (
                   <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center">
-                    <KanbanSquare size={18} className="text-white" />
+                    <Hash size={16} className="text-white" />
                   </div>
-                  <div>
-                    <h2 className="text-lg font-semibold text-white">
-                      {getConversationDisplayName(activeConversation)} - Kanban Board
-                    </h2>
-                    <p className="text-sm text-gray-400">
-                      Project management for this channel
+                ) : (
+                  (() => {
+                    const other = getOtherParticipant(activeConversation);
+                    return (
+                      <Avatar
+                        src={other?.avatarUrl || null}
+                        name={other?.username || other?.fullname || undefined}
+                        email={other?.email || undefined}
+                        size="sm"
+                      />
+                    );
+                  })()
+                )}
+                <div>
+                  <h3 className="text-white font-semibold text-base">
+                    {getConversationDisplayName(activeConversation)}
+                  </h3>
+                  {activeConversation.type === "dm" ? (
+                    <p className="text-[10px] text-gray-400">
+                      {getOtherParticipant(activeConversation)?.email || ""}
                     </p>
-                  </div>
+                  ) : (
+                    activeConversation.description && (
+                      <p className="text-[10px] text-gray-400">
+                        {activeConversation.description}
+                      </p>
+                    )
+                  )}
                 </div>
+              </div>
+
+              {/* 3-dot Menu for Actions */}
+              <div className="ml-auto relative">
                 <button
-                  onClick={() => setIsKanbanModalOpen(false)}
-                  className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer"
-                  title="Close Kanban board"
+                  onClick={() => setShowActionMenu(!showActionMenu)}
+                  className="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer"
+                  title="More actions"
                 >
-                  <X size={20} />
+                  <MoreVertical size={16} />
                 </button>
+
+                {showActionMenu && (
+                  <div className="absolute right-0 top-full mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-lg py-1 z-10 min-w-[140px]">
+                    <button
+                      onClick={() => {
+                        setIsSearchOpen(true);
+                        setShowActionMenu(false);
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2 cursor-pointer"
+                    >
+                      <Search size={14} />
+                      Search
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsPinnedMessagesOpen(true);
+                        setShowActionMenu(false);
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2 cursor-pointer"
+                    >
+                      <Pin size={14} />
+                      Pinned
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowFilesModal(true);
+                        setShowActionMenu(false);
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2 cursor-pointer"
+                    >
+                      <FolderOpen size={14} />
+                      Files
+                    </button>
+                    {activeConversation?.type === "channel" && (
+                      <button
+                        onClick={() => {
+                          setIsKanbanModalOpen(true);
+                          setShowActionMenu(false);
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2 cursor-pointer"
+                      >
+                        <KanbanSquare size={14} />
+                        Kanban
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Kanban Content */}
-            <div className="flex-1 overflow-hidden">
-              <KanbanView
-                reminders={reminders}
-                setReminders={setReminders}
-                channelId={activeConversationId || undefined}
-                onOpenTaskModal={handleOpenTaskModal}
+            {/* Search Bar */}
+            <MessageSearch
+              messages={messages}
+              conversationId={activeConversationId || ""}
+              isOpen={isSearchOpen}
+              onClose={handleCloseSearch}
+              onResultChange={handleSearchResultChange}
+              onQueryChange={setSearchQuery}
+              onLoadMessage={handleLoadSearchMessage}
+            />
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 min-h-0 overflow-hidden">
+            {isLoadingMessages ? (
+              <div className="h-full flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+              </div>
+            ) : (
+              <MessageList
+                messages={messages}
+                participants={activeConversation.participants}
+                currentUserId={currentUser?.id || ""}
+                conversationId={activeConversationId || ""}
+                onMessageClick={(messageId) => setThreadParentId(messageId)}
+                onLoadMore={loadOlderMessages}
+                hasMore={
+                  activeConversationId
+                    ? hasMoreMessages[activeConversationId] || false
+                    : false
+                }
+                isLoadingMore={isLoadingOlderMessages}
+                searchQuery={searchQuery}
+                activeSearchResultId={activeSearchResultId}
+                allSearchResults={searchResultIds}
+                pinnedMessageIds={pinnedMessageIds}
               />
+            )}
+          </div>
+
+          {/* Message Input */}
+          <div className="flex-shrink-0">
+            <MessageInput
+              onSend={(content, files) =>
+                handleSendMessage(content, undefined, files)
+              }
+              isLoading={isSendingMessage}
+              participants={activeConversation.participants}
+            />
+          </div>
+
+          {/* Thread Panel Overlay */}
+          {threadParentId && (
+            <ThreadPanel
+              parentMessage={messages.find((m) => m.id === threadParentId)}
+              threadMessages={threadMessages}
+              participants={activeConversation.participants}
+              currentUserId={currentUser?.id || ""}
+              onClose={() => {
+                setThreadParentId(null);
+                setThreadMessages([]);
+              }}
+              onSendReply={(content, files) =>
+                handleSendMessage(content, threadParentId, files)
+              }
+              isLoading={isSendingMessage}
+            />
+          )}
+        </div>
+      ) : null}
+    </div>
+
+    {/* Modals - outside the responsive layout */}
+    <ChannelSettingsDialog
+      open={Boolean(showChannelSettingsForId)}
+      conversation={
+        conversations.find((c) => c.id === showChannelSettingsForId) || null
+      }
+      onClose={() => setShowChannelSettingsForId(null)}
+      onParticipantsChanged={async () => {
+        await refreshConversations();
+      }}
+    />
+
+    {showCreateChannel && (
+      <CreateChannelModal
+        onClose={() => setShowCreateChannel(false)}
+        onCreate={handleCreateChannel}
+        onCreateDM={handleCreateDM}
+      />
+    )}
+
+    {activeConversation && (
+      <FilesModal
+        isOpen={showFilesModal}
+        onClose={() => setShowFilesModal(false)}
+        conversationId={activeConversation.id}
+        conversationName={getConversationDisplayName(activeConversation)}
+      />
+    )}
+
+    <RemindersModal
+      key={showRemindersModal ? 'open' : 'closed'}
+      isOpen={showRemindersModal}
+      onClose={() => {
+        setShowRemindersModal(false);
+        setInitialEditingReminder(null);
+        setForceShowCreateForm(false);
+      }}
+      reminders={reminders}
+      setReminders={setReminders}
+      channelId={activeConversation?.type === "channel" ? (activeConversationId || undefined) : undefined}
+      initialShowForm={!!initialEditingReminder}
+      initialEditingReminder={initialEditingReminder}
+      forceShowCreateForm={forceShowCreateForm}
+    />
+
+    {activeConversation && (
+      <PinnedMessagesPanel
+        conversationId={activeConversation.id}
+        isOpen={isPinnedMessagesOpen}
+        onClose={() => setIsPinnedMessagesOpen(false)}
+        onMessageClick={handleLoadSearchMessage}
+      />
+    )}
+
+    {activeConversation?.type === "channel" && (
+      <div
+        className={`fixed inset-0 z-50 transition-opacity duration-300 ${
+          isKanbanModalOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+        }`}
+      >
+        <div
+          className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+          onClick={() => setIsKanbanModalOpen(false)}
+        />
+        <div className="absolute inset-4 md:inset-8 lg:inset-12 bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+          <div className="flex-shrink-0 border-b border-gray-800 bg-gray-900/95 backdrop-blur-sm">
+            <div className="flex items-center justify-between px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center">
+                  <KanbanSquare size={18} className="text-white" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-white">
+                    {getConversationDisplayName(activeConversation)} - Kanban Board
+                  </h2>
+                  <p className="text-sm text-gray-400">
+                    Project management for this channel
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsKanbanModalOpen(false)}
+                className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer"
+                title="Close Kanban board"
+              >
+                <X size={20} />
+              </button>
             </div>
           </div>
+          <div className="flex-1 overflow-hidden">
+            <KanbanView
+              reminders={reminders}
+              setReminders={setReminders}
+              channelId={activeConversationId || undefined}
+              onOpenTaskModal={handleOpenTaskModal}
+            />
+          </div>
         </div>
-      )}
+      </div>
+    )}
 
-      {/* Join Channel Modal */}
-      <JoinChannelModal
-        isOpen={showJoinChannelModal}
-        channel={channelToJoin}
-        onClose={() => {
-          setShowJoinChannelModal(false);
-          setChannelToJoin(null);
-        }}
-        onJoin={handleJoinChannel}
-        isJoining={isJoiningChannel}
-      />
-    </div>
+    <JoinChannelModal
+      isOpen={showJoinChannelModal}
+      channel={channelToJoin}
+      onClose={() => {
+        setShowJoinChannelModal(false);
+        setChannelToJoin(null);
+      }}
+      onJoin={handleJoinChannel}
+      isJoining={isJoiningChannel}
+    />
+  </div>
   );
 }

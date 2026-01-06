@@ -75,7 +75,7 @@ const AIChatInput = ({
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -171,7 +171,7 @@ const AIChatInput = ({
     <div className="w-full flex justify-center items-center">
       <motion.div
         ref={wrapperRef}
-        className="w-full max-w-[600px]"
+        className="w-full max-w-[650px]"
         variants={containerVariants as Variants}
         animate="collapsed"
         initial="collapsed"
@@ -187,32 +187,36 @@ const AIChatInput = ({
         <div className="flex flex-col items-stretch w-full h-full">
           {/* Input Row */}
 
-          <div className="flex items-center gap-2 px-5 py-2.5 rounded-lg max-w-[600px] w-full">
+          <div className="flex items-center gap-2 px-5 py-2.5 rounded-lg max-w-[650px] w-full">
             {/* Text Input & Placeholder */}
 
             <div className="relative flex-1">
-              <input
-                type="text"
+              <textarea
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyPress}
-                className="flex-1 border-0 outline-0 rounded-md py-1.5 text-[14px] bg-transparent w-full font-normal text-white placeholder:text-gray-500"
-                style={{ position: "relative", zIndex: 1 }}
+                className="flex-1 border-0 outline-0 rounded-md py-1.5 text-[14px] bg-transparent w-full font-normal text-white placeholder:text-gray-500 resize-none overflow-y-auto"
+                style={{
+                  position: "relative",
+                  zIndex: 1,
+                  minHeight: "20px",
+                  maxHeight: "120px",
+                  scrollbarWidth: "none",
+                  msOverflowStyle: "none"
+                }}
+                rows={1}
               />
 
-              <div className="absolute left-0 top-0 w-full h-full pointer-events-none flex items-center px-5 py-1.5">
+              <div className="absolute left-0 top-0 w-full h-full pointer-events-none flex items-start px-5 py-2.5">
                 <AnimatePresence mode="wait">
                   {showPlaceholder && !inputValue && (
                     <motion.span
                       key={placeholderIndex}
-                      className="absolute left-0 top-1/2 -translate-y-1/2 text-gray-500 select-none pointer-events-none text-[14px]"
+                      className="text-gray-500 select-none pointer-events-none text-[14px]"
                       style={{
                         whiteSpace: "nowrap",
-
                         overflow: "hidden",
-
                         textOverflow: "ellipsis",
-
                         zIndex: 0,
                       }}
                       variants={placeholderContainerVariants}

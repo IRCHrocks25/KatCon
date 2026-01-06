@@ -30,6 +30,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useChannels } from "@/contexts/ChannelsContext";
 import { supabase } from "@/lib/supabase/client";
 import { TaskDetailsModal } from "./TaskDetailsModal";
+import { TaskDeleteConfirmationModal } from "@/components/ui/TaskDeleteConfirmationModal";
 
 interface TasksSummaryWidgetProps {
   reminders: Reminder[];
@@ -38,6 +39,10 @@ interface TasksSummaryWidgetProps {
   onOpenModalWithForm?: () => void;
   onEditTask?: (reminder: Reminder) => void;
   onViewTaskDetails?: (reminder: Reminder) => void;
+  onExpandedChange?: (expanded: boolean) => void;
+  onCollapse?: () => void;
+  onDeleteTask?: (reminder: Reminder) => void;
+  forceExpanded?: boolean;
 }
 
 type Priority = "overdue" | "today" | "upcoming" | "no-date";
@@ -55,15 +60,26 @@ export function TasksSummaryWidget({
   onOpenModalWithForm,
   onEditTask,
   onViewTaskDetails,
+  onExpandedChange,
+  onCollapse,
+  onDeleteTask,
+  forceExpanded = false,
 }: TasksSummaryWidgetProps) {
   const { user: currentUser } = useAuth();
   const { channels: availableChannels } = useChannels();
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(forceExpanded);
+
+  // Ensure isExpanded respects forceExpanded prop changes
+  useEffect(() => {
+    setIsExpanded(forceExpanded);
+  }, [forceExpanded]);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [deletingTask, setDeletingTask] = useState<Reminder | null>(null);
 
   // Fetch reminders
   const fetchReminders = useCallback(
@@ -341,7 +357,10 @@ export function TasksSummaryWidget({
       <motion.button
         initial={{ width: 56 }}
         animate={{ width: 56 }}
-        onClick={() => setIsExpanded(true)}
+        onClick={() => {
+          setIsExpanded(true);
+          onExpandedChange?.(true);
+        }}
         className="h-full flex flex-col items-center justify-start pt-4 bg-gray-900/50 backdrop-blur-sm border-r border-gray-800/50 hover:bg-gray-800/50 transition cursor-pointer relative"
         title="Expand tasks"
       >
@@ -390,7 +409,11 @@ export function TasksSummaryWidget({
               />
             </button>
             <button
-              onClick={() => setIsExpanded(false)}
+              onClick={() => {
+                setIsExpanded(false);
+                onExpandedChange?.(false);
+                onCollapse?.();
+              }}
               className="p-1.5 rounded-lg hover:bg-gray-700/50 text-gray-400 hover:text-white transition cursor-pointer"
               title="Collapse"
             >
@@ -708,7 +731,10 @@ export function TasksSummaryWidget({
                                 Edit
                               </button>
                               <button
-                                onClick={() => handleDelete(reminder.id)}
+                                onClick={() => {
+                                  setMenuOpenId(null);
+                                  onDeleteTask?.(reminder);
+                                }}
                                 disabled={isDeleting}
                                 className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-gray-700 flex items-center gap-2 cursor-pointer disabled:opacity-50"
                               >
@@ -750,6 +776,7 @@ export function TasksSummaryWidget({
           Add Task
         </button>
       </div>
+
     </motion.div>
   );
 }

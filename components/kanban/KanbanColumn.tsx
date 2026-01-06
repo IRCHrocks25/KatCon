@@ -24,25 +24,25 @@ export function KanbanColumn({ id, title, color, tasks, onTaskClick, currentUser
   return (
     <div
       ref={setNodeRef}
-      className={`flex-1 min-w-72 max-w-xs bg-gray-800/50 rounded-lg border-2 transition-colors ${
+      className={`flex-1 min-w-64 md:min-w-72 max-w-xs bg-gray-800/50 rounded-lg border-2 transition-colors ${
         isOver
           ? "border-purple-500 bg-purple-900/20"
           : "border-gray-700 hover:border-gray-600"
       }`}
     >
       {/* Column Header */}
-      <div className="p-4 border-b border-gray-700">
-        <div className="flex items-center gap-3">
-          <div className={`w-3 h-3 rounded-full ${color}`} />
-          <h3 className="text-white font-semibold text-lg">{title}</h3>
-          <span className="bg-gray-700 text-gray-300 text-sm px-2 py-1 rounded-full">
+      <div className="p-3 md:p-4 border-b border-gray-700">
+        <div className="flex items-center gap-2 md:gap-3">
+          <div className={`w-2 h-2 md:w-3 md:h-3 rounded-full ${color}`} />
+          <h3 className="text-white font-semibold text-base md:text-lg">{title}</h3>
+          <span className="bg-gray-700 text-gray-300 text-xs md:text-sm px-1.5 md:px-2 py-0.5 md:py-1 rounded-full">
             {tasks.length}
           </span>
         </div>
       </div>
 
       {/* Tasks List */}
-      <div className="p-2 h-[calc(100%-5rem)] overflow-y-auto custom-scrollbar">
+      <div className="p-2 h-[calc(100%-4rem)] md:h-[calc(100%-5rem)] overflow-y-auto custom-scrollbar">
         <SortableContext items={tasks.map((task) => task.id)} strategy={verticalListSortingStrategy}>
           <div className="space-y-2">
             {tasks.map((task) => (

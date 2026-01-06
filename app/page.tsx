@@ -8,6 +8,8 @@ import {
   User,
   KanbanSquare,
   Shield,
+  Menu,
+  X,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -38,6 +40,7 @@ export default function Home() {
   const [initialEditingReminder, setInitialEditingReminder] = useState<Reminder | null>(null);
   const [forceShowCreateForm, setForceShowCreateForm] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showMobileNav, setShowMobileNav] = useState(false);
 
   // Tab state with session storage persistence
   const [activeTab, setActiveTab] = useState<TabType>(() => {
@@ -109,8 +112,17 @@ export default function Home() {
       {/* Top Bar */}
       <div className="relative z-30 border-b border-gray-800/50 bg-gray-950/95 backdrop-blur-sm">
         <div className="flex items-center justify-between px-4 py-3">
-          {/* Tabs */}
-          <div className="flex items-center gap-2">
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setShowMobileNav(!showMobileNav)}
+            className="lg:hidden p-2 text-gray-400 hover:text-white transition cursor-pointer"
+            title="Toggle navigation"
+          >
+            {showMobileNav ? <X size={20} /> : <Menu size={20} />}
+          </button>
+
+          {/* Desktop Tabs */}
+          <div className="hidden lg:flex items-center gap-2">
             <button
               onClick={() => setActiveTab("chat")}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all cursor-pointer ${
@@ -170,6 +182,21 @@ export default function Home() {
             )}
           </div>
 
+          {/* Mobile Active Tab Indicator */}
+          <div className="lg:hidden flex items-center gap-2">
+            {activeTab === "chat" && <MessageSquare size={18} className="text-purple-400" />}
+            {activeTab === "messages" && <Users size={18} className="text-purple-400" />}
+            {activeTab === "kanban" && <KanbanSquare size={18} className="text-purple-400" />}
+            {activeTab === "profile" && <User size={18} className="text-purple-400" />}
+            {activeTab === "admin" && <Shield size={18} className="text-red-400" />}
+            <span className="text-white font-medium capitalize">
+              {activeTab === "chat" ? "AI Chat" :
+               activeTab === "messages" ? "Messages" :
+               activeTab === "kanban" ? "Kanban" :
+               activeTab === "profile" ? "Profile" : "Admin"}
+            </span>
+          </div>
+
           {/* Right Actions */}
           <div className="flex items-center gap-2">
             {/* Notification Center */}
@@ -198,6 +225,91 @@ export default function Home() {
             </button>
           </div>
         </div>
+
+        {/* Mobile Navigation Overlay */}
+        {showMobileNav && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="lg:hidden border-t border-gray-800/50 bg-gray-950/95 backdrop-blur-sm overflow-hidden"
+          >
+            <div className="px-4 py-4 space-y-2">
+              <button
+                onClick={() => {
+                  setActiveTab("chat");
+                  setShowMobileNav(false);
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
+                  activeTab === "chat"
+                    ? "bg-gradient-to-r from-purple-600/20 via-pink-500/20 to-orange-500/20 text-white border border-purple-500"
+                    : "text-gray-400 hover:text-white hover:bg-gray-800/50"
+                }`}
+              >
+                <MessageSquare size={20} />
+                <span className="font-medium">AI Chat</span>
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab("messages");
+                  setShowMobileNav(false);
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
+                  activeTab === "messages"
+                    ? "bg-gradient-to-r from-purple-600/20 via-pink-500/20 to-orange-500/20 text-white border border-purple-500"
+                    : "text-gray-400 hover:text-white hover:bg-gray-800/50"
+                }`}
+              >
+                <Users size={20} />
+                <span className="font-medium">Messages</span>
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab("kanban");
+                  setShowMobileNav(false);
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
+                  activeTab === "kanban"
+                    ? "bg-gradient-to-r from-purple-600/20 via-pink-500/20 to-orange-500/20 text-white border border-purple-500"
+                    : "text-gray-400 hover:text-white hover:bg-gray-800/50"
+                }`}
+              >
+                <KanbanSquare size={20} />
+                <span className="font-medium">Kanban</span>
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab("profile");
+                  setShowMobileNav(false);
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
+                  activeTab === "profile"
+                    ? "bg-gradient-to-r from-purple-600/20 via-pink-500/20 to-orange-500/20 text-white border border-purple-500"
+                    : "text-gray-400 hover:text-white hover:bg-gray-800/50"
+                }`}
+              >
+                <User size={20} />
+                <span className="font-medium">Profile</span>
+              </button>
+              {user?.role === "admin" && (
+                <button
+                  onClick={() => {
+                    setActiveTab("admin");
+                    setShowMobileNav(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
+                    activeTab === "admin"
+                      ? "bg-gradient-to-r from-red-600/20 via-orange-500/20 to-yellow-500/20 text-white border border-red-500"
+                      : "text-gray-400 hover:text-white hover:bg-gray-800/50"
+                  }`}
+                >
+                  <Shield size={20} />
+                  <span className="font-medium">Admin</span>
+                </button>
+              )}
+            </div>
+          </motion.div>
+        )}
       </div>
 
       {/* Main Content Area */}

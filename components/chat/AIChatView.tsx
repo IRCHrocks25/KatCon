@@ -10,6 +10,9 @@ import {
   AlertCircle,
   Bell,
   MessageSquare,
+  PanelLeftOpen,
+  PanelLeftClose,
+  ListTodo,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { MessageLoading } from "@/components/ui/message-loading";
@@ -18,10 +21,15 @@ import { toast } from "sonner";
 import { TasksSummaryWidget } from "@/components/reminders/TasksSummaryWidget";
 import { RemindersModal } from "@/components/reminders/RemindersModal";
 import { TaskDetailsModal } from "@/components/reminders/TaskDetailsModal";
+import { TaskDeleteConfirmationModal } from "@/components/ui/TaskDeleteConfirmationModal";
 import type { Reminder } from "@/lib/supabase/reminders";
 import { createReminder } from "@/lib/supabase/reminders";
 import { robustFetch } from "@/lib/utils/fetch";
-import { getStorageItem, setStorageItem, removeStorageItem } from "@/lib/utils/storage";
+import {
+  getStorageItem,
+  setStorageItem,
+  removeStorageItem,
+} from "@/lib/utils/storage";
 
 interface Message {
   id: string;
@@ -48,14 +56,21 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
   const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
   const [selectedTask, setSelectedTask] = useState<Reminder | null>(null);
   const [showTaskDetailsModal, setShowTaskDetailsModal] = useState(false);
-  const [previousUserEmail, setPreviousUserEmail] = useState<string | null>(null);
+  const [previousUserEmail, setPreviousUserEmail] = useState<string | null>(
+    null
+  );
   const [lastActivity, setLastActivity] = useState<number>(Date.now());
+  const [showTaskWidget, setShowTaskWidget] = useState(true);
+  const [isTaskWidgetExpanded, setIsTaskWidgetExpanded] = useState(false);
+  const [showTaskDeleteConfirmation, setShowTaskDeleteConfirmation] = useState(false);
+  const [deletingTaskFromWidget, setDeletingTaskFromWidget] = useState<Reminder | null>(null);
 
   // Ref for auto-scrolling to bottom
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Helper functions for user-scoped storage
-  const getUserStorageKey = (key: string, userEmail: string) => `${key}_${userEmail}`;
+  const getUserStorageKey = (key: string, userEmail: string) =>
+    `${key}_${userEmail}`;
   const getUserActivityKey = (userEmail: string) => `chatActivity_${userEmail}`;
 
   // Effect 1: Handle user authentication changes (login/logout/different user)
@@ -76,7 +91,11 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
     }
 
     // Clear when different user logs in
-    if (currentUserEmail && previousUserEmail && currentUserEmail !== previousUserEmail) {
+    if (
+      currentUserEmail &&
+      previousUserEmail &&
+      currentUserEmail !== previousUserEmail
+    ) {
       console.log("[AI CHAT] Clearing chat for different user");
       setMessages([]);
       // Clear previous user's data
@@ -99,7 +118,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
       const activityKey = getUserActivityKey(user.email);
       const lastActivityStr = getStorageItem(activityKey);
       const lastActivity = lastActivityStr ? parseInt(lastActivityStr, 10) : 0;
-      const eightHoursAgo = Date.now() - (8 * 60 * 60 * 1000); // 8 hours in milliseconds
+      const eightHoursAgo = Date.now() - 8 * 60 * 60 * 1000; // 8 hours in milliseconds
 
       if (lastActivity < eightHoursAgo) {
         console.log("[AI CHAT] Chat data expired (8+ hours), clearing");
@@ -110,13 +129,17 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
         return;
       }
 
-      const savedMessages = getStorageItem(getUserStorageKey("chatMessages", user.email));
+      const savedMessages = getStorageItem(
+        getUserStorageKey("chatMessages", user.email)
+      );
       if (savedMessages) {
         try {
-          const parsedMessages = JSON.parse(savedMessages).map((msg: Omit<Message, 'timestamp'> & { timestamp: string }) => ({
-            ...msg,
-            timestamp: new Date(msg.timestamp),
-          }));
+          const parsedMessages = JSON.parse(savedMessages).map(
+            (msg: Omit<Message, "timestamp"> & { timestamp: string }) => ({
+              ...msg,
+              timestamp: new Date(msg.timestamp),
+            })
+          );
           setMessages(parsedMessages);
           setLastActivity(Date.now());
         } catch (error) {
@@ -134,7 +157,10 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
       const timeoutId = setTimeout(() => {
         // Limit conversation history to last 50 messages to prevent storage bloat
         const messagesToSave = messages.slice(-50);
-        setStorageItem(getUserStorageKey("chatMessages", user.email), JSON.stringify(messagesToSave));
+        setStorageItem(
+          getUserStorageKey("chatMessages", user.email),
+          JSON.stringify(messagesToSave)
+        );
         setStorageItem(getUserActivityKey(user.email), Date.now().toString());
         setLastActivity(Date.now());
       }, 500); // 500ms debounce
@@ -146,7 +172,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
   // Effect 4: Auto-scroll to bottom when messages change
   useEffect(() => {
     if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, isLoading]);
 
@@ -159,7 +185,10 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
     const newSessionId = crypto.randomUUID();
     setSessionId(newSessionId);
     if (user?.email) {
-      setStorageItem(getUserStorageKey("chatSessionId", user.email), newSessionId);
+      setStorageItem(
+        getUserStorageKey("chatSessionId", user.email),
+        newSessionId
+      );
     }
 
     return newSessionId;
@@ -173,7 +202,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
       const activityKey = getUserActivityKey(user.email);
       const lastActivityStr = getStorageItem(activityKey);
       const lastActivity = lastActivityStr ? parseInt(lastActivityStr, 10) : 0;
-      const eightHoursAgo = Date.now() - (8 * 60 * 60 * 1000); // 8 hours in milliseconds
+      const eightHoursAgo = Date.now() - 8 * 60 * 60 * 1000; // 8 hours in milliseconds
 
       if (lastActivity < eightHoursAgo) {
         console.log("[AI CHAT] Auto-cleanup: Chat data expired, clearing");
@@ -283,9 +312,16 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
             const assignedTo = assignees.length > 0 ? assignees : undefined;
 
             // Validate priority from webhook response
-            const validPriorities = ["low", "medium", "high", "urgent"] as const;
-            const priority = validPriorities.includes(reminderData.priority as any)
-              ? reminderData.priority as "low" | "medium" | "high" | "urgent"
+            const validPriorities: readonly string[] = [
+              "low",
+              "medium",
+              "high",
+              "urgent",
+            ];
+            const priority = validPriorities.includes(
+              reminderData.priority || ""
+            )
+              ? (reminderData.priority as "low" | "medium" | "high" | "urgent")
               : "medium";
 
             const reminder = await createReminder({
@@ -442,7 +478,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
   ];
 
   const handleViewTaskDetails = (reminder: Reminder) => {
-    console.log('Task card clicked:', reminder.id);
+    console.log("Task card clicked:", reminder.id);
     setSelectedTask(reminder);
     setShowTaskDetailsModal(true);
   };
@@ -458,8 +494,8 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
       <div className="absolute inset-0 bg-gradient-to-b from-purple-950/40 via-black to-black" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-purple-600/15 via-pink-500/10 via-blue-500/10 to-orange-500/10" />
 
-      {/* Tasks Summary Widget - Collapsible (Left) */}
-      <div className="relative z-10 h-full">
+      {/* Tasks Summary Widget - Desktop/Tablet: Always visible and expanded */}
+      <div className="relative z-10 h-full hidden md:block">
         <TasksSummaryWidget
           reminders={reminders}
           setReminders={setReminders}
@@ -473,138 +509,271 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
             setShowRemindersModal(true);
           }}
           onViewTaskDetails={handleViewTaskDetails}
+          onExpandedChange={setIsTaskWidgetExpanded}
+          onDeleteTask={(reminder) => {
+            setDeletingTaskFromWidget(reminder);
+            setShowTaskDeleteConfirmation(true);
+          }}
+          forceExpanded={true}
         />
       </div>
 
-      {/* Chat Section - Flex grow (Right) */}
-      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-3 py-3 overflow-hidden">
-        <div className="w-full max-w-[700px] flex flex-col items-center justify-center space-y-3.5 py-5">
-          {/* Header Section */}
-          <div className="text-center space-y-1.5 shrink-0 mt-5">
-            <h1 className="text-[1.65rem] md:text-[2rem] font-bold text-white tracking-tight">
-              Katalyst Concierge
-            </h1>
-            <p className="text-[13px] text-gray-400 font-light">
-              Ask me about tasks, deadlines, or team updates — just start typing
-              below.
-            </p>
-            <p className="text-[11px] text-gray-500 mt-1">
-              Logged in as: {user?.fullname || user?.email}
-              {user?.accountType && (
-                <span className="ml-1.5 text-gray-400">
-                  ({user.accountType})
-                </span>
-              )}
-            </p>
-          </div>
+      {/* Mobile Task Widget Toggle */}
+      <div className="fixed top-20 left-4 z-20 md:hidden">
+        <button
+          onClick={() => setShowTaskWidget(!showTaskWidget)}
+          className="p-2 bg-gray-900/80 backdrop-blur-sm border border-gray-700 rounded-lg text-gray-400 hover:text-white transition cursor-pointer"
+          title={showTaskWidget ? "Hide tasks" : "Show tasks"}
+        >
+          <ListTodo size={20} />
+        </button>
+      </div>
 
-          {/* Messages Container */}
-          {(messages.length > 0 || isLoading) && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.2 }}
-              className="w-full max-w-[600px] mx-auto h-[320px] overflow-y-auto px-2 custom-scrollbar"
-            >
-              <div className="flex flex-col justify-end min-h-full py-2">
-                <AnimatePresence>
-                  <div className="space-y-2.5">
-                    {messages.map((message) => (
-                      <motion.div
-                        key={message.id}
-                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        transition={{ duration: 0.2 }}
-                        className={`flex ${
-                          message.type === "user"
-                            ? "justify-end"
-                            : "justify-start"
-                        }`}
-                      >
-                        {message.type === "user" ? (
-                          <div className="bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 text-white px-3.5 py-2 rounded-xl rounded-tr-sm max-w-[80%] shadow-lg">
-                            <p className="text-[13px] font-medium break-words whitespace-pre-wrap">
-                              {message.text}
-                            </p>
-                            <p className="text-[10px] text-white/70 mt-0.5 text-right">
-                              {message.timestamp.toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 text-gray-300 px-3.5 py-2 rounded-xl rounded-tl-sm max-w-[80%] shadow-lg">
-                            <p className="text-[13px] font-medium break-words whitespace-pre-wrap">
-                              {message.text}
-                            </p>
-                            <p className="text-[10px] text-gray-400 mt-0.5 text-left">
-                              {message.timestamp.toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </p>
-                          </div>
-                        )}
-                      </motion.div>
-                    ))}
-                    {isLoading && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="flex justify-start"
-                      >
-                        <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 text-gray-300 px-3.5 py-2.5 rounded-xl rounded-tl-sm max-w-[80%] shadow-lg flex items-center gap-2">
-                          <MessageLoading />
-                          <span className="text-[13px]">Thinking...</span>
-                        </div>
-                      </motion.div>
-                    )}
-                  </div>
-                </AnimatePresence>
-                {/* Invisible element for auto-scroll */}
-                <div ref={messagesEndRef} />
-              </div>
-            </motion.div>
-          )}
-
-          {/* Chat Input */}
-          <div className="w-full shrink-0">
-            <AIChatInput
-              onSend={handleSendMessage}
-              hasMessages={messages.length > 0}
-              setValue={chatInputValue}
-              isLoading={isLoading}
+      {/* Mobile Task Widget Overlay */}
+      {showTaskWidget && (
+        <div className="fixed inset-0 z-30 md:hidden">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setShowTaskWidget(false)}
+          />
+          <div className="absolute left-0 top-0 h-full w-80 bg-black">
+            <TasksSummaryWidget
+              reminders={reminders}
+              setReminders={setReminders}
+              onOpenModal={() => {
+                setShowRemindersModal(true);
+                setShowTaskWidget(false);
+              }}
+              onOpenModalWithForm={() => {
+                setShowFormOnOpen(true);
+                setShowRemindersModal(true);
+                setShowTaskWidget(false);
+              }}
+              onEditTask={(reminder) => {
+                setEditingReminder(reminder);
+                setShowRemindersModal(true);
+                setShowTaskWidget(false);
+              }}
+              onViewTaskDetails={(reminder) => {
+                handleViewTaskDetails(reminder);
+                setShowTaskWidget(false);
+              }}
+              onDeleteTask={(reminder) => {
+                setDeletingTaskFromWidget(reminder);
+                setShowTaskDeleteConfirmation(true);
+                setShowTaskWidget(false);
+              }}
+              onCollapse={() => setShowTaskWidget(false)}
+              forceExpanded={true}
             />
           </div>
+        </div>
+      )}
 
-          {/* Quick Action Buttons */}
-          <div className="flex flex-wrap justify-center gap-2.5 mt-2 mb-3 shrink-0">
-            {quickActions.map((action, index) => {
-              const Icon = action.icon;
-              return (
-                <button
-                  key={index}
-                  onClick={() => {
-                    setChatInputValue(action.message);
-                    setTimeout(() => setChatInputValue(null), 0);
-                  }}
-                  className={`group relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-900/50 backdrop-blur-sm border border-gray-800/50 text-gray-300 hover:text-white hover:border-gray-700 transition-all duration-200 hover:scale-105 ${action.color} hover:bg-gradient-to-r cursor-pointer`}
-                >
-                  <Icon
-                    size={15}
-                    className="opacity-70 group-hover:opacity-100 transition-opacity"
+      {/* Chat Section - Flex grow (Right) */}
+      <div className="relative z-10 flex-1 flex flex-col px-3 md:px-6 py-3 overflow-hidden">
+        <div className="flex flex-col min-h-screen w-full max-w-[700px] md:max-w-[900px] lg:max-w-[1200px] mx-auto">
+          {messages.length === 0 ? (
+            /* Centered layout when no messages */
+            <div className="flex-1 flex flex-col justify-center pb-20">
+              {/* Header Section */}
+              <div className="text-center space-y-1.5">
+                <h1 className="text-[1.25rem] md:text-[2rem] font-bold text-white tracking-tight">
+                  Katalyst Concierge
+                </h1>
+                <p className="text-[13px] text-gray-400 font-light">
+                  Ask me about tasks, deadlines, or team updates — just start
+                  typing below.
+                </p>
+                <p className="text-[11px] text-gray-500 mt-1">
+                  Logged in as: {user?.fullname || user?.email}
+                  {user?.accountType && (
+                    <span className="ml-1.5 text-gray-400">
+                      ({user.accountType})
+                    </span>
+                  )}
+                </p>
+              </div>
+
+              {/* Chat Input and Quick Actions */}
+              <div className="shrink-0 space-y-3 mt-8">
+                {/* Chat Input */}
+                <div className="w-full">
+                  <AIChatInput
+                    onSend={handleSendMessage}
+                    hasMessages={messages.length > 0}
+                    setValue={chatInputValue}
+                    isLoading={isLoading}
                   />
-                  <span className="text-[13px] font-medium">
-                    {action.label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+                </div>
+
+                {/* Quick Action Buttons - Show on all screen sizes when no messages */}
+                <div className="flex flex-col gap-3">
+                  {/* First row - 4 actions */}
+                  <div className="flex flex-wrap justify-center gap-2.5">
+                    {quickActions.slice(0, 4).map((action, index) => {
+                      const Icon = action.icon;
+                      return (
+                        <button
+                          key={index}
+                          onClick={() => {
+                            setChatInputValue(action.message);
+                            setTimeout(() => setChatInputValue(null), 0);
+                          }}
+                          className={`group relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-900/50 backdrop-blur-sm border border-gray-800/50 text-gray-300 hover:text-white hover:border-gray-700 transition-all duration-200 hover:scale-105 ${action.color} hover:bg-gradient-to-r cursor-pointer`}
+                        >
+                          <Icon
+                            size={15}
+                            className="opacity-70 group-hover:opacity-100 transition-opacity"
+                          />
+                          <span className="text-[13px] font-medium">
+                            {action.label}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {/* Second row - 3 actions */}
+                  <div className="flex flex-wrap justify-center gap-2.5">
+                    {quickActions.slice(4).map((action, index) => {
+                      const Icon = action.icon;
+                      return (
+                        <button
+                          key={`second-${index}`}
+                          onClick={() => {
+                            setChatInputValue(action.message);
+                            setTimeout(() => setChatInputValue(null), 0);
+                          }}
+                          className={`group relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-900/50 backdrop-blur-sm border border-gray-800/50 text-gray-300 hover:text-white hover:border-gray-700 transition-all duration-200 hover:scale-105 ${action.color} hover:bg-gradient-to-r cursor-pointer`}
+                        >
+                          <Icon
+                            size={15}
+                            className="opacity-70 group-hover:opacity-100 transition-opacity"
+                          />
+                          <span className="text-[13px] font-medium">
+                            {action.label}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Messages Container - Takes available space */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.2 }}
+                className="flex-1 overflow-y-auto px-2 custom-scrollbar"
+              >
+                <div className="flex flex-col justify-end min-h-full py-2 max-w-[600px] mx-auto">
+                  <AnimatePresence>
+                    <div className="space-y-2.5">
+                      {messages.map((message) => (
+                        <motion.div
+                          key={message.id}
+                          initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.95 }}
+                          transition={{ duration: 0.2 }}
+                          className={`flex ${
+                            message.type === "user"
+                              ? "justify-end"
+                              : "justify-start"
+                          }`}
+                        >
+                          {message.type === "user" ? (
+                            <div className="bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 text-white px-3.5 py-2 rounded-xl rounded-tr-sm max-w-[80%] shadow-lg">
+                              <p className="text-[13px] font-medium break-words whitespace-pre-wrap">
+                                {message.text}
+                              </p>
+                              <p className="text-[10px] text-white/70 mt-0.5 text-right">
+                                {message.timestamp.toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 text-gray-300 px-3.5 py-2 rounded-xl rounded-tl-sm max-w-[80%] shadow-lg">
+                              <p className="text-[13px] font-medium break-words whitespace-pre-wrap">
+                                {message.text}
+                              </p>
+                              <p className="text-[10px] text-gray-400 mt-0.5 text-left">
+                                {message.timestamp.toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </p>
+                            </div>
+                          )}
+                        </motion.div>
+                      ))}
+                      {isLoading && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="flex justify-start"
+                        >
+                          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 text-gray-300 px-3.5 py-2.5 rounded-xl rounded-tl-sm max-w-[80%] shadow-lg flex items-center gap-2">
+                            <MessageLoading />
+                            <span className="text-[13px]">Thinking...</span>
+                          </div>
+                        </motion.div>
+                      )}
+                    </div>
+                  </AnimatePresence>
+                  {/* Invisible element for auto-scroll */}
+                  <div ref={messagesEndRef} />
+                </div>
+              </motion.div>
+
+              {/* Bottom Section - Chat Input and Quick Actions */}
+              <div className="shrink-0 space-y-3 mt-3">
+                {/* Chat Input */}
+                <div className="w-full">
+                  <AIChatInput
+                    onSend={handleSendMessage}
+                    hasMessages={messages.length > 0}
+                    setValue={chatInputValue}
+                    isLoading={isLoading}
+                  />
+                </div>
+
+                {/* Quick Action Buttons - Hidden when task widget is collapsed or on mobile */}
+                {isTaskWidgetExpanded && (
+                  <div className="hidden md:flex flex-wrap justify-center gap-2.5">
+                    {quickActions.map((action, index) => {
+                      const Icon = action.icon;
+                      return (
+                        <button
+                          key={index}
+                          onClick={() => {
+                            setChatInputValue(action.message);
+                            setTimeout(() => setChatInputValue(null), 0);
+                          }}
+                          className={`group relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-900/50 backdrop-blur-sm border border-gray-800/50 text-gray-300 hover:text-white hover:border-gray-700 transition-all duration-200 hover:scale-105 ${action.color} hover:bg-gradient-to-r cursor-pointer`}
+                        >
+                          <Icon
+                            size={15}
+                            className="opacity-70 group-hover:opacity-100 transition-opacity"
+                          />
+                          <span className="text-[13px] font-medium">
+                            {action.label}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -648,6 +817,32 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
             setShowTaskDetailsModal(false);
           }
         }}
+      />
+
+      {/* Task Delete Confirmation Modal */}
+      <TaskDeleteConfirmationModal
+        isOpen={showTaskDeleteConfirmation}
+        onClose={() => {
+          setShowTaskDeleteConfirmation(false);
+          setDeletingTaskFromWidget(null);
+        }}
+        onConfirm={() => {
+          if (deletingTaskFromWidget) {
+            // Handle the actual deletion here
+            const reminder = deletingTaskFromWidget;
+            if (reminder.createdBy === user?.email) {
+              // Remove from local state
+              setReminders((prev) => prev.filter((r) => r.id !== reminder.id));
+              toast.success("Task deleted");
+            } else {
+              toast.error("Only the creator can delete this task");
+            }
+            setShowTaskDeleteConfirmation(false);
+            setDeletingTaskFromWidget(null);
+          }
+        }}
+        taskTitle={deletingTaskFromWidget?.title}
+        isDeleting={false}
       />
     </div>
   );
