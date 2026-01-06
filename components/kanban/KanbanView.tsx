@@ -323,7 +323,7 @@ export function KanbanView({
             <div className="relative">
               <button
                 onClick={() => setShowChannelFilter(!showChannelFilter)}
-                className="flex items-center gap-2 px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm hover:bg-gray-700/50 transition"
+                className="flex items-center gap-2 px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm hover:bg-gray-700/50 transition cursor-pointer"
               >
                 <Filter size={16} />
                 {channelFilter === "all"
@@ -346,7 +346,7 @@ export function KanbanView({
                         setChannelFilter("all");
                         setShowChannelFilter(false);
                       }}
-                      className={`w-full px-3 py-2 text-left rounded transition ${
+                      className={`w-full px-3 py-2 text-left rounded transition cursor-pointer ${
                         channelFilter === "all"
                           ? "bg-purple-600/20 text-purple-400"
                           : "text-gray-300 hover:bg-gray-700/50"
@@ -363,7 +363,7 @@ export function KanbanView({
                           setChannelFilter(channel.id);
                           setShowChannelFilter(false);
                         }}
-                        className={`w-full px-3 py-2 text-left rounded transition ${
+                        className={`w-full px-3 py-2 text-left rounded transition cursor-pointer ${
                           channelFilter === channel.id
                             ? "bg-purple-600/20 text-purple-400"
                             : "text-gray-300 hover:bg-gray-700/50"
@@ -394,7 +394,7 @@ export function KanbanView({
         {onOpenTaskModal && (
           <button
             onClick={() => onOpenTaskModal()}
-            className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition flex items-center gap-2 font-medium"
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition cursor-pointer flex items-center gap-2 font-medium"
           >
             <Plus size={18} />
             Add Task

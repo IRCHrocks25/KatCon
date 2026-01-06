@@ -338,7 +338,7 @@ export function MessageInput({
             <button
               key={participant.userId}
               onClick={() => insertMention(participant)}
-              className="w-full px-4 py-2 text-left hover:bg-gray-700 transition flex items-center gap-2"
+              className="w-full px-4 py-2 text-left hover:bg-gray-700 transition cursor-pointer flex items-center gap-2"
             >
               <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center text-white text-xs font-medium">
                 {(participant.fullname || participant.email)
@@ -369,7 +369,7 @@ export function MessageInput({
             </span>
             <button
               onClick={handleClearAllFiles}
-              className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 transition"
+              className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 transition cursor-pointer"
             >
               <Trash2 size={12} />
               Clear all
@@ -398,7 +398,7 @@ export function MessageInput({
                 {/* Remove button */}
                 <button
                   onClick={() => handleRemoveFile(fileItem.id)}
-                  className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 hover:bg-red-400 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 hover:bg-red-400 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity shadow-md cursor-pointer"
                   title="Remove file"
                 >
                   <X size={12} />
@@ -413,7 +413,7 @@ export function MessageInput({
             {selectedFiles.length < MAX_FILES && (
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="w-16 h-16 bg-gray-700/50 hover:bg-gray-700 rounded-md flex flex-col items-center justify-center border border-dashed border-gray-600 hover:border-purple-500 transition flex-shrink-0"
+                className="w-16 h-16 bg-gray-700/50 hover:bg-gray-700 rounded-md flex flex-col items-center justify-center border border-dashed border-gray-600 hover:border-purple-500 transition cursor-pointer flex-shrink-0"
                 title="Add more files"
               >
                 <Paperclip size={16} className="text-gray-400" />
@@ -463,7 +463,7 @@ export function MessageInput({
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={isLoading || selectedFiles.length >= MAX_FILES}
-          className="h-[48px] w-[48px] flex items-center justify-center bg-gray-800/80 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 border border-gray-700 relative"
+          className="h-[48px] w-[48px] flex items-center justify-center bg-gray-800/80 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 border border-gray-700 relative"
           title={selectedFiles.length >= MAX_FILES ? `Maximum ${MAX_FILES} files reached` : "Attach files"}
         >
           <Paperclip size={22} />
@@ -478,7 +478,7 @@ export function MessageInput({
         <button
           onClick={() => setShowEmojiPicker(!showEmojiPicker)}
           disabled={isLoading}
-          className={`h-[48px] w-[48px] flex items-center justify-center bg-gray-800/80 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 border border-gray-700 ${
+          className={`h-[48px] w-[48px] flex items-center justify-center bg-gray-800/80 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 border border-gray-700 ${
             showEmojiPicker ? "bg-purple-600/20 text-purple-400 border-purple-500" : ""
           }`}
           title="Add emoji"
@@ -502,7 +502,7 @@ export function MessageInput({
         <button
           onClick={handleSend}
           disabled={!canSend || isLoading}
-          className="h-[48px] w-[48px] flex items-center justify-center bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 shadow-lg hover:shadow-purple-500/50"
+          className="h-[48px] w-[48px] flex items-center justify-center bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 shadow-lg hover:shadow-purple-500/50"
         >
           {isLoading ? (
             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

@@ -39,6 +39,7 @@ import { ThreadPanel } from "./ThreadPanel";
 import { CreateChannelModal } from "./CreateChannelModal";
 import { ChannelSettingsDialog } from "./ChannelSettingsDialog";
 import { FilesModal, invalidateFilesCache } from "./FilesModal";
+import { JoinChannelModal } from "./JoinChannelModal";
 import { RemindersModal } from "@/components/reminders/RemindersModal";
 import { KanbanView } from "@/components/kanban/KanbanView";
 import { MessageSearch } from "./MessageSearch";
@@ -83,6 +84,9 @@ export function MessagingContainer({
     string | null
   >(null);
   const [showFilesModal, setShowFilesModal] = useState(false);
+  const [showJoinChannelModal, setShowJoinChannelModal] = useState(false);
+  const [channelToJoin, setChannelToJoin] = useState<Conversation | null>(null);
+  const [isJoiningChannel, setIsJoiningChannel] = useState(false);
   const [showRemindersModal, setShowRemindersModal] = useState(false);
   const [initialEditingReminder, setInitialEditingReminder] = useState<Reminder | null>(null);
 
@@ -593,26 +597,37 @@ export function MessagingContainer({
       return;
     }
 
-    // For public channels where the user is not joined yet, join first
+    // For public channels where the user is not joined yet, show join modal
     if (
       conversation.type === "channel" &&
       !conversation.isPrivate &&
       conversation.isJoined === false
     ) {
-      try {
-        toast.info("Joining channel...");
-        await joinChannel(conversation.id);
-        await refreshConversations();
-      } catch (error) {
-        console.error("Error joining channel:", error);
-        toast.error(
-          error instanceof Error ? error.message : "Failed to join channel"
-        );
-        return;
-      }
+      setChannelToJoin(conversation);
+      setShowJoinChannelModal(true);
+      return;
     }
 
     setActiveConversationId(conversationId);
+  };
+
+  // Handle joining a channel from the modal
+  const handleJoinChannel = async (channelId: string) => {
+    if (!channelToJoin) return;
+
+    try {
+      setIsJoiningChannel(true);
+      await joinChannel(channelId);
+      await refreshConversations();
+      setActiveConversationId(channelId);
+    } catch (error) {
+      console.error("Error joining channel:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to join channel"
+      );
+    } finally {
+      setIsJoiningChannel(false);
+    }
   };
 
   // Load thread messages when thread is opened
@@ -1595,7 +1610,7 @@ export function MessagingContainer({
             <button
               onClick={handleManualRefresh}
               disabled={isRefreshing}
-              className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               title="Refresh messages"
             >
               <RefreshCw
@@ -1606,7 +1621,7 @@ export function MessagingContainer({
             </button>
             <button
               onClick={() => setShowCreateChannel(true)}
-              className="p-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition flex items-center justify-center"
+              className="p-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition cursor-pointer flex items-center justify-center"
               title="New conversation"
             >
               <Plus size={20} />
@@ -1678,7 +1693,7 @@ export function MessagingContainer({
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setIsSearchOpen(true)}
-                  className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition flex items-center gap-2"
+                  className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2"
                   title="Search messages (Ctrl+F)"
                 >
                   <Search size={20} />
@@ -1686,7 +1701,7 @@ export function MessagingContainer({
                 </button>
                 <button
                   onClick={() => setIsPinnedMessagesOpen(true)}
-                  className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition flex items-center gap-2"
+                  className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2"
                   title="Pinned messages"
                 >
                   <Pin size={20} />
@@ -1694,7 +1709,7 @@ export function MessagingContainer({
                 </button>
                 <button
                   onClick={() => setShowFilesModal(true)}
-                  className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition flex items-center gap-2"
+                  className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2"
                   title="View shared files"
                 >
                   <FolderOpen size={20} />
@@ -1704,7 +1719,7 @@ export function MessagingContainer({
                 {activeConversation?.type === "channel" && (
                   <button
                     onClick={() => setIsKanbanModalOpen(true)}
-                    className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition flex items-center gap-2"
+                    className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2"
                     title="Open Kanban board"
                   >
                     <KanbanSquare size={20} />
@@ -1885,7 +1900,7 @@ export function MessagingContainer({
                 </div>
                 <button
                   onClick={() => setIsKanbanModalOpen(false)}
-                  className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition"
+                  className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer"
                   title="Close Kanban board"
                 >
                   <X size={20} />
@@ -1905,6 +1920,18 @@ export function MessagingContainer({
           </div>
         </div>
       )}
+
+      {/* Join Channel Modal */}
+      <JoinChannelModal
+        isOpen={showJoinChannelModal}
+        channel={channelToJoin}
+        onClose={() => {
+          setShowJoinChannelModal(false);
+          setChannelToJoin(null);
+        }}
+        onJoin={handleJoinChannel}
+        isJoining={isJoiningChannel}
+      />
     </div>
   );
 }

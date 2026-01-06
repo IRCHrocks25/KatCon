@@ -328,7 +328,7 @@ export function NotificationCenter({ onTabChange, onOpenTask }: NotificationCent
       {/* Bell Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-gray-400 hover:text-white transition flex items-center gap-2 text-sm bg-gray-900/50 backdrop-blur-sm border border-gray-800/50 rounded-lg hover:border-gray-700"
+        className="relative p-2 text-gray-400 hover:text-white transition cursor-pointer flex items-center gap-2 text-sm bg-gray-900/50 backdrop-blur-sm border border-gray-800/50 rounded-lg hover:border-gray-700"
         title="Notifications"
       >
         <Bell size={16} />

@@ -243,7 +243,7 @@ const AIChatInput = ({
             </div>
 
             <button
-              className="flex items-center gap-1 bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 hover:from-purple-500 hover:via-pink-400 hover:to-orange-400 text-white p-2.5 rounded-full font-medium justify-center transition-all shadow-lg shadow-purple-500/30 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-1 bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 hover:from-purple-500 hover:via-pink-400 hover:to-orange-400 text-white p-2.5 rounded-full font-medium justify-center transition-all shadow-lg shadow-purple-500/30 text-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               title="Send"
               type="button"
               onClick={handleSend}

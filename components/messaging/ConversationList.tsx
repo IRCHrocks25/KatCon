@@ -117,7 +117,7 @@ export function ConversationList({
                 <span className="text-white font-medium truncate flex-1">
                   {getConversationName(conversation)}
                 </span>
-                {onOpenChannelSettings && (
+                {onOpenChannelSettings && conversation.isJoined !== false && (
                   <span
                     role="button"
                     tabIndex={0}

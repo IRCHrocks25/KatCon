@@ -24,6 +24,7 @@ import { ProfileView } from "@/components/profile/ProfileView";
 import { KanbanView } from "@/components/kanban/KanbanView";
 import { AdminDashboard } from "@/components/admin/AdminDashboard";
 import { RemindersModal } from "@/components/reminders/RemindersModal";
+import { LogoutConfirmationModal } from "@/components/ui/LogoutConfirmationModal";
 
 // Lazy load heavy components
 const MessagesView = lazy(() => import("@/components/messaging/MessagesView"));
@@ -36,6 +37,7 @@ export default function Home() {
   const [showRemindersModal, setShowRemindersModal] = useState(false);
   const [initialEditingReminder, setInitialEditingReminder] = useState<Reminder | null>(null);
   const [forceShowCreateForm, setForceShowCreateForm] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // Tab state with session storage persistence
   const [activeTab, setActiveTab] = useState<TabType>(() => {
@@ -111,7 +113,7 @@ export default function Home() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setActiveTab("chat")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all cursor-pointer ${
                 activeTab === "chat"
                   ? "bg-gradient-to-r from-purple-600/20 via-pink-500/20 to-orange-500/20 text-white border-b-2 border-purple-500"
                   : "text-gray-400 hover:text-white hover:bg-gray-800/50"
@@ -122,7 +124,7 @@ export default function Home() {
             </button>
             <button
               onClick={() => setActiveTab("messages")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all cursor-pointer ${
                 activeTab === "messages"
                   ? "bg-gradient-to-r from-purple-600/20 via-pink-500/20 to-orange-500/20 text-white border-b-2 border-purple-500"
                   : "text-gray-400 hover:text-white hover:bg-gray-800/50"
@@ -133,7 +135,7 @@ export default function Home() {
             </button>
             <button
               onClick={() => setActiveTab("kanban")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all cursor-pointer ${
                 activeTab === "kanban"
                   ? "bg-gradient-to-r from-purple-600/20 via-pink-500/20 to-orange-500/20 text-white border-b-2 border-purple-500"
                   : "text-gray-400 hover:text-white hover:bg-gray-800/50"
@@ -144,7 +146,7 @@ export default function Home() {
             </button>
             <button
               onClick={() => setActiveTab("profile")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all cursor-pointer ${
                 activeTab === "profile"
                   ? "bg-gradient-to-r from-purple-600/20 via-pink-500/20 to-orange-500/20 text-white border-b-2 border-purple-500"
                   : "text-gray-400 hover:text-white hover:bg-gray-800/50"
@@ -156,7 +158,7 @@ export default function Home() {
             {user?.role === "admin" && (
               <button
                 onClick={() => setActiveTab("admin")}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all cursor-pointer ${
                   activeTab === "admin"
                     ? "bg-gradient-to-r from-red-600/20 via-orange-500/20 to-yellow-500/20 text-white border-b-2 border-red-500"
                     : "text-gray-400 hover:text-white hover:bg-gray-800/50"
@@ -182,9 +184,9 @@ export default function Home() {
 
             {/* Logout Button */}
             <button
-              onClick={logout}
+              onClick={() => setShowLogoutModal(true)}
               disabled={authLoading}
-              className="p-2 text-gray-400 hover:text-white transition flex items-center gap-2 text-sm bg-gray-900/50 backdrop-blur-sm border border-gray-800/50 rounded-lg hover:border-gray-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+              className="p-2 text-gray-400 hover:text-white transition cursor-pointer flex items-center gap-2 text-sm bg-gray-900/50 backdrop-blur-sm border border-gray-800/50 rounded-lg hover:border-gray-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
               title="Logout"
             >
               {authLoading ? (
@@ -250,6 +252,17 @@ export default function Home() {
         initialShowForm={!!initialEditingReminder}
         initialEditingReminder={initialEditingReminder}
         forceShowCreateForm={forceShowCreateForm}
+      />
+
+      {/* Logout Confirmation Modal */}
+      <LogoutConfirmationModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={() => {
+          setShowLogoutModal(false);
+          logout();
+        }}
+        isLoggingOut={authLoading}
       />
     </div>
   );

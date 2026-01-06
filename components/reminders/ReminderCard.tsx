@@ -347,7 +347,7 @@ export function ReminderCard({
                       setShowMenu(false);
                       onEdit(reminder);
                     }}
-                    className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2"
+                    className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2 cursor-pointer"
                   >
                     <Edit size={14} />
                     Edit
@@ -358,7 +358,7 @@ export function ReminderCard({
                       onDelete(reminder.id);
                     }}
                     disabled={isDeleting}
-                    className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-gray-700 flex items-center gap-2 disabled:opacity-50"
+                    className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-gray-700 flex items-center gap-2 cursor-pointer disabled:opacity-50"
                   >
                     {isDeleting ? (
                       <div className="w-3.5 h-3.5 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />

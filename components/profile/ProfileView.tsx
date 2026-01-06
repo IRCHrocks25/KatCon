@@ -319,7 +319,7 @@ export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
                 {/* Set Status Button */}
                 <button
                   onClick={() => setIsStatusSelectorOpen(true)}
-                  className="mt-2 px-4 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition flex items-center gap-2 mx-auto"
+                  className="mt-2 px-4 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition cursor-pointer flex items-center gap-2 mx-auto"
                 >
                   <Circle size={14} />
                   {userStatus ? "Change Status" : "Set Status"}
@@ -332,7 +332,7 @@ export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
                   <button
                     onClick={handleConfirmUpload}
                     disabled={isUploadingAvatar}
-                    className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium rounded-lg transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
                     {isUploadingAvatar ? (
                       <>
@@ -346,7 +346,7 @@ export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
                   <button
                     onClick={handleCancelUpload}
                     disabled={isUploadingAvatar}
-                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded-lg transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Cancel
                   </button>
@@ -427,7 +427,7 @@ export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
               <button
                 onClick={handleSaveProfile}
                 disabled={!hasChanges || isSaving}
-                className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white font-medium rounded-lg transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {isSaving ? (
                   <>
@@ -491,7 +491,7 @@ export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
                 <button
                   onClick={handleChangePassword}
                   disabled={isChangingPassword || !newPassword || !confirmPassword}
-                  className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white font-medium rounded-lg transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {isChangingPassword ? (
                     <>

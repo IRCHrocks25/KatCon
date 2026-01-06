@@ -1,4 +1,5 @@
 "use client";
+"use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
@@ -447,7 +448,7 @@ interface GroupedReminders {
               <button
                 onClick={() => fetchReminders(true)}
                 disabled={isRefreshing}
-                className="p-2.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-xl transition disabled:opacity-50"
+                className="p-2.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-xl transition cursor-pointer disabled:opacity-50"
                 title="Refresh tasks"
               >
                 <RefreshCw
@@ -457,7 +458,7 @@ interface GroupedReminders {
               </button>
               <button
                 onClick={onClose}
-                className="p-2.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-xl transition"
+                className="p-2.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-xl transition cursor-pointer"
               >
                 <X size={18} />
               </button>
@@ -473,7 +474,7 @@ interface GroupedReminders {
                   setEditingReminder(null);
                   setShowForm(!showForm);
                 }}
-                className={`px-4 py-2.5 rounded-xl font-medium transition flex items-center gap-2 ${
+                className={`px-4 py-2.5 rounded-xl font-medium transition cursor-pointer flex items-center gap-2 ${
                   showForm
                     ? "bg-gray-700 text-gray-300"
                     : "bg-purple-600 hover:bg-purple-500 text-white"
@@ -502,7 +503,7 @@ interface GroupedReminders {
             <div className="flex gap-2">
               <button
                 onClick={() => setActiveTab("my-tasks")}
-                className={`px-4 py-2 rounded-xl text-sm font-medium transition ${
+                className={`px-4 py-2 rounded-xl text-sm font-medium transition cursor-pointer ${
                   activeTab === "my-tasks"
                     ? "bg-purple-600/20 text-purple-400 ring-1 ring-purple-500/30"
                     : "bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-gray-300"
@@ -518,7 +519,7 @@ interface GroupedReminders {
 
               <button
                 onClick={() => setActiveTab("assigned-by-me")}
-                className={`px-4 py-2 rounded-xl text-sm font-medium transition ${
+                className={`px-4 py-2 rounded-xl text-sm font-medium transition cursor-pointer ${
                   activeTab === "assigned-by-me"
                     ? "bg-purple-600/20 text-purple-400 ring-1 ring-purple-500/30"
                     : "bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-gray-300"
@@ -534,7 +535,7 @@ interface GroupedReminders {
 
               <button
                 onClick={() => setActiveTab("completed")}
-                className={`px-4 py-2 rounded-xl text-sm font-medium transition ${
+                className={`px-4 py-2 rounded-xl text-sm font-medium transition cursor-pointer ${
                   activeTab === "completed"
                     ? "bg-purple-600/20 text-purple-400 ring-1 ring-purple-500/30"
                     : "bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-gray-300"

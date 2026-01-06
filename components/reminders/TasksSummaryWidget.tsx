@@ -338,7 +338,7 @@ export function TasksSummaryWidget({
         initial={{ width: 56 }}
         animate={{ width: 56 }}
         onClick={() => setIsExpanded(true)}
-        className="h-full flex flex-col items-center justify-start pt-4 bg-gray-900/50 backdrop-blur-sm border-r border-gray-800/50 hover:bg-gray-800/50 transition relative"
+        className="h-full flex flex-col items-center justify-start pt-4 bg-gray-900/50 backdrop-blur-sm border-r border-gray-800/50 hover:bg-gray-800/50 transition cursor-pointer relative"
         title="Expand tasks"
       >
         <div className="relative">
@@ -377,7 +377,7 @@ export function TasksSummaryWidget({
             <button
               onClick={() => fetchReminders(true)}
               disabled={isRefreshing}
-              className="p-1.5 rounded-lg hover:bg-gray-700/50 text-gray-400 hover:text-white transition disabled:opacity-50"
+              className="p-1.5 rounded-lg hover:bg-gray-700/50 text-gray-400 hover:text-white transition cursor-pointer disabled:opacity-50"
               title="Refresh"
             >
               <RefreshCw
@@ -387,14 +387,14 @@ export function TasksSummaryWidget({
             </button>
             <button
               onClick={() => setIsExpanded(false)}
-              className="p-1.5 rounded-lg hover:bg-gray-700/50 text-gray-400 hover:text-white transition"
+              className="p-1.5 rounded-lg hover:bg-gray-700/50 text-gray-400 hover:text-white transition cursor-pointer"
               title="Collapse"
             >
               <ChevronLeft size={18} />
             </button>
             <button
               onClick={onOpenModal}
-              className="p-1.5 rounded-lg hover:bg-gray-700/50 text-gray-400 hover:text-white transition"
+              className="p-1.5 rounded-lg hover:bg-gray-700/50 text-gray-400 hover:text-white transition cursor-pointer"
               title="View all tasks"
             >
               <ExternalLink size={16} />
@@ -411,7 +411,7 @@ export function TasksSummaryWidget({
             <p className="text-base">No pending tasks</p>
             <button
               onClick={onOpenModalWithForm || onOpenModal}
-              className="mt-3 text-sm text-purple-400 hover:text-purple-300 transition"
+              className="mt-3 text-sm text-purple-400 hover:text-purple-300 transition cursor-pointer"
             >
               + Add a task
             </button>
@@ -560,7 +560,7 @@ export function TasksSummaryWidget({
                               menuOpenId === reminder.id ? null : reminder.id
                             );
                           }}
-                          className="p-1.5 rounded-lg opacity-50 group-hover:opacity-100 hover:bg-gray-700 transition-all"
+                          className="p-1.5 rounded-lg opacity-50 group-hover:opacity-100 hover:bg-gray-700 transition-all cursor-pointer"
                         >
                           <MoreVertical size={16} className="text-gray-400" />
                         </button>
@@ -587,7 +587,7 @@ export function TasksSummaryWidget({
                                         )
                                       }
                                       disabled={isToggling}
-                                      className="w-full px-2 py-1 text-left text-xs text-gray-300 hover:bg-gray-700 rounded flex items-center gap-2"
+                                      className="w-full px-2 py-1 text-left text-xs text-gray-300 hover:bg-gray-700 rounded flex items-center gap-2 cursor-pointer"
                                     >
                                       <div className="w-2 h-2 rounded-full bg-gray-500" />
                                       Backlog
@@ -602,7 +602,7 @@ export function TasksSummaryWidget({
                                         )
                                       }
                                       disabled={isToggling}
-                                      className="w-full px-2 py-1 text-left text-xs text-gray-300 hover:bg-gray-700 rounded flex items-center gap-2"
+                                      className="w-full px-2 py-1 text-left text-xs text-gray-300 hover:bg-gray-700 rounded flex items-center gap-2 cursor-pointer"
                                     >
                                       <div className="w-2 h-2 rounded-full bg-blue-500" />
                                       In Progress
@@ -617,7 +617,7 @@ export function TasksSummaryWidget({
                                         )
                                       }
                                       disabled={isToggling}
-                                      className="w-full px-2 py-1 text-left text-xs text-gray-300 hover:bg-gray-700 rounded flex items-center gap-2"
+                                      className="w-full px-2 py-1 text-left text-xs text-gray-300 hover:bg-gray-700 rounded flex items-center gap-2 cursor-pointer"
                                     >
                                       <div className="w-2 h-2 rounded-full bg-yellow-500" />
                                       Review
@@ -629,7 +629,7 @@ export function TasksSummaryWidget({
                                         handleStatusUpdate(reminder.id, "done")
                                       }
                                       disabled={isToggling}
-                                      className="w-full px-2 py-1 text-left text-xs text-gray-300 hover:bg-gray-700 rounded flex items-center gap-2"
+                                      className="w-full px-2 py-1 text-left text-xs text-gray-300 hover:bg-gray-700 rounded flex items-center gap-2 cursor-pointer"
                                     >
                                       <div className="w-2 h-2 rounded-full bg-green-500" />
                                       Done
@@ -644,7 +644,7 @@ export function TasksSummaryWidget({
                                   setMenuOpenId(null);
                                   onViewTaskDetails?.(reminder);
                                 }}
-                                className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2"
+                                className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2 cursor-pointer"
                               >
                                 <ExternalLink size={14} />
                                 View Details
@@ -658,7 +658,7 @@ export function TasksSummaryWidget({
                                     onOpenModal();
                                   }
                                 }}
-                                className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2"
+                                className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2 cursor-pointer"
                               >
                                 <Edit size={14} />
                                 Edit
@@ -666,7 +666,7 @@ export function TasksSummaryWidget({
                               <button
                                 onClick={() => handleDelete(reminder.id)}
                                 disabled={isDeleting}
-                                className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-gray-700 flex items-center gap-2 disabled:opacity-50"
+                                className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-gray-700 flex items-center gap-2 cursor-pointer disabled:opacity-50"
                               >
                                 {isDeleting ? (
                                   <div className="w-3.5 h-3.5 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
@@ -693,14 +693,14 @@ export function TasksSummaryWidget({
         {remainingCount > 0 && (
           <button
             onClick={onOpenModal}
-            className="w-full text-base text-purple-400 hover:text-purple-300 transition py-1"
+            className="w-full text-base text-purple-400 hover:text-purple-300 transition cursor-pointer py-1"
           >
             View {remainingCount} more task{remainingCount > 1 ? "s" : ""}...
           </button>
         )}
         <button
           onClick={onOpenModalWithForm || onOpenModal}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 rounded-lg text-base font-medium transition"
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 rounded-lg text-base font-medium transition cursor-pointer"
         >
           <Plus size={18} />
           Add Task
