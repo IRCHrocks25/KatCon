@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { motion } from "motion/react";
 import {
   ListTodo,
@@ -31,6 +31,11 @@ import { useChannels } from "@/contexts/ChannelsContext";
 import { supabase } from "@/lib/supabase/client";
 import { TaskDetailsModal } from "./TaskDetailsModal";
 import { TaskDeleteConfirmationModal } from "@/components/ui/TaskDeleteConfirmationModal";
+import {
+  getStorageItem,
+  setStorageItem,
+  removeStorageItem,
+} from "@/lib/utils/storage";
 
 interface TasksSummaryWidgetProps {
   reminders: Reminder[];
@@ -80,35 +85,111 @@ export function TasksSummaryWidget({
   const [isLoading, setIsLoading] = useState(true);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [deletingTask, setDeletingTask] = useState<Reminder | null>(null);
+  const [displayCount, setDisplayCount] = useState(5); // Start with 5 tasks
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const hasFetchedRef = useRef(false);
+  const taskListRef = useRef<HTMLDivElement>(null);
 
-  // Fetch reminders
+  // Cache key for reminders
+  const CACHE_KEY = "tasks_widget_reminders";
+  const CACHE_TIMESTAMP_KEY = "tasks_widget_timestamp";
+  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+  // Get cached reminders
+  const getCachedReminders = useCallback((): Reminder[] | null => {
+    try {
+      const cached = getStorageItem(CACHE_KEY);
+      const timestamp = getStorageItem(CACHE_TIMESTAMP_KEY);
+
+      if (cached && timestamp) {
+        const cacheTime = parseInt(timestamp, 10);
+        const now = Date.now();
+
+        // Check if cache is still valid
+        if (now - cacheTime < CACHE_DURATION) {
+          return JSON.parse(cached);
+        } else {
+          // Clean up expired cache
+          removeStorageItem(CACHE_KEY);
+          removeStorageItem(CACHE_TIMESTAMP_KEY);
+        }
+      }
+    } catch (error) {
+      console.error("Error reading cached reminders:", error);
+    }
+    return null;
+  }, []);
+
+  // Cache reminders
+  const setCachedReminders = useCallback((reminders: Reminder[]) => {
+    try {
+      setStorageItem(CACHE_KEY, JSON.stringify(reminders));
+      setStorageItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+    } catch (error) {
+      console.error("Error caching reminders:", error);
+    }
+  }, []);
+
+  // Fetch reminders with caching
   const fetchReminders = useCallback(
     async (isRefresh = false) => {
       try {
         if (isRefresh) {
           setIsRefreshing(true);
         } else {
-          setIsLoading(true);
+          // Always show loading initially, even when loading from cache
+          if (!hasFetchedRef.current) {
+            setIsLoading(true);
+          }
+
+          // Try to load from cache first
+          const cachedReminders = getCachedReminders();
+          if (cachedReminders && cachedReminders.length > 0 && !isRefresh) {
+            // Small delay to show loading state briefly even with cache
+            setTimeout(() => {
+              setReminders(cachedReminders);
+              setIsLoading(false);
+              hasFetchedRef.current = true;
+            }, 300); // 300ms delay
+            return;
+          }
         }
+
         const fetchedReminders = await getReminders();
         setReminders(fetchedReminders);
+
+        // Cache the fetched reminders
+        setCachedReminders(fetchedReminders);
+
         if (isRefresh) {
           toast.success("Tasks refreshed");
         }
+        hasFetchedRef.current = true;
       } catch (error) {
         console.error("Error fetching reminders:", error);
+        // If fetch fails and we have no cache, show error state
+        if (!hasFetchedRef.current) {
+          setIsLoading(false);
+        }
       } finally {
         setIsRefreshing(false);
         setIsLoading(false);
       }
     },
-    [setReminders]
+    [setReminders, getCachedReminders, setCachedReminders]
   );
 
-  // Initial fetch
+  // Initial fetch - only once per component lifecycle
   useEffect(() => {
-    fetchReminders();
+    if (!hasFetchedRef.current) {
+      fetchReminders();
+    }
   }, [fetchReminders]);
+
+  // Reset display count when reminders change
+  useEffect(() => {
+    setDisplayCount(5);
+  }, [reminders]);
 
   // Real-time subscription
   useEffect(() => {
@@ -179,8 +260,8 @@ export function TasksSummaryWidget({
     return "upcoming";
   };
 
-  // Smart prioritized list - up to 5 most urgent tasks
-  const { visibleTasks, remainingCount, pendingCount } = useMemo(() => {
+  // Smart prioritized list - all tasks, sorted by priority
+  const { allTasks, visibleTasks, pendingCount, hasMore } = useMemo(() => {
     const pending = reminders.filter(
       (r) => r.status !== "done" && r.status !== "hidden"
     );
@@ -195,11 +276,34 @@ export function TasksSummaryWidget({
     prioritized.sort((a, b) => b.score - a.score);
 
     return {
-      visibleTasks: prioritized.slice(0, 5),
-      remainingCount: Math.max(0, prioritized.length - 5),
+      allTasks: prioritized,
+      visibleTasks: prioritized.slice(0, displayCount),
       pendingCount: pending.length,
+      hasMore: displayCount < prioritized.length,
     };
-  }, [reminders]);
+  }, [reminders, displayCount]);
+
+  // Load more tasks when scrolling near bottom
+  const loadMoreTasks = useCallback(() => {
+    if (hasMore && !isLoadingMore) {
+      setIsLoadingMore(true);
+      // Simulate loading delay for better UX
+      setTimeout(() => {
+        setDisplayCount(prev => prev + 5);
+        setIsLoadingMore(false);
+      }, 500);
+    }
+  }, [hasMore, isLoadingMore]);
+
+  // Scroll event handler
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    const isNearBottom = scrollTop + clientHeight >= scrollHeight - 100; // 100px threshold
+
+    if (isNearBottom && hasMore && !isLoadingMore) {
+      loadMoreTasks();
+    }
+  }, [hasMore, isLoadingMore, loadMoreTasks]);
 
   // Handle status update
   const handleStatusUpdate = async (
@@ -431,7 +535,11 @@ export function TasksSummaryWidget({
       </div>
 
       {/* Task List */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3">
+      <div
+        ref={taskListRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3"
+      >
         {isLoading ? (
           // Loading skeleton
           <div className="space-y-3">
@@ -754,20 +862,26 @@ export function TasksSummaryWidget({
                 </motion.div>
               );
             })}
+
+            {/* Loading more indicator */}
+            {isLoadingMore && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center justify-center py-4"
+              >
+                <div className="flex items-center gap-2 text-gray-400">
+                  <div className="w-4 h-4 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+                  <span className="text-sm">Loading more tasks...</span>
+                </div>
+              </motion.div>
+            )}
           </>
         )}
       </div>
 
       {/* Footer */}
-      <div className="p-4 border-t border-gray-800/50 space-y-2">
-        {remainingCount > 0 && (
-          <button
-            onClick={onOpenModal}
-            className="w-full text-base text-purple-400 hover:text-purple-300 transition cursor-pointer py-1"
-          >
-            View {remainingCount} more task{remainingCount > 1 ? "s" : ""}...
-          </button>
-        )}
+      <div className="p-4 border-t border-gray-800/50">
         <button
           onClick={onOpenModalWithForm || onOpenModal}
           className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 rounded-lg text-base font-medium transition cursor-pointer"

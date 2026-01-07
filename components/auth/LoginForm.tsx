@@ -218,7 +218,7 @@ export function LoginForm() {
                 transition={{ duration: 0.2, delay: 0.2 }}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="w-full py-3 bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 text-white font-semibold rounded-lg hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full py-3 bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 text-white font-semibold rounded-lg hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
               >
                 <AnimatePresence mode="wait">
                   {loading ? (
@@ -269,7 +269,7 @@ export function LoginForm() {
                 setFullname("");
                 setAccountType("CRM");
               }}
-              className="text-sm text-gray-400 hover:text-white transition"
+              className="text-sm text-gray-400 hover:text-white transition cursor-pointer"
             >
               {isSignUp
                 ? "Already have an account? Sign in"
@@ -281,4 +281,3 @@ export function LoginForm() {
     </div>
   );
 }
-

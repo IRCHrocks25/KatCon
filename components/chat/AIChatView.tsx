@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { AIChatInput } from "@/components/ui/ai-chat-input";
 import {
   CheckSquare,
@@ -18,10 +18,10 @@ import { motion, AnimatePresence } from "motion/react";
 import { MessageLoading } from "@/components/ui/message-loading";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { TasksSummaryWidget } from "@/components/reminders/TasksSummaryWidget";
 import { RemindersModal } from "@/components/reminders/RemindersModal";
 import { TaskDetailsModal } from "@/components/reminders/TaskDetailsModal";
 import { TaskDeleteConfirmationModal } from "@/components/ui/TaskDeleteConfirmationModal";
+
 import type { Reminder } from "@/lib/supabase/reminders";
 import { createReminder } from "@/lib/supabase/reminders";
 import { robustFetch } from "@/lib/utils/fetch";
@@ -30,6 +30,9 @@ import {
   setStorageItem,
   removeStorageItem,
 } from "@/lib/utils/storage";
+
+// Lazy load the TasksSummaryWidget to improve initial load performance
+const TasksSummaryWidget = lazy(() => import("@/components/reminders/TasksSummaryWidget").then(module => ({ default: module.TasksSummaryWidget })));
 
 interface Message {
   id: string;
@@ -496,26 +499,34 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
 
       {/* Tasks Summary Widget - Desktop/Tablet: Always visible and expanded */}
       <div className="relative z-10 h-full hidden md:block">
-        <TasksSummaryWidget
-          reminders={reminders}
-          setReminders={setReminders}
-          onOpenModal={() => setShowRemindersModal(true)}
-          onOpenModalWithForm={() => {
-            setShowFormOnOpen(true);
-            setShowRemindersModal(true);
-          }}
-          onEditTask={(reminder) => {
-            setEditingReminder(reminder);
-            setShowRemindersModal(true);
-          }}
-          onViewTaskDetails={handleViewTaskDetails}
-          onExpandedChange={setIsTaskWidgetExpanded}
-          onDeleteTask={(reminder) => {
-            setDeletingTaskFromWidget(reminder);
-            setShowTaskDeleteConfirmation(true);
-          }}
-          forceExpanded={true}
-        />
+        <Suspense
+          fallback={
+            <div className="w-full h-full flex items-center justify-center">
+              <div className="w-6 h-6 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+            </div>
+          }
+        >
+          <TasksSummaryWidget
+            reminders={reminders}
+            setReminders={setReminders}
+            onOpenModal={() => setShowRemindersModal(true)}
+            onOpenModalWithForm={() => {
+              setShowFormOnOpen(true);
+              setShowRemindersModal(true);
+            }}
+            onEditTask={(reminder) => {
+              setEditingReminder(reminder);
+              setShowRemindersModal(true);
+            }}
+            onViewTaskDetails={handleViewTaskDetails}
+            onExpandedChange={setIsTaskWidgetExpanded}
+            onDeleteTask={(reminder) => {
+              setDeletingTaskFromWidget(reminder);
+              setShowTaskDeleteConfirmation(true);
+            }}
+            forceExpanded={true}
+          />
+        </Suspense>
       </div>
 
       {/* Mobile Task Widget Toggle */}
@@ -537,35 +548,43 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
             onClick={() => setShowTaskWidget(false)}
           />
           <div className="absolute left-0 top-0 h-full w-80 bg-black">
-            <TasksSummaryWidget
-              reminders={reminders}
-              setReminders={setReminders}
-              onOpenModal={() => {
-                setShowRemindersModal(true);
-                setShowTaskWidget(false);
-              }}
-              onOpenModalWithForm={() => {
-                setShowFormOnOpen(true);
-                setShowRemindersModal(true);
-                setShowTaskWidget(false);
-              }}
-              onEditTask={(reminder) => {
-                setEditingReminder(reminder);
-                setShowRemindersModal(true);
-                setShowTaskWidget(false);
-              }}
-              onViewTaskDetails={(reminder) => {
-                handleViewTaskDetails(reminder);
-                setShowTaskWidget(false);
-              }}
-              onDeleteTask={(reminder) => {
-                setDeletingTaskFromWidget(reminder);
-                setShowTaskDeleteConfirmation(true);
-                setShowTaskWidget(false);
-              }}
-              onCollapse={() => setShowTaskWidget(false)}
-              forceExpanded={true}
-            />
+            <Suspense
+              fallback={
+                <div className="w-full h-full flex items-center justify-center">
+                  <div className="w-6 h-6 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+                </div>
+              }
+            >
+              <TasksSummaryWidget
+                reminders={reminders}
+                setReminders={setReminders}
+                onOpenModal={() => {
+                  setShowRemindersModal(true);
+                  setShowTaskWidget(false);
+                }}
+                onOpenModalWithForm={() => {
+                  setShowFormOnOpen(true);
+                  setShowRemindersModal(true);
+                  setShowTaskWidget(false);
+                }}
+                onEditTask={(reminder) => {
+                  setEditingReminder(reminder);
+                  setShowRemindersModal(true);
+                  setShowTaskWidget(false);
+                }}
+                onViewTaskDetails={(reminder) => {
+                  handleViewTaskDetails(reminder);
+                  setShowTaskWidget(false);
+                }}
+                onDeleteTask={(reminder) => {
+                  setDeletingTaskFromWidget(reminder);
+                  setShowTaskDeleteConfirmation(true);
+                  setShowTaskWidget(false);
+                }}
+                onCollapse={() => setShowTaskWidget(false)}
+                forceExpanded={true}
+              />
+            </Suspense>
           </div>
         </div>
       )}

@@ -195,7 +195,7 @@ const AIChatInput = ({
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyPress}
-                className="flex-1 border-0 outline-0 rounded-md py-1.5 text-[14px] bg-transparent w-full font-normal text-white placeholder:text-gray-500 resize-none overflow-y-auto"
+                className="flex-1 border-0 outline-0 rounded-md px-0 py-2.5 text-[14px] bg-transparent w-full font-normal text-white placeholder:text-gray-500 resize-none overflow-y-auto"
                 style={{
                   position: "relative",
                   zIndex: 1,
@@ -207,7 +207,7 @@ const AIChatInput = ({
                 rows={1}
               />
 
-              <div className="absolute left-0 top-0 w-full h-full pointer-events-none flex items-start px-5 py-2.5">
+              <div className="absolute left-0 top-0 w-full h-full pointer-events-none flex items-start py-2.5">
                 <AnimatePresence mode="wait">
                   {showPlaceholder && !inputValue && (
                     <motion.span
