@@ -93,13 +93,13 @@ export function ConversationList({
   const dms = conversations.filter((c) => c.type === "dm");
 
   return (
-    <div className="flex-1 overflow-y-auto custom-scrollbar">
+    <nav className="flex-1 overflow-y-auto custom-scrollbar" aria-label="Conversations navigation">
       {/* Channels Section */}
       {channels.length > 0 && (
         <div className="p-2">
-          <div className="px-2 py-1 text-xs font-semibold text-gray-500 uppercase">
+          <h3 className="px-2 py-1 text-xs font-semibold text-gray-500 uppercase" id="channels-heading">
             Channels
-          </div>
+          </h3>
           {channels.map((conversation) => (
             <motion.button
               key={conversation.id}
@@ -249,6 +249,6 @@ export function ConversationList({
           </div>
         </div>
       )}
-    </div>
+    </nav>
   );
 }

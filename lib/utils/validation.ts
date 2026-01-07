@@ -32,11 +32,11 @@ export function sanitizeString(input: string, options: {
   // HTML sanitization (basic)
   if (!allowHtml) {
     sanitized = sanitized
-      .replace(/</g, '<')
-      .replace(/>/g, '>')
-      .replace(/"/g, '"')
-      .replace(/'/g, '&#x27;')
-      .replace(/\//g, '&#x2F;');
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;") 
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#x27;")
+      .replace(/\//g, "&#x2F;");
   }
 
   // Character filtering

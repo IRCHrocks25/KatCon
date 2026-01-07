@@ -492,10 +492,10 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
   };
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-black flex">
+    <div className="relative h-full w-full overflow-hidden bg-black flex" role="main">
       {/* Gradient Background */}
-      <div className="absolute inset-0 bg-gradient-to-b from-purple-950/40 via-black to-black" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-purple-600/15 via-pink-500/10 via-blue-500/10 to-orange-500/10" />
+      <div className="absolute inset-0 bg-gradient-to-b from-purple-950/40 via-black to-black" aria-hidden="true" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-purple-600/15 via-pink-500/10 via-blue-500/10 to-orange-500/10" aria-hidden="true" />
 
       {/* Tasks Summary Widget - Desktop/Tablet: Always visible and expanded */}
       <div className="relative z-10 h-full hidden md:block">
@@ -534,9 +534,11 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
         <button
           onClick={() => setShowTaskWidget(!showTaskWidget)}
           className="p-2 bg-gray-900/80 backdrop-blur-sm border border-gray-700 rounded-lg text-gray-400 hover:text-white transition cursor-pointer"
-          title={showTaskWidget ? "Hide tasks" : "Show tasks"}
+          aria-label={showTaskWidget ? "Hide task summary" : "Show task summary"}
+          aria-expanded={showTaskWidget}
+          aria-controls="mobile-task-widget"
         >
-          <ListTodo size={20} />
+          <ListTodo size={20} aria-hidden="true" />
         </button>
       </div>
 
@@ -640,6 +642,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
                             setTimeout(() => setChatInputValue(null), 0);
                           }}
                           className={`group relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-900/50 backdrop-blur-sm border border-gray-800/50 text-gray-300 hover:text-white hover:border-gray-700 transition-all duration-200 hover:scale-105 ${action.color} hover:bg-gradient-to-r cursor-pointer`}
+                          aria-label={`Send message: ${action.message}`}
                         >
                           <Icon
                             size={15}
@@ -664,6 +667,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
                             setTimeout(() => setChatInputValue(null), 0);
                           }}
                           className={`group relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-900/50 backdrop-blur-sm border border-gray-800/50 text-gray-300 hover:text-white hover:border-gray-700 transition-all duration-200 hover:scale-105 ${action.color} hover:bg-gradient-to-r cursor-pointer`}
+                          aria-label={`Send message: ${action.message}`}
                         >
                           <Icon
                             size={15}
@@ -687,10 +691,13 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.2 }}
                 className="flex-1 overflow-y-auto px-2 custom-scrollbar"
+                role="log"
+                aria-live="polite"
+                aria-label="Chat messages"
               >
                 <div className="flex flex-col justify-end min-h-full py-2 max-w-[600px] mx-auto">
                   <AnimatePresence>
-                    <div className="space-y-2.5">
+                    <div className="space-y-2.5" aria-label="Message list">
                       {messages.map((message) => (
                         <motion.div
                           key={message.id}
@@ -777,6 +784,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
                             setTimeout(() => setChatInputValue(null), 0);
                           }}
                           className={`group relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-900/50 backdrop-blur-sm border border-gray-800/50 text-gray-300 hover:text-white hover:border-gray-700 transition-all duration-200 hover:scale-105 ${action.color} hover:bg-gradient-to-r cursor-pointer`}
+                          aria-label={`Send message: ${action.message}`}
                         >
                           <Icon
                             size={15}

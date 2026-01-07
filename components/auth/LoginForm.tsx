@@ -66,12 +66,14 @@ export function LoginForm() {
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-purple-600/15 via-pink-500/10 via-blue-500/10 to-orange-500/10" />
 
       {/* Auth Form */}
-      <div className="relative z-10 w-full max-w-md px-4">
+      <div className="relative z-10 w-full max-w-md px-4" role="main" aria-labelledby="auth-title">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
           className="bg-gray-900/80 backdrop-blur-sm border border-gray-800 rounded-2xl p-8 shadow-2xl"
+          role="dialog"
+          aria-modal="true"
         >
           {/* Header */}
           <AnimatePresence mode="wait">
@@ -83,7 +85,7 @@ export function LoginForm() {
               transition={{ duration: 0.3 }}
               className="text-center mb-8"
             >
-              <h1 className="text-3xl font-bold text-white mb-2">Katalyst Concierge</h1>
+              <h1 id="auth-title" className="text-3xl font-bold text-white mb-2">Katalyst Concierge</h1>
               <motion.p
                 key={isSignUp ? "signup-text" : "signin-text"}
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -102,8 +104,11 @@ export function LoginForm() {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               className="mb-4 p-3 bg-red-500/10 border border-red-500/50 rounded-lg flex items-center gap-2 text-red-400 text-sm"
+              role="alert"
+              aria-live="assertive"
+              aria-atomic="true"
             >
-              <AlertCircle size={16} />
+              <AlertCircle size={16} aria-hidden="true" />
               <span>{error}</span>
             </motion.div>
           )}
@@ -167,7 +172,7 @@ export function LoginForm() {
                     transition={{ duration: 0.2, delay: 0.15 }}
                   >
                     <label htmlFor="accountType" className="block text-sm font-medium text-gray-300 mb-2">
-                      Account Type <span className="text-red-400">*</span>
+                      Account Type <span id="accountType-required" className="text-red-400" aria-label="required">*</span>
                     </label>
                     <select
                       id="accountType"
@@ -176,6 +181,7 @@ export function LoginForm() {
                       required
                       className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
                       disabled={loading}
+                      aria-describedby="accountType-required"
                     >
                       <option value="CRM">CRM</option>
                       <option value="DEV">DEV</option>
@@ -228,6 +234,7 @@ export function LoginForm() {
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"
+                      aria-hidden="true"
                     />
                   ) : isSignUp ? (
                     <motion.div
@@ -270,6 +277,7 @@ export function LoginForm() {
                 setAccountType("CRM");
               }}
               className="text-sm text-gray-400 hover:text-white transition cursor-pointer"
+              aria-label={isSignUp ? "Switch to sign in form" : "Switch to sign up form"}
             >
               {isSignUp
                 ? "Already have an account? Sign in"

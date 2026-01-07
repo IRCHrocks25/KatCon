@@ -316,7 +316,7 @@ export function KanbanView({
   );
 
   return (
-    <div className="h-full w-full bg-gray-900/50 backdrop-blur-sm p-3 md:p-4">
+    <div className="h-full w-full bg-gray-900/50 backdrop-blur-sm p-3 md:p-4" role="main" aria-label="Kanban board for task management">
       <div className="mb-3 md:mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4">
         <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
           <div>
@@ -334,8 +334,11 @@ export function KanbanView({
                 <button
                   onClick={() => setShowChannelFilter(!showChannelFilter)}
                   className="flex items-center gap-2 px-2 py-1.5 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-xs hover:bg-gray-700/50 transition cursor-pointer"
+                  aria-label="Filter tasks by channel"
+                  aria-expanded={showChannelFilter}
+                  aria-haspopup="listbox"
                 >
-                  <Filter size={14} />
+                  <Filter size={14} aria-hidden="true" />
                   <span>
                     {channelFilter === "all" ? "All" : "Channel"}
                   </span>
@@ -344,6 +347,7 @@ export function KanbanView({
                     className={`transition-transform ${
                       showChannelFilter ? "rotate-180" : ""
                     }`}
+                    aria-hidden="true"
                   />
                 </button>
 
@@ -403,8 +407,9 @@ export function KanbanView({
                 <button
                   onClick={() => onOpenTaskModal()}
                   className="px-3 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5 font-medium text-sm"
+                  aria-label="Add new task"
                 >
-                  <Plus size={16} />
+                  <Plus size={16} aria-hidden="true" />
                   <span>Add</span>
                 </button>
               )}
@@ -417,8 +422,11 @@ export function KanbanView({
               <button
                 onClick={() => setShowChannelFilter(!showChannelFilter)}
                 className="flex items-center gap-2 px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm hover:bg-gray-700/50 transition cursor-pointer"
+                aria-label="Filter tasks by channel"
+                aria-expanded={showChannelFilter}
+                aria-haspopup="listbox"
               >
-                <Filter size={16} />
+                <Filter size={16} aria-hidden="true" />
                 <span>
                   {channelFilter === "all"
                     ? "All Tasks"
@@ -429,6 +437,7 @@ export function KanbanView({
                   className={`transition-transform ${
                     showChannelFilter ? "rotate-180" : ""
                   }`}
+                  aria-hidden="true"
                 />
               </button>
 
@@ -491,8 +500,9 @@ export function KanbanView({
             <button
               onClick={() => onOpenTaskModal()}
               className="px-3 md:px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5 md:gap-2 font-medium text-sm md:text-base"
+              aria-label="Add new task"
             >
-              <Plus size={16} className="md:w-[18px] md:h-[18px]" />
+              <Plus size={16} className="md:w-[18px] md:h-[18px]" aria-hidden="true" />
               <span className="hidden sm:inline md:inline">Add Task</span>
               <span className="sm:hidden md:hidden">Add</span>
             </button>

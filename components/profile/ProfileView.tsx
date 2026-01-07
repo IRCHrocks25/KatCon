@@ -246,7 +246,7 @@ export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
   const displayName = user?.fullname || user?.username || "User";
 
   return (
-    <div className="h-full w-full bg-black text-white flex flex-col overflow-hidden">
+    <div className="h-full w-full bg-black text-white flex flex-col overflow-hidden" role="main" aria-label="User profile settings">
       {/* Header */}
       <div className="flex-shrink-0 border-b border-gray-800 bg-gray-950/95 backdrop-blur-sm">
         <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4">
@@ -320,8 +320,9 @@ export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
                 <button
                   onClick={() => setIsStatusSelectorOpen(true)}
                   className="mt-2 px-4 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition cursor-pointer flex items-center gap-2 mx-auto"
+                  aria-label={userStatus ? "Change your current status" : "Set your status"}
                 >
-                  <Circle size={14} />
+                  <Circle size={14} aria-hidden="true" />
                   {userStatus ? "Change Status" : "Set Status"}
                 </button>
               </div>
@@ -333,10 +334,11 @@ export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
                     onClick={handleConfirmUpload}
                     disabled={isUploadingAvatar}
                     className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium rounded-lg transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    aria-label="Confirm and upload the new profile picture"
                   >
                     {isUploadingAvatar ? (
                       <>
-                        <Loader2 size={16} className="animate-spin" />
+                        <Loader2 size={16} className="animate-spin" aria-hidden="true" />
                         Uploading...
                       </>
                     ) : (
@@ -347,6 +349,7 @@ export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
                     onClick={handleCancelUpload}
                     disabled={isUploadingAvatar}
                     className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded-lg transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Cancel profile picture change"
                   >
                     Cancel
                   </button>
@@ -428,10 +431,11 @@ export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
                 onClick={handleSaveProfile}
                 disabled={!hasChanges || isSaving}
                 className="px-4 md:px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white font-medium rounded-lg transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm md:text-base"
+                aria-label="Save profile changes"
               >
                 {isSaving ? (
                   <>
-                    <Loader2 size={16} className="animate-spin" />
+                    <Loader2 size={16} className="animate-spin" aria-hidden="true" />
                     Saving...
                   </>
                 ) : (
@@ -492,15 +496,16 @@ export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
                   onClick={handleChangePassword}
                   disabled={isChangingPassword || !newPassword || !confirmPassword}
                   className="px-4 md:px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white font-medium rounded-lg transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm md:text-base"
+                  aria-label="Update your password"
                 >
                   {isChangingPassword ? (
                     <>
-                      <Loader2 size={16} className="animate-spin" />
+                      <Loader2 size={16} className="animate-spin" aria-hidden="true" />
                       Updating...
                     </>
                   ) : (
                     <>
-                      <Lock size={14} className="md:w-4 md:h-4" />
+                      <Lock size={14} className="md:w-4 md:h-4" aria-hidden="true" />
                       Change Password
                     </>
                   )}

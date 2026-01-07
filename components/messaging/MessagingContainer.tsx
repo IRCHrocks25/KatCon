@@ -1599,7 +1599,7 @@ export function MessagingContainer({
   );
 
   return (
-    <div className="h-full w-full bg-black relative">
+    <div className="h-full w-full bg-black relative" role="main">
       {/* Desktop Layout */}
       <div className="hidden lg:flex h-full">
         {/* Desktop Sidebar */}
@@ -1615,20 +1615,21 @@ export function MessagingContainer({
                 onClick={handleManualRefresh}
                 disabled={isRefreshing}
                 className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Refresh messages"
+                aria-label="Refresh conversations and messages"
               >
                 <RefreshCw
                   size={20}
                   className={isRefreshing ? "animate-spin" : ""}
+                  aria-hidden="true"
                 />
                 <span className="text-sm hidden sm:inline">Refresh</span>
               </button>
               <button
                 onClick={() => setShowCreateChannel(true)}
                 className="p-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition cursor-pointer flex items-center justify-center"
-                title="New conversation"
+                aria-label="Create new conversation or channel"
               >
-                <Plus size={20} />
+                <Plus size={20} aria-hidden="true" />
               </button>
             </div>
           </div>
@@ -1698,25 +1699,25 @@ export function MessagingContainer({
                   <button
                     onClick={() => setIsSearchOpen(true)}
                     className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2"
-                    title="Search messages (Ctrl+F)"
+                    aria-label="Search messages in conversation (Ctrl+F)"
                   >
-                    <Search size={20} />
+                    <Search size={20} aria-hidden="true" />
                     <span className="text-sm hidden sm:inline">Search</span>
                   </button>
                   <button
                     onClick={() => setIsPinnedMessagesOpen(true)}
                     className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2"
-                    title="Pinned messages"
+                    aria-label="View pinned messages"
                   >
-                    <Pin size={20} />
+                    <Pin size={20} aria-hidden="true" />
                     <span className="text-sm hidden sm:inline">Pinned</span>
                   </button>
                   <button
                     onClick={() => setShowFilesModal(true)}
                     className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2"
-                    title="View shared files"
+                    aria-label="View shared files"
                   >
-                    <FolderOpen size={20} />
+                    <FolderOpen size={20} aria-hidden="true" />
                     <span className="text-sm hidden sm:inline">Files</span>
                   </button>
 
@@ -1724,9 +1725,9 @@ export function MessagingContainer({
                     <button
                       onClick={() => setIsKanbanModalOpen(true)}
                       className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2"
-                      title="Open Kanban board"
+                      aria-label="Open Kanban board for project management"
                     >
-                      <KanbanSquare size={20} />
+                      <KanbanSquare size={20} aria-hidden="true" />
                       <span className="text-sm hidden sm:inline">Kanban</span>
                     </button>
                   )}
@@ -1830,20 +1831,21 @@ export function MessagingContainer({
                 onClick={handleManualRefresh}
                 disabled={isRefreshing}
                 className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Refresh messages"
+                aria-label="Refresh conversations and messages"
               >
                 <RefreshCw
                   size={20}
                   className={isRefreshing ? "animate-spin" : ""}
+                  aria-hidden="true"
                 />
                 <span className="text-sm">Refresh</span>
               </button>
               <button
                 onClick={() => setShowCreateChannel(true)}
                 className="p-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition cursor-pointer flex items-center justify-center"
-                title="New conversation"
+                aria-label="Create new conversation or channel"
               >
-                <Plus size={20} />
+                <Plus size={20} aria-hidden="true" />
               </button>
             </div>
           </div>

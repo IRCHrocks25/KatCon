@@ -479,7 +479,7 @@ export function AdminDashboard() {
   }
 
   return (
-    <div className="h-full bg-black text-white overflow-auto">
+    <div className="h-full bg-black text-white overflow-auto" role="main" aria-label="Admin dashboard for user management">
       {/* Header */}
       <div className="border-b border-gray-800 bg-gray-950/95 backdrop-blur-sm">
         <div className="flex items-center justify-between px-4 sm:px-6 py-4">
@@ -493,8 +493,9 @@ export function AdminDashboard() {
           <button
             onClick={() => setShowCreateModal(true)}
             className="hidden sm:flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition cursor-pointer"
+            aria-label="Create new user account"
           >
-            <Plus size={16} />
+            <Plus size={16} aria-hidden="true" />
             Create User
           </button>
         </div>
@@ -601,8 +602,9 @@ export function AdminDashboard() {
           <button
             onClick={() => setShowCreateModal(true)}
             className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition cursor-pointer w-full mb-4 sm:hidden"
+            aria-label="Create new user account"
           >
-            <Plus size={16} />
+            <Plus size={16} aria-hidden="true" />
             Create User
           </button>
 
@@ -611,13 +613,14 @@ export function AdminDashboard() {
 
             {/* Search Input */}
             <div className="relative w-full sm:w-auto">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true" />
               <input
                 type="text"
                 placeholder="Search users..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent w-full sm:w-64"
+                aria-label="Search users by name, email, role, or account type"
               />
             </div>
           </div>
