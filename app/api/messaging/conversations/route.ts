@@ -5,6 +5,22 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
+interface Profile {
+  id: string;
+  email: string;
+  fullname: string | null;
+  username: string | null;
+  avatar_url: string | null;
+}
+
+interface Message {
+  id: string;
+  conversation_id: string;
+  author_id: string;
+  content: string;
+  created_at: string;
+}
+
 // GET: List all conversations for the current user
 export async function GET(request: NextRequest) {
   try {
@@ -133,7 +149,7 @@ export async function GET(request: NextRequest) {
       .select("id, email, fullname, username, avatar_url")
       .in("id", participantUserIds);
 
-    const profileMap = new Map<string, any>();
+    const profileMap = new Map<string, Profile>();
     (profiles || []).forEach((p) => {
       profileMap.set(p.id, p);
     });
@@ -147,7 +163,7 @@ export async function GET(request: NextRequest) {
       .order("created_at", { ascending: false });
 
     // Group by conversation_id and get the most recent
-    const lastMessageMap = new Map<string, any>();
+    const lastMessageMap = new Map<string, Message>();
     (lastMessages || []).forEach((msg) => {
       if (!lastMessageMap.has(msg.conversation_id)) {
         lastMessageMap.set(msg.conversation_id, msg);

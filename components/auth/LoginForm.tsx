@@ -45,8 +45,8 @@ export function LoginForm() {
         setEmail("");
         setPassword("");
       }
-    } catch (err: any) {
-      const errorMessage = err.message || "An error occurred. Please try again.";
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "An error occurred. Please try again.";
       setError(errorMessage);
       
       // Show error toast

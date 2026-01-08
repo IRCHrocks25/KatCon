@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { moderateRateLimit } from "@/lib/utils/rate-limit";
 
+interface ReminderAssignment {
+  id: string;
+  reminder_id: string;
+  assignedto: string;
+  status: "backlog" | "in_progress" | "review" | "done" | "hidden";
+  created_at: string;
+}
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
@@ -83,8 +91,8 @@ export const GET = moderateRateLimit(async (request: NextRequest) => {
     }
 
     // Group assignments by reminder_id
-    const assignmentsByReminder = new Map<string, any[]>();
-    (allAssignments || []).forEach((assignment) => {
+    const assignmentsByReminder = new Map<string, ReminderAssignment[]>();
+    (allAssignments || []).forEach((assignment: ReminderAssignment) => {
       const existing = assignmentsByReminder.get(assignment.reminder_id) || [];
       existing.push(assignment);
       assignmentsByReminder.set(assignment.reminder_id, existing);

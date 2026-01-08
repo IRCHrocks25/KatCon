@@ -4,6 +4,21 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
+interface UserStatusData {
+  user_id: string;
+  status_text?: string | null;
+  status_emoji?: string | null;
+  expires_at?: string | null;
+  updated_at: string;
+}
+
+interface UserStatusResponse {
+  statusText: string | null;
+  statusEmoji: string | null;
+  expiresAt: string | null;
+  updatedAt: string;
+}
+
 // GET: Get user status (can get specific user or current user)
 export async function GET(request: NextRequest) {
   try {
@@ -134,7 +149,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Upsert status
-    const statusData: any = {
+    const statusData: Partial<UserStatusData> = {
       user_id: user.id,
       updated_at: new Date().toISOString(),
     };
@@ -250,7 +265,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Format response as map
-    const statusMap: Record<string, any> = {};
+    const statusMap: Record<string, UserStatusResponse> = {};
     validStatuses.forEach((status) => {
       statusMap[status.user_id] = {
         statusText: status.status_text,

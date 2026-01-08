@@ -202,8 +202,8 @@ export async function validateRequestBody<T>(
 
     const validatedData = {} as T;
 
-    for (const [key, rules] of Object.entries(schema) as [string, any][]) {
-      const value = (body as any)[key];
+    for (const [key, rules] of Object.entries(schema) as [string, { type: "string" | "number" | "boolean"; required?: boolean; validator?: (value: unknown) => boolean; sanitizer?: (value: unknown) => unknown; }][]) {
+      const value = (body as Record<string, unknown>)[key];
 
       // Required field validation
       if (rules.required && (value === undefined || value === null)) {
@@ -238,7 +238,7 @@ export async function validateRequestBody<T>(
       }
 
       // Sanitization
-      validatedData[key as keyof T] = rules.sanitizer
+      (validatedData as Record<string, unknown>)[key] = rules.sanitizer
         ? rules.sanitizer(value)
         : value;
     }

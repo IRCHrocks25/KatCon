@@ -4,6 +4,23 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
+interface ReactionData {
+  id: string;
+  userId: string;
+  userEmail: string;
+  userFullname: string | null;
+  userAvatarUrl: string | null;
+  createdAt: string;
+}
+
+interface Profile {
+  id: string;
+  email: string;
+  fullname: string | null;
+  username: string | null;
+  avatar_url: string | null;
+}
+
 // POST: Add or remove a reaction
 export async function POST(request: NextRequest) {
   try {
@@ -210,13 +227,13 @@ export async function GET(request: NextRequest) {
       .select("id, email, fullname, username, avatar_url")
       .in("id", userIds);
 
-    const profileMap = new Map();
-    (profiles || []).forEach((p) => {
+    const profileMap = new Map<string, Profile>();
+    (profiles || []).forEach((p: Profile) => {
       profileMap.set(p.id, p);
     });
 
     // Group reactions by type
-    const reactionsByType = new Map<string, any[]>();
+    const reactionsByType = new Map<string, ReactionData[]>();
     (reactions || []).forEach((reaction) => {
       const profile = profileMap.get(reaction.user_id);
       if (!reactionsByType.has(reaction.reaction_type)) {

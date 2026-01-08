@@ -4,6 +4,11 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
+interface ProfileUpdateFields {
+  username?: string;
+  fullname?: string | null;
+}
+
 /**
  * Validate username format
  */
@@ -61,7 +66,7 @@ export async function POST(request: NextRequest) {
     const { username, fullname } = body;
 
     // Build update object
-    const updates: Record<string, any> = {};
+    const updates: Partial<ProfileUpdateFields> = {};
 
     if (username !== undefined) {
       // Validate username

@@ -4,6 +4,14 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
+interface Profile {
+  id: string;
+  email: string;
+  fullname: string | null;
+  username: string | null;
+  avatar_url: string | null;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ messageId: string }> }
@@ -108,8 +116,8 @@ export async function GET(
       .select("id, email, fullname, username, avatar_url")
       .in("id", senderIds);
 
-    const profileMap = new Map<string, any>();
-    (profiles || []).forEach((p) => {
+    const profileMap = new Map<string, Profile>();
+    (profiles || []).forEach((p: Profile) => {
       profileMap.set(p.id, p);
     });
 

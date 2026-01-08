@@ -26,11 +26,11 @@ export function rateLimit(options: RateLimitOptions) {
   } = options;
 
   return function rateLimitWrapper(
-    handler: (request: NextRequest, ...args: any[]) => Promise<NextResponse>
+    handler: (request: NextRequest, ...args: any[]) => Promise<NextResponse> // eslint-disable-line @typescript-eslint/no-explicit-any
   ) {
     return async function rateLimitedHandler(
       request: NextRequest,
-      ...args: any[]
+      ...args: any[] // eslint-disable-line @typescript-eslint/no-explicit-any
     ): Promise<NextResponse> {
       // Get client IP (fallback to a default for development)
       const ip = request.headers.get('x-forwarded-for') ||

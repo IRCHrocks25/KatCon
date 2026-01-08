@@ -4,6 +4,27 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
+interface PinnedMessage {
+  id: string;
+  message_id: string;
+  pinned_by_user_id: string;
+  pinned_at: string;
+  message: {
+    id: string;
+    content: string;
+    created_at: string;
+    author_id: string;
+  }[];
+}
+
+interface Profile {
+  id: string;
+  email: string;
+  fullname: string | null;
+  username: string | null;
+  avatar_url: string | null;
+}
+
 // GET: Get pinned messages for a conversation
 export async function GET(request: NextRequest) {
   try {
@@ -87,8 +108,8 @@ export async function GET(request: NextRequest) {
     // Get profiles for message authors and users who pinned
     const authorIds = new Set<string>();
     const pinnedByIds = new Set<string>();
-    (pinnedMessages || []).forEach((pm: any) => {
-      if (pm.message?.author_id) authorIds.add(pm.message.author_id);
+    (pinnedMessages || []).forEach((pm: PinnedMessage) => {
+      if (pm.message?.[0]?.author_id) authorIds.add(pm.message[0].author_id);
       if (pm.pinned_by_user_id) pinnedByIds.add(pm.pinned_by_user_id);
     });
 
@@ -98,15 +119,15 @@ export async function GET(request: NextRequest) {
       .select("id, email, fullname, username, avatar_url")
       .in("id", allUserIds);
 
-    const profileMap = new Map();
-    (profiles || []).forEach((p: any) => {
+    const profileMap = new Map<string, Profile>();
+    (profiles || []).forEach((p: Profile) => {
       profileMap.set(p.id, p);
     });
 
     // Format response
-    const formatted = (pinnedMessages || []).map((pm: any) => {
-      const message = pm.message;
-      const authorProfile = profileMap.get(message?.author_id);
+    const formatted = (pinnedMessages || []).map((pm: PinnedMessage) => {
+      const message = pm.message?.[0]; // Get first (and only) message from array
+      const authorProfile = profileMap.get(message?.author_id || "");
       const pinnedByProfile = profileMap.get(pm.pinned_by_user_id);
 
       return {

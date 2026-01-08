@@ -86,6 +86,83 @@ export interface Message {
   isPinned?: boolean;
 }
 
+// Raw API response types for type-safe mapping
+interface RawConversationData {
+  id: string;
+  name: string | null;
+  description: string | null;
+  type: string;
+  is_private: boolean;
+  is_joined?: boolean;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+  participants?: RawParticipantData[];
+  last_message?: RawMessageData | null;
+  unread_count?: number;
+}
+
+interface RawParticipantData {
+  userId?: string;
+  user_id?: string;
+  email: string;
+  fullname?: string | null;
+  username?: string | null;
+  avatarUrl?: string | null;
+  avatar_url?: string | null;
+}
+
+interface RawMessageData {
+  id: string;
+  conversation_id: string;
+  author_id: string;
+  author_email: string;
+  author_fullname?: string | null;
+  author_username?: string | null;
+  author_avatar_url?: string | null;
+  content: string;
+  created_at: string;
+  parent_message_id?: string | null;
+  thread_reply_count?: number;
+  read_by?: string[];
+  file_url?: string | null;
+  file_name?: string | null;
+  file_type?: string | null;
+  file_size?: number | null;
+  reactions?: MessageReaction[];
+  is_pinned?: boolean;
+}
+
+interface RawPinnedMessageData {
+  id: string;
+  messageId: string;
+  message: {
+    id: string;
+    content: string;
+    createdAt: string;
+    author: {
+      id: string;
+      email: string;
+      fullname?: string | null;
+      username?: string | null;
+      avatarUrl?: string | null;
+    };
+  };
+  pinnedBy: {
+    id: string;
+    email: string;
+    fullname?: string | null;
+  };
+  pinnedAt: string;
+}
+
+interface RawUserStatusData {
+  statusText: string | null;
+  statusEmoji: string | null;
+  expiresAt: string | null;
+  updatedAt: string;
+}
+
 /**
  * Get all conversations for the current user (channels + DMs)
  */
@@ -105,7 +182,7 @@ export async function getConversations(): Promise<Conversation[]> {
     }
 
     const data = await response.json();
-    return (data.conversations || []).map((conv: any) => ({
+    return (data.conversations || []).map((conv: RawConversationData) => ({
       id: conv.id,
       name: conv.name,
       description: conv.description,
@@ -119,7 +196,7 @@ export async function getConversations(): Promise<Conversation[]> {
       createdBy: conv.created_by || undefined,
       createdAt: new Date(conv.created_at),
       updatedAt: new Date(conv.updated_at),
-      participants: (conv.participants || []).map((p: any) => ({
+      participants: (conv.participants || []).map((p: RawParticipantData) => ({
         userId: p.userId || p.user_id,
         email: p.email || "",
         fullname: p.fullname || null,
@@ -184,7 +261,7 @@ export async function getMessages(
 
     const data = await response.json();
     return {
-      messages: (data.messages || []).map((msg: any) => ({
+      messages: (data.messages || []).map((msg: RawMessageData) => ({
         id: msg.id,
         conversationId: msg.conversation_id,
         authorId: msg.author_id,
@@ -286,7 +363,7 @@ export async function getThreadMessages(
     }
 
     const data = await response.json();
-    return (data.messages || []).map((msg: any) => ({
+    return (data.messages || []).map((msg: RawMessageData) => ({
       id: msg.id,
       conversationId: msg.conversation_id,
       authorId: msg.author_id,
@@ -815,7 +892,7 @@ export async function getPinnedMessages(
  */
 export async function pinMessage(
   messageId: string
-): Promise<{ pinnedMessage: any }> {
+): Promise<{ pinnedMessage: RawPinnedMessageData }> {
   try {
     const headers = await getAuthHeaders();
     const response = await robustFetch("/api/messaging/pinned", {
@@ -960,13 +1037,14 @@ export async function getUserStatuses(
     const data = await response.json();
     // Convert the statuses map to UserStatus format
     const statuses: Record<string, UserStatus> = {};
-    Object.entries(data.statuses || {}).forEach(([userId, status]: [string, any]) => {
+    Object.entries(data.statuses || {}).forEach(([userId, status]: [string, unknown]) => {
+      const userStatus = status as RawUserStatusData;
       statuses[userId] = {
         userId,
-        statusText: status.statusText,
-        statusEmoji: status.statusEmoji,
-        expiresAt: status.expiresAt,
-        updatedAt: status.updatedAt,
+        statusText: userStatus.statusText,
+        statusEmoji: userStatus.statusEmoji,
+        expiresAt: userStatus.expiresAt,
+        updatedAt: userStatus.updatedAt,
       };
     });
     return statuses;

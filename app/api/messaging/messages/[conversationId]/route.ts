@@ -6,6 +6,54 @@ import { validateRequestBody, sanitizeString, ValidationSchemas, isValidUUID } f
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
+interface DatabaseMessage {
+  id: string;
+  conversation_id: string;
+  author_id: string;
+  content: string;
+  created_at: string;
+  parent_message_id: string | null;
+  file_url: string | null;
+  file_name: string | null;
+  file_type: string | null;
+  file_size: number | null;
+}
+
+interface ThreadCountResult {
+  parent_message_id: string;
+}
+
+interface ReadResult {
+  message_id: string;
+  user_id: string;
+}
+
+interface ReactionResult {
+  id: string;
+  message_id: string;
+  user_id: string;
+  reaction_type: string;
+  created_at: string;
+}
+
+interface ProfileResult {
+  id: string;
+  email: string;
+  fullname: string | null;
+  username: string | null;
+  avatar_url: string | null;
+}
+
+interface ConversationParticipantResult {
+  user_id: string;
+}
+
+interface MentionProfileResult {
+  id: string;
+  email: string;
+  fullname: string | null;
+}
+
 // GET: Get messages for a conversation
 async function getMessagesHandler(
   request: NextRequest,
@@ -111,8 +159,8 @@ async function getMessagesHandler(
       });
     }
 
-    const messageIds = messages.map((m: any) => m.id);
-    const senderIds = [...new Set(messages.map((m: any) => m.author_id))];
+    const messageIds = messages.map((m: DatabaseMessage) => m.id);
+    const senderIds = [...new Set(messages.map((m: DatabaseMessage) => m.author_id))];
 
     // Batch all related data queries in parallel
     const [
@@ -149,7 +197,7 @@ async function getMessagesHandler(
 
     // Process thread counts
     const threadCountMap = new Map<string, number>();
-    (threadCountsResult.data || []).forEach((t: any) => {
+    (threadCountsResult.data || []).forEach((t: ThreadCountResult) => {
       if (t.parent_message_id) {
         threadCountMap.set(
           t.parent_message_id,
@@ -160,7 +208,7 @@ async function getMessagesHandler(
 
     // Process read receipts
     const readByMap = new Map<string, string[]>();
-    (readsResult.data || []).forEach((read: any) => {
+    (readsResult.data || []).forEach((read: ReadResult) => {
       if (!readByMap.has(read.message_id)) {
         readByMap.set(read.message_id, []);
       }
@@ -169,7 +217,7 @@ async function getMessagesHandler(
 
     // Process reactions
     const reactionUserIds = reactionsResult.data
-      ? [...new Set(reactionsResult.data.map((r: any) => r.user_id))]
+      ? [...new Set(reactionsResult.data.map((r: ReactionResult) => r.user_id))]
       : [];
 
     const reactionProfilesResult = reactionUserIds.length > 0
@@ -179,13 +227,20 @@ async function getMessagesHandler(
           .in("id", reactionUserIds)
       : { data: null };
 
-    const reactionProfileMap = new Map();
-    (reactionProfilesResult.data || []).forEach((p: any) => {
+    const reactionProfileMap = new Map<string, ProfileResult>();
+    (reactionProfilesResult.data || []).forEach((p: ProfileResult) => {
       reactionProfileMap.set(p.id, p);
     });
 
-    const reactionsByMessage = new Map<string, Map<string, any[]>>();
-    (reactionsResult.data || []).forEach((reaction: any) => {
+    const reactionsByMessage = new Map<string, Map<string, Array<{
+      id: string;
+      userId: string;
+      userEmail: string;
+      userFullname: string | null;
+      userAvatarUrl: string | null;
+      createdAt: string;
+    }>>>();
+    (reactionsResult.data || []).forEach((reaction: ReactionResult) => {
       if (!reactionsByMessage.has(reaction.message_id)) {
         reactionsByMessage.set(reaction.message_id, new Map());
       }
@@ -205,8 +260,8 @@ async function getMessagesHandler(
     });
 
     // Create profile map
-    const profileMap = new Map();
-    (profilesResult.data || []).forEach((p: any) => {
+    const profileMap = new Map<string, ProfileResult>();
+    (profilesResult.data || []).forEach((p: ProfileResult) => {
       profileMap.set(p.id, p);
     });
 
@@ -447,7 +502,7 @@ async function sendMessageHandler(
         .select("user_id")
         .eq("conversation_id", conversationId);
 
-      const participantIds = conversationParticipants?.map((p: any) => p.user_id) || [];
+      const participantIds = conversationParticipants?.map((p: ConversationParticipantResult) => p.user_id) || [];
 
       // Get profiles to match mentions
       const { data: participantProfiles } = await supabase
@@ -458,7 +513,7 @@ async function sendMessageHandler(
 
       // Match mentions to users
       const mentionedUsers: string[] = [];
-      (participantProfiles || []).forEach((profile: any) => {
+      (participantProfiles || []).forEach((profile: MentionProfileResult) => {
         const emailPrefix = profile.email?.split("@")[0].toLowerCase() || "";
         const fullname = (profile.fullname || "").toLowerCase();
 

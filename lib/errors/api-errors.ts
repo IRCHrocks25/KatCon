@@ -174,7 +174,7 @@ export const handleApiError = (
     method?: string;
     userId?: string;
     operation?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   } = {}
 ) => {
   logApiError(error, context);
@@ -244,6 +244,13 @@ export const validateStringLength = (
 /**
  * Type guard for API responses
  */
-export const isApiError = (response: any): response is ApiError => {
-  return response && typeof response === 'object' && 'code' in response && 'message' in response;
+export const isApiError = (response: unknown): response is ApiError => {
+  return (
+    response !== null &&
+    typeof response === 'object' &&
+    'code' in response &&
+    'message' in response &&
+    typeof (response as Record<string, unknown>).code === 'string' &&
+    typeof (response as Record<string, unknown>).message === 'string'
+  );
 };
