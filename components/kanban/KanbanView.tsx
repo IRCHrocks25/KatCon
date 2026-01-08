@@ -88,7 +88,8 @@ export function KanbanView({
     };
 
     loadRemindersIfNeeded();
-  }, [user, setReminders]); // Simplified dependencies - only user and setReminders
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, setReminders]); // Intentionally omit isLoading and reminders.length - we only want to run this once on mount
 
   // Filter to show tasks where user is creator OR assigned, and by channel filter
   const userTasks = useMemo(() => {

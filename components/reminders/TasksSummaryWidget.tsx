@@ -295,8 +295,8 @@ export function TasksSummaryWidget({
     } else if (sortBy === "created") {
       // Sort by creation date (newest first)
       prioritized.sort((a, b) => {
-        const aDate = new Date(a.reminder.createdAt).getTime();
-        const bDate = new Date(b.reminder.createdAt).getTime();
+        const aDate = a.reminder.createdAt ? new Date(a.reminder.createdAt).getTime() : 0;
+        const bDate = b.reminder.createdAt ? new Date(b.reminder.createdAt).getTime() : 0;
         return bDate - aDate;
       });
     }

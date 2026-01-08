@@ -60,7 +60,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
   const [previousUserEmail, setPreviousUserEmail] = useState<string | null>(
     null
   );
-  const [lastActivity, setLastActivity] = useState<number>(Date.now());
+
   const [showTaskWidget, setShowTaskWidget] = useState(true);
   const [isTaskWidgetExpanded, setIsTaskWidgetExpanded] = useState(false);
   const [showTaskDeleteConfirmation, setShowTaskDeleteConfirmation] = useState(false);
@@ -88,7 +88,6 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
       removeStorageItem(getUserStorageKey("chatSessionId", previousUserEmail));
       removeStorageItem(getUserActivityKey(previousUserEmail));
       setSessionId(null);
-      setLastActivity(Date.now());
     }
 
     // Clear when different user logs in
@@ -104,7 +103,6 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
       removeStorageItem(getUserStorageKey("chatSessionId", previousUserEmail));
       removeStorageItem(getUserActivityKey(previousUserEmail));
       setSessionId(null);
-      setLastActivity(Date.now());
     }
 
     setPreviousUserEmail(currentUserEmail);
@@ -126,7 +124,6 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
         removeStorageItem(getUserStorageKey("chatMessages", user.email));
         removeStorageItem(getUserStorageKey("chatSessionId", user.email));
         removeStorageItem(activityKey);
-        setLastActivity(Date.now());
         return;
       }
 
@@ -142,7 +139,6 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
             })
           );
           setMessages(parsedMessages);
-          setLastActivity(Date.now());
         } catch (error) {
           console.error("Error loading saved chat messages:", error);
         }
@@ -163,7 +159,6 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
           JSON.stringify(messagesToSave)
         );
         setStorageItem(getUserActivityKey(user.email), Date.now().toString());
-        setLastActivity(Date.now());
       }, 500); // 500ms debounce
 
       return () => clearTimeout(timeoutId);
@@ -212,7 +207,6 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
         removeStorageItem(getUserStorageKey("chatSessionId", user.email));
         removeStorageItem(activityKey);
         setSessionId(null);
-        setLastActivity(Date.now());
       }
     };
 

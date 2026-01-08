@@ -215,7 +215,7 @@ export function FilesModal({
     if (isOpen) {
       // Check if conversation changed
       const conversationChanged = lastConversationIdRef.current !== conversationId;
-      
+
       if (conversationChanged) {
         // Reset state for new conversation
         hasLoadedRef.current = false;
@@ -245,25 +245,28 @@ export function FilesModal({
       // Reset when modal closes
       hasLoadedRef.current = false;
     }
-  }, [isOpen, conversationId]);
+ 
+  }, [isOpen, conversationId]); // Intentionally omit fetchFiles and filter params - this effect controls when to fetch
 
   // Handle filter/sort changes (immediate fetch)
   useEffect(() => {
     if (!isOpen || !hasLoadedRef.current) return;
-    
+
     fetchFiles();
-  }, [filterType, sortOrder]);
+  
+  }, [fetchFiles, isOpen]); // fetchFiles depends on filterType/sortOrder, so including it covers those changes
 
   // Debounced search
   useEffect(() => {
     if (!isOpen || !hasLoadedRef.current) return;
-    
+
     const timer = setTimeout(() => {
       fetchFiles();
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchFiles, isOpen]); // fetchFiles depends on searchQuery, so including it covers search changes
 
   const getFileIcon = (mimeType: string) => {
     if (mimeType.startsWith("image/")) return <ImageIcon size={24} className="text-blue-400" />;

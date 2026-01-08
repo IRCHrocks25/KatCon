@@ -84,13 +84,20 @@ export function MessageInput({
   }, [content]);
 
   // Cleanup preview URLs on unmount
+  // Use ref to track current selectedFiles for cleanup
+  const selectedFilesRef = useRef(selectedFiles);
+  useEffect(() => {
+    selectedFilesRef.current = selectedFiles;
+  }, [selectedFiles]);
+
   useEffect(() => {
     return () => {
-      selectedFiles.forEach((f) => {
+      selectedFilesRef.current.forEach((f) => {
         if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
       });
     };
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount/unmount
 
   // Close emoji picker when clicking outside
   useEffect(() => {
