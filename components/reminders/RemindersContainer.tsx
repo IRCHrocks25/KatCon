@@ -7,9 +7,7 @@ import {
   Bell,
   Plus,
   X,
-  Clock,
   Calendar,
-  Edit,
   User,
   Users,
   RefreshCw,
@@ -989,11 +987,6 @@ export function RemindersContainer({
             // Determine which status to display:
             // - If user is creator: use reminder.status (overall status)
             // - If user is assignee: use reminder.myStatus (their personal status)
-            const isCreator = reminder.createdBy === currentUser?.email;
-            const displayStatus = isCreator
-              ? reminder.status
-              : reminder.myStatus || reminder.status;
-
             return (
               <ReminderCard
                 key={reminder.id}

@@ -6,7 +6,6 @@ import { useChannels } from "@/contexts/ChannelsContext";
 import { toast } from "sonner";
 import type { Reminder } from "@/lib/supabase/reminders";
 import { KanbanColumn } from "@/components/kanban/KanbanColumn";
-import { KanbanCard } from "@/components/kanban/KanbanCard";
 import { TaskDetailsModal } from "@/components/reminders/TaskDetailsModal";
 import { Loader2, Eye, X } from "lucide-react";
 

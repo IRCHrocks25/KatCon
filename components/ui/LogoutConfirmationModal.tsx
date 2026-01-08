@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "motion/react";
-import { LogOut, X } from "lucide-react";
+import { LogOut } from "lucide-react";
 
 interface LogoutConfirmationModalProps {
   isOpen: boolean;

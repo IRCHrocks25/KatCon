@@ -6,7 +6,6 @@ import {
   MessageSquare,
   Hash,
   FolderOpen,
-  ListTodo,
   RefreshCw,
   Search,
   Pin,
@@ -1494,27 +1493,6 @@ export function MessagingContainer({
     return "Unnamed Channel";
   };
 
-  // Helper to get initials for avatar
-  const getConversationInitials = (conversation: Conversation) => {
-    if (conversation.type === "dm") {
-      const other = getOtherParticipant(conversation);
-      const name = other?.fullname || other?.email || "?";
-      return name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2);
-    }
-    return conversation.name
-      ? conversation.name
-          .split(" ")
-          .map((n) => n[0])
-          .join("")
-          .toUpperCase()
-          .slice(0, 2)
-      : "#";
-  };
 
   // Search handlers - memoized to prevent infinite loops
   const handleCloseSearch = useCallback(() => {

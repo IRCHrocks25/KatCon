@@ -10,8 +10,6 @@ import {
   AlertCircle,
   Bell,
   MessageSquare,
-  PanelLeftOpen,
-  PanelLeftClose,
   ListTodo,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";

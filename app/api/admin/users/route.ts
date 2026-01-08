@@ -47,7 +47,10 @@ export const GET = moderateRateLimit(async (request: NextRequest) => {
       .single();
 
     if (!profile || profile.role !== "admin") {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Admin access required" },
+        { status: 403 }
+      );
     }
 
     // Use service role for admin operations (bypasses RLS)
@@ -56,7 +59,8 @@ export const GET = moderateRateLimit(async (request: NextRequest) => {
     // Get all users with their profiles
     const { data: users, error: usersError } = await adminSupabase
       .from("profiles")
-      .select(`
+      .select(
+        `
         id,
         email,
         fullname,
@@ -67,18 +71,25 @@ export const GET = moderateRateLimit(async (request: NextRequest) => {
         avatar_url,
         created_at,
         updated_at
-      `)
+      `
+      )
       .order("created_at", { ascending: false });
 
     if (usersError) {
       console.error("Error fetching users:", usersError);
-      return NextResponse.json({ error: "Failed to fetch users" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Failed to fetch users" },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ users: users || [] });
   } catch (error) {
     console.error("Error in admin users GET:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
 });
 
@@ -117,14 +128,17 @@ export const POST = moderateRateLimit(async (request: NextRequest) => {
       .single();
 
     if (!adminProfile || adminProfile.role !== "admin") {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Admin access required" },
+        { status: 403 }
+      );
     }
 
     // Use service role for admin operations (bypasses RLS)
     const adminSupabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body = await request.json();
-    const { userId, action, approved, role, accountType } = body;
+    const { userId, action, role, accountType } = body;
 
     if (!action) {
       return NextResponse.json(
@@ -134,16 +148,33 @@ export const POST = moderateRateLimit(async (request: NextRequest) => {
     }
 
     // userId is only required for actions that operate on existing users
-    const actionsRequiringUserId = ["approve", "reject", "update_role", "update_account_type", "update_user", "delete_user"];
+    const actionsRequiringUserId = [
+      "approve",
+      "reject",
+      "update_role",
+      "update_account_type",
+      "update_user",
+      "delete_user",
+    ];
     if (actionsRequiringUserId.includes(action) && !userId) {
       return NextResponse.json(
-        { error: `Missing required field: userId (required for action: ${action})` },
+        {
+          error: `Missing required field: userId (required for action: ${action})`,
+        },
         { status: 400 }
       );
     }
 
     // Validate action
-    const validActions = ["approve", "reject", "update_role", "update_account_type", "create_user", "update_user", "delete_user"];
+    const validActions = [
+      "approve",
+      "reject",
+      "update_role",
+      "update_account_type",
+      "create_user",
+      "update_user",
+      "delete_user",
+    ];
     if (!validActions.includes(action)) {
       return NextResponse.json(
         { error: "Invalid action. Must be one of: " + validActions.join(", ") },
@@ -174,7 +205,18 @@ export const POST = moderateRateLimit(async (request: NextRequest) => {
           }
           updates.role = role as UserRole;
         } else if (action === "update_account_type") {
-          if (!accountType || !["CRM", "DEV", "PM", "AI", "DESIGN", "COPYWRITING", "OTHERS"].includes(accountType)) {
+          if (
+            !accountType ||
+            ![
+              "CRM",
+              "DEV",
+              "PM",
+              "AI",
+              "DESIGN",
+              "COPYWRITING",
+              "OTHERS",
+            ].includes(accountType)
+          ) {
             return NextResponse.json(
               { error: "Invalid account type" },
               { status: 400 }
@@ -200,11 +242,17 @@ export const POST = moderateRateLimit(async (request: NextRequest) => {
         }
 
         result = updatedUser;
-        message = `User ${action.replace('_', ' ')} successful`;
+        message = `User ${action.replace("_", " ")} successful`;
         break;
 
       case "create_user":
-        const { email: newEmail, password: newPassword, fullname: newFullname, accountType: newAccountType, role: newRole } = body;
+        const {
+          email: newEmail,
+          password: newPassword,
+          fullname: newFullname,
+          accountType: newAccountType,
+          role: newRole,
+        } = body;
 
         if (!newEmail || !newPassword) {
           return NextResponse.json(
@@ -214,15 +262,19 @@ export const POST = moderateRateLimit(async (request: NextRequest) => {
         }
 
         // Create user via Supabase Auth Admin API
-        const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
-          email: newEmail,
-          password: newPassword,
-          email_confirm: true,
-        });
+        const { data: authData, error: authError } =
+          await adminSupabase.auth.admin.createUser({
+            email: newEmail,
+            password: newPassword,
+            email_confirm: true,
+          });
 
         if (authError) {
           return NextResponse.json(
-            { error: "Failed to create user account", details: authError.message },
+            {
+              error: "Failed to create user account",
+              details: authError.message,
+            },
             { status: 500 }
           );
         }
@@ -236,14 +288,17 @@ export const POST = moderateRateLimit(async (request: NextRequest) => {
             fullname: newFullname || null,
             account_type: newAccountType || "OTHERS",
             approved: true, // Admin-created users are auto-approved
-            role: newRole || "user"
+            role: newRole || "user",
           })
           .select()
           .single();
 
         if (profileError) {
           return NextResponse.json(
-            { error: "Failed to create user profile", details: profileError.message },
+            {
+              error: "Failed to create user profile",
+              details: profileError.message,
+            },
             { status: 500 }
           );
         }
@@ -267,16 +322,20 @@ export const POST = moderateRateLimit(async (request: NextRequest) => {
         if (updateFullname !== undefined) updateData.fullname = updateFullname;
 
         // Update profile
-        const { data: updatedProfile, error: profileUpdateError } = await adminSupabase
-          .from("profiles")
-          .update(updateData)
-          .eq("id", userId)
-          .select()
-          .single();
+        const { data: updatedProfile, error: profileUpdateError } =
+          await adminSupabase
+            .from("profiles")
+            .update(updateData)
+            .eq("id", userId)
+            .select()
+            .single();
 
         if (profileUpdateError) {
           return NextResponse.json(
-            { error: "Failed to update user", details: profileUpdateError.message },
+            {
+              error: "Failed to update user",
+              details: profileUpdateError.message,
+            },
             { status: 500 }
           );
         }
@@ -294,7 +353,8 @@ export const POST = moderateRateLimit(async (request: NextRequest) => {
         }
 
         // Delete from auth.users (this will cascade to profiles due to foreign key)
-        const { error: deleteError } = await adminSupabase.auth.admin.deleteUser(userId);
+        const { error: deleteError } =
+          await adminSupabase.auth.admin.deleteUser(userId);
 
         if (deleteError) {
           return NextResponse.json(
@@ -311,10 +371,13 @@ export const POST = moderateRateLimit(async (request: NextRequest) => {
     return NextResponse.json({
       success: true,
       message,
-      user: result
+      user: result,
     });
   } catch (error) {
     console.error("Error in admin users POST:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback} from "react";
 import { Search, X, ChevronUp, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import type { Message } from "@/lib/supabase/messaging";
@@ -368,7 +368,7 @@ export function MessageSearch({
             exit={{ opacity: 0, height: 0 }}
             className="mt-2 text-sm text-gray-400 text-center"
           >
-            No messages found matching "{debouncedQuery}"
+            No messages found matching &ldquo;{debouncedQuery}&rdquo;
           </motion.div>
         )}
       </AnimatePresence>

@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "motion/react";
-import { Hash, Users } from "lucide-react";
+import { Hash } from "lucide-react";
 import type { Conversation } from "@/lib/supabase/messaging";
 import { useAuth } from "@/contexts/AuthContext";
 import { Avatar } from "@/components/ui/avatar";

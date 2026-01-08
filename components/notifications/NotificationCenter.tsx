@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Bell, Check, CheckCheck, X } from "lucide-react";
+import { Bell, Check, CheckCheck} from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,7 +23,6 @@ export function NotificationCenter({ onTabChange, onOpenTask }: NotificationCent
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [markingReadId, setMarkingReadId] = useState<string | null>(null);
   const [markingAllRead, setMarkingAllRead] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);

@@ -89,7 +89,6 @@ export function rateLimit(options: RateLimitOptions) {
 
         // Add rate limit headers to response
         const remaining = Math.max(0, max - entry.count);
-        const resetIn = Math.ceil((entry.resetTime - now) / 1000);
 
         response.headers.set('X-RateLimit-Limit', max.toString());
         response.headers.set('X-RateLimit-Remaining', remaining.toString());

@@ -5,7 +5,6 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  useCallback,
   useMemo,
 } from "react";
 import { motion, AnimatePresence } from "motion/react";
@@ -607,8 +606,6 @@ export function MessageList({
                     // Only show read receipts on the last message (most recent)
                     const isLastMessage = index === messages.length - 1;
                     const lastMessage = messages[messages.length - 1];
-                    const isOwnLastMessage =
-                      lastMessage?.authorId === currentUserId;
 
                     const hasReadReceipts = isLastMessage &&
                       lastMessage.readBy &&

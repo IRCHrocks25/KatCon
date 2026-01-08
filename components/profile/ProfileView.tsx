@@ -13,12 +13,7 @@ import type { Reminder } from "@/lib/supabase/reminders";
 import { UserStatusSelector } from "@/components/user/UserStatusSelector";
 import { getUserStatus, type UserStatus } from "@/lib/supabase/messaging";
 
-interface ProfileViewProps {
-  reminders: Reminder[];
-  setReminders: (reminders: Reminder[]) => void;
-}
-
-export function ProfileView({ reminders, setReminders }: ProfileViewProps) {
+export function ProfileView() {
   const { user, refreshProfile, logout } = useAuth();
   const [username, setUsername] = useState(user?.username || "");
   const [isSaving, setIsSaving] = useState(false);

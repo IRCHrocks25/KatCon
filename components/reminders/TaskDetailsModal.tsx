@@ -7,8 +7,6 @@ import {
   Clock,
   User,
   Users,
-  Calendar,
-  AlertCircle,
   CheckCircle,
   Circle,
   Edit,

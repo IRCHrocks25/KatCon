@@ -17,7 +17,6 @@ import {
   Trash2,
   User,
   Users,
-  Hash,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Reminder } from "@/lib/supabase/reminders";
@@ -29,8 +28,6 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useChannels } from "@/contexts/ChannelsContext";
 import { supabase } from "@/lib/supabase/client";
-import { TaskDetailsModal } from "./TaskDetailsModal";
-import { TaskDeleteConfirmationModal } from "@/components/ui/TaskDeleteConfirmationModal";
 import {
   getStorageItem,
   setStorageItem,
@@ -71,7 +68,6 @@ export function TasksSummaryWidget({
   forceExpanded = false,
 }: TasksSummaryWidgetProps) {
   const { user: currentUser } = useAuth();
-  const { channels: availableChannels } = useChannels();
   const [isExpanded, setIsExpanded] = useState(forceExpanded);
 
   // Ensure isExpanded respects forceExpanded prop changes
@@ -83,8 +79,6 @@ export function TasksSummaryWidget({
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
-  const [deletingTask, setDeletingTask] = useState<Reminder | null>(null);
   const [displayCount, setDisplayCount] = useState(5); // Start with 5 tasks
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const hasFetchedRef = useRef(false);
@@ -261,7 +255,7 @@ export function TasksSummaryWidget({
   };
 
   // Smart prioritized list - all tasks, sorted by priority
-  const { allTasks, visibleTasks, pendingCount, hasMore } = useMemo(() => {
+  const {  visibleTasks, pendingCount, hasMore } = useMemo(() => {
     const pending = reminders.filter(
       (r) => r.status !== "done" && r.status !== "hidden"
     );
@@ -330,33 +324,6 @@ export function TasksSummaryWidget({
     }
   };
 
-  // Handle delete
-  const handleDelete = async (id: string) => {
-    const reminder = reminders.find((r) => r.id === id);
-    if (!reminder || reminder.createdBy !== currentUser?.email) {
-      toast.error("Only the creator can delete this task");
-      return;
-    }
-
-    setDeletingId(id);
-    setMenuOpenId(null);
-    try {
-      await deleteReminder(id);
-      setReminders((prev) => prev.filter((r) => r.id !== id));
-      toast.success("Task deleted");
-    } catch (error) {
-      console.error("Error deleting task:", error);
-      toast.error("Failed to delete task");
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
-  // Handle view details
-  const handleViewDetails = (reminder: Reminder) => {
-    console.log("Task card clicked:", reminder.id);
-    onViewTaskDetails?.(reminder);
-  };
 
   // Format due date
   const formatDueDate = (date: Date, priority: Priority) => {

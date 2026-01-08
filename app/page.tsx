@@ -202,7 +202,7 @@ export default function Home() {
             {/* Notification Center */}
             <NotificationCenter
               onTabChange={setActiveTab}
-              onOpenTask={(taskId) => {
+              onOpenTask={() => {
                 // For now, just switch to kanban tab
                 // In the future, we could open a task details modal
                 setActiveTab("kanban");
@@ -343,7 +343,7 @@ export default function Home() {
                 }}
               />
             ) : activeTab === "profile" ? (
-              <ProfileView reminders={reminders} setReminders={setReminders} />
+              <ProfileView />
             ) : activeTab === "admin" ? (
               <AdminDashboard />
             ) : null}

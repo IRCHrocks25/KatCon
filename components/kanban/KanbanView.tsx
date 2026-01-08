@@ -21,7 +21,6 @@ import { updateReminderKanban, getReminders } from "@/lib/supabase/reminders";
 import { KanbanColumn } from "@/components/kanban/KanbanColumn";
 import { KanbanCard } from "@/components/kanban/KanbanCard";
 import { TaskDetailsModal } from "@/components/reminders/TaskDetailsModal";
-import { getConversations, type Conversation } from "@/lib/supabase/messaging";
 
 interface KanbanViewProps {
   reminders: Reminder[];
@@ -550,11 +549,11 @@ export function KanbanView({
           onOpenTaskModal?.(reminder);
           setShowTaskDetailsModal(false);
         }}
-        onDelete={(id) => {
+        onDelete={() => {
           // Handle delete if needed
           setShowTaskDetailsModal(false);
         }}
-        onToggleComplete={(id) => {
+        onToggleComplete={() => {
           // Handle toggle complete
           setShowTaskDetailsModal(false);
         }}

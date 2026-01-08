@@ -23,7 +23,6 @@ import {
   createReminder,
   type Reminder,
 } from "@/lib/supabase/reminders";
-import { robustFetch } from "@/lib/utils/fetch";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase/client";
 import { ReminderCard } from "./ReminderCard";

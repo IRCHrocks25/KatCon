@@ -18,7 +18,6 @@ interface MessageActionsMenuProps {
 
 export function MessageActionsMenu({
   messageId,
-  conversationId,
   isPinned = false,
   isOwnMessage = false,
   onReply,

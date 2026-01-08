@@ -132,7 +132,7 @@ export function AdminDashboard() {
             }
           }
         } catch (error) {
-          // Ignore cache errors, proceed with fetch
+          console.error("Error reading users cache:", error);
         }
       }
 
@@ -160,7 +160,7 @@ export function AdminDashboard() {
             setStorageItem(CACHE_KEY, JSON.stringify(data.users));
             setStorageItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
           } catch (error) {
-            // Ignore cache errors
+            console.error("Error caching users data:", error);
           }
         } else {
           toast.error("Failed to fetch users");

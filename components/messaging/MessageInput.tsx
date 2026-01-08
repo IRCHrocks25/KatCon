@@ -8,7 +8,6 @@ import { Theme } from "emoji-picker-react";
 import type { ConversationParticipant } from "@/lib/supabase/messaging";
 import {
   validateFile,
-  formatFileSize,
   isImageFile,
   ALLOWED_MIME_TYPES,
 } from "@/lib/supabase/file-upload";

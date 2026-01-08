@@ -106,7 +106,7 @@ export function JoinChannelModal({
               </div>
 
               <p className="text-sm text-gray-400 mt-4">
-                By joining this channel, you'll be able to:
+                By joining this channel, you&apos;ll be able to:
               </p>
               <ul className="text-sm text-gray-400 mt-2 space-y-1 ml-4">
                 <li>• View and participate in conversations</li>

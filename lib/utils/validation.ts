@@ -1,21 +1,19 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from "next/server";
 
 // Input sanitization utilities
-export function sanitizeString(input: string, options: {
-  maxLength?: number;
-  minLength?: number;
-  allowHtml?: boolean;
-  allowedChars?: RegExp;
-} = {}): string {
-  const {
-    maxLength,
-    minLength = 0,
-    allowHtml = false,
-    allowedChars,
-  } = options;
+export function sanitizeString(
+  input: string,
+  options: {
+    maxLength?: number;
+    minLength?: number;
+    allowHtml?: boolean;
+    allowedChars?: RegExp;
+  } = {}
+): string {
+  const { maxLength, minLength = 0, allowHtml = false, allowedChars } = options;
 
-  if (typeof input !== 'string') {
-    throw new Error('Input must be a string');
+  if (typeof input !== "string") {
+    throw new Error("Input must be a string");
   }
 
   let sanitized = input.trim();
@@ -33,7 +31,7 @@ export function sanitizeString(input: string, options: {
   if (!allowHtml) {
     sanitized = sanitized
       .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;") 
+      .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#x27;")
       .replace(/\//g, "&#x2F;");
@@ -41,7 +39,7 @@ export function sanitizeString(input: string, options: {
 
   // Character filtering
   if (allowedChars && !allowedChars.test(sanitized)) {
-    throw new Error('Input contains invalid characters');
+    throw new Error("Input contains invalid characters");
   }
 
   return sanitized;
@@ -112,41 +110,53 @@ export const FileValidation = {
   // Allowed MIME types
   ALLOWED_MIME_TYPES: new Set([
     // Images
-    'image/jpeg',
-    'image/png',
-    'image/gif',
-    'image/webp',
-    'image/svg+xml',
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "image/svg+xml",
     // Documents
-    'application/pdf',
-    'text/plain',
-    'text/markdown',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    "application/pdf",
+    "text/plain",
+    "text/markdown",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     // Archives
-    'application/zip',
-    'application/x-zip-compressed',
+    "application/zip",
+    "application/x-zip-compressed",
   ]),
 
   // Allowed file extensions
   ALLOWED_EXTENSIONS: new Set([
-    '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg',
-    '.pdf', '.txt', '.md', '.doc', '.docx', '.xls', '.xlsx',
-    '.zip',
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".webp",
+    ".svg",
+    ".pdf",
+    ".txt",
+    ".md",
+    ".doc",
+    ".docx",
+    ".xls",
+    ".xlsx",
+    ".zip",
   ]),
 
-  validateFile(file: {
-    size: number;
-    type: string;
-    name: string;
-  }): { valid: boolean; error?: string } {
+  validateFile(file: { size: number; type: string; name: string }): {
+    valid: boolean;
+    error?: string;
+  } {
     // Size validation
     if (file.size > FileValidation.MAX_FILE_SIZE) {
       return {
         valid: false,
-        error: `File size exceeds maximum allowed size of ${FileValidation.MAX_FILE_SIZE / (1024 * 1024)}MB`,
+        error: `File size exceeds maximum allowed size of ${
+          FileValidation.MAX_FILE_SIZE / (1024 * 1024)
+        }MB`,
       };
     }
 
@@ -159,7 +169,9 @@ export const FileValidation = {
     }
 
     // File extension validation
-    const extension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+    const extension = file.name
+      .toLowerCase()
+      .substring(file.name.lastIndexOf("."));
     if (!FileValidation.ALLOWED_EXTENSIONS.has(extension)) {
       return {
         valid: false,
@@ -176,13 +188,15 @@ export async function validateRequestBody<T>(
   request: NextRequest,
   schema: {
     [K in keyof T]: {
-      type: 'string' | 'number' | 'boolean';
+      type: "string" | "number" | "boolean";
       required?: boolean;
       validator?: (value: unknown) => boolean;
       sanitizer?: (value: unknown) => unknown;
     };
   }
-): Promise<{ success: true; data: T } | { success: false; error: string; status: number }> {
+): Promise<
+  { success: true; data: T } | { success: false; error: string; status: number }
+> {
   try {
     const body = request.body ? await request.clone().json() : {};
 
@@ -224,7 +238,9 @@ export async function validateRequestBody<T>(
       }
 
       // Sanitization
-      validatedData[key as keyof T] = rules.sanitizer ? rules.sanitizer(value) : value;
+      validatedData[key as keyof T] = rules.sanitizer
+        ? rules.sanitizer(value)
+        : value;
     }
 
     return {
@@ -232,9 +248,10 @@ export async function validateRequestBody<T>(
       data: validatedData,
     };
   } catch (error) {
+    console.error("Error validating request body:", error);
     return {
       success: false,
-      error: 'Invalid JSON in request body',
+      error: "Invalid JSON in request body",
       status: 400,
     };
   }
@@ -242,7 +259,8 @@ export async function validateRequestBody<T>(
 
 // UUID validation
 export function isValidUUID(uuid: string): boolean {
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   return uuidRegex.test(uuid);
 }
 
@@ -250,32 +268,32 @@ export function isValidUUID(uuid: string): boolean {
 export function sanitizeSqlInput(input: string): string {
   // Remove potentially dangerous SQL keywords and characters
   return input
-    .replace(/;/g, '')
-    .replace(/--/g, '')
-    .replace(/\/\*/g, '')
-    .replace(/\*\//g, '')
-    .replace(/xp_/gi, '')
-    .replace(/sp_/gi, '')
-    .replace(/exec/gi, '')
-    .replace(/union/gi, '')
-    .replace(/select/gi, '')
-    .replace(/insert/gi, '')
-    .replace(/update/gi, '')
-    .replace(/delete/gi, '')
-    .replace(/drop/gi, '')
-    .replace(/create/gi, '')
-    .replace(/alter/gi, '');
+    .replace(/;/g, "")
+    .replace(/--/g, "")
+    .replace(/\/\*/g, "")
+    .replace(/\*\//g, "")
+    .replace(/xp_/gi, "")
+    .replace(/sp_/gi, "")
+    .replace(/exec/gi, "")
+    .replace(/union/gi, "")
+    .replace(/select/gi, "")
+    .replace(/insert/gi, "")
+    .replace(/update/gi, "")
+    .replace(/delete/gi, "")
+    .replace(/drop/gi, "")
+    .replace(/create/gi, "")
+    .replace(/alter/gi, "");
 }
 
 // XSS prevention for HTML content (when allowed)
 export function sanitizeHtml(input: string): string {
   // Basic HTML sanitization - in production, use a proper HTML sanitizer library
   return input
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
-    .replace(/javascript:/gi, '')
-    .replace(/on\w+="[^"]*"/gi, '')
-    .replace(/on\w+='[^']*'/gi, '');
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, "")
+    .replace(/javascript:/gi, "")
+    .replace(/on\w+="[^"]*"/gi, "")
+    .replace(/on\w+='[^']*'/gi, "");
 }
 
 // Rate limiting helper for validation failures
@@ -289,7 +307,10 @@ export class ValidationRateLimiter {
     const attempt = this.attempts.get(identifier);
 
     if (!attempt || now > attempt.resetTime) {
-      this.attempts.set(identifier, { count: 1, resetTime: now + this.windowMs });
+      this.attempts.set(identifier, {
+        count: 1,
+        resetTime: now + this.windowMs,
+      });
       return { allowed: true };
     }
 

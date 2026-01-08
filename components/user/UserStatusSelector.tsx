@@ -129,7 +129,6 @@ export function UserStatusSelector({
 
     try {
       setIsLoading(true);
-      const status = await setUserStatus(null, null, null);
       
       // Update local state
       setCurrentStatus(null);
