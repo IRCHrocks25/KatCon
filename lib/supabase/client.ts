@@ -13,15 +13,17 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 // Create a single, centralized Supabase client instance
-// Use dummy values during build time to avoid errors
 const finalSupabaseUrl = supabaseUrl || "https://dummy.supabase.co";
 const finalSupabaseAnonKey = supabaseAnonKey || "dummy-anon-key";
 
-export const supabase: SupabaseClient = createClient(finalSupabaseUrl, finalSupabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-  },
-});
-
+export const supabase: SupabaseClient = createClient(
+  finalSupabaseUrl,
+  finalSupabaseAnonKey,
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+  }
+);
