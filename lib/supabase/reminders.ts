@@ -58,6 +58,7 @@ export interface Reminder {
   createdBy: string; // Email of the creator
   assignedTo: string[]; // Array of emails of assigned users
   channelId?: string; // ID of the channel this task belongs to (null for global tasks)
+  createdAt?: Date; // When the task was created
 }
 
 // Database reminder format (matches Supabase schema)
@@ -163,6 +164,7 @@ async function dbToAppReminder(
     createdBy: dbReminder.user_id,
     assignedTo: assignments.map((a) => a.assignedto),
     channelId: dbReminder.channel_id || undefined,
+    createdAt: new Date(dbReminder.created_at),
   };
 }
 

@@ -17,6 +17,7 @@ import {
   Trash2,
   User,
   Users,
+  ArrowUpDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Reminder } from "@/lib/supabase/reminders";
@@ -55,6 +56,8 @@ interface PrioritizedTask {
   score: number;
 }
 
+type SortOption = "priority" | "date" | "created";
+
 export function TasksSummaryWidget({
   reminders,
   setReminders,
@@ -69,6 +72,13 @@ export function TasksSummaryWidget({
 }: TasksSummaryWidgetProps) {
   const { user: currentUser } = useAuth();
   const [isExpanded, setIsExpanded] = useState(forceExpanded);
+  const [sortBy, setSortBy] = useState<SortOption>(() => {
+    const saved = getStorageItem("tasks_widget_sort");
+    return (saved === "priority" || saved === "date" || saved === "created")
+      ? saved as SortOption
+      : "priority";
+  });
+  const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
 
   // Ensure isExpanded respects forceExpanded prop changes
   useEffect(() => {
@@ -185,6 +195,11 @@ export function TasksSummaryWidget({
     setDisplayCount(5);
   }, [reminders]);
 
+  // Save sort preference
+  useEffect(() => {
+    setStorageItem("tasks_widget_sort", sortBy);
+  }, [sortBy]);
+
   // Real-time subscription
   useEffect(() => {
     if (!currentUser?.email) return;
@@ -254,8 +269,8 @@ export function TasksSummaryWidget({
     return "upcoming";
   };
 
-  // Smart prioritized list - all tasks, sorted by priority
-  const {  visibleTasks, pendingCount, hasMore } = useMemo(() => {
+  // Smart prioritized list - all tasks, sorted by selected option
+  const { visibleTasks, pendingCount, hasMore } = useMemo(() => {
     const pending = reminders.filter(
       (r) => r.status !== "done" && r.status !== "hidden"
     );
@@ -266,8 +281,25 @@ export function TasksSummaryWidget({
       score: getPriorityScore(reminder),
     }));
 
-    // Sort by score (descending)
-    prioritized.sort((a, b) => b.score - a.score);
+    // Sort based on selected option
+    if (sortBy === "priority") {
+      // Sort by priority score (descending - most urgent first)
+      prioritized.sort((a, b) => b.score - a.score);
+    } else if (sortBy === "date") {
+      // Sort by due date (earliest first, then no-date tasks)
+      prioritized.sort((a, b) => {
+        const aDate = a.reminder.dueDate ? new Date(a.reminder.dueDate).getTime() : Infinity;
+        const bDate = b.reminder.dueDate ? new Date(b.reminder.dueDate).getTime() : Infinity;
+        return aDate - bDate;
+      });
+    } else if (sortBy === "created") {
+      // Sort by creation date (newest first)
+      prioritized.sort((a, b) => {
+        const aDate = new Date(a.reminder.createdAt).getTime();
+        const bDate = new Date(b.reminder.createdAt).getTime();
+        return bDate - aDate;
+      });
+    }
 
     return {
       allTasks: prioritized,
@@ -275,7 +307,7 @@ export function TasksSummaryWidget({
       pendingCount: pending.length,
       hasMore: displayCount < prioritized.length,
     };
-  }, [reminders, displayCount]);
+  }, [reminders, displayCount, sortBy]);
 
   // Load more tasks when scrolling near bottom
   const loadMoreTasks = useCallback(() => {
@@ -283,21 +315,24 @@ export function TasksSummaryWidget({
       setIsLoadingMore(true);
       // Simulate loading delay for better UX
       setTimeout(() => {
-        setDisplayCount(prev => prev + 5);
+        setDisplayCount((prev) => prev + 5);
         setIsLoadingMore(false);
       }, 500);
     }
   }, [hasMore, isLoadingMore]);
 
   // Scroll event handler
-  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-    const isNearBottom = scrollTop + clientHeight >= scrollHeight - 100; // 100px threshold
+  const handleScroll = useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+      const isNearBottom = scrollTop + clientHeight >= scrollHeight - 100; // 100px threshold
 
-    if (isNearBottom && hasMore && !isLoadingMore) {
-      loadMoreTasks();
-    }
-  }, [hasMore, isLoadingMore, loadMoreTasks]);
+      if (isNearBottom && hasMore && !isLoadingMore) {
+        loadMoreTasks();
+      }
+    },
+    [hasMore, isLoadingMore, loadMoreTasks]
+  );
 
   // Handle status update
   const handleStatusUpdate = async (
@@ -323,7 +358,6 @@ export function TasksSummaryWidget({
       setTogglingId(null);
     }
   };
-
 
   // Format due date
   const formatDueDate = (date: Date, priority: Priority) => {
@@ -469,17 +503,6 @@ export function TasksSummaryWidget({
           </div>
           <div className="flex items-center gap-1">
             <button
-              onClick={() => fetchReminders(true)}
-              disabled={isRefreshing}
-              className="p-1.5 rounded-lg hover:bg-gray-700/50 text-gray-400 hover:text-white transition cursor-pointer disabled:opacity-50"
-              title="Refresh"
-            >
-              <RefreshCw
-                size={16}
-                className={isRefreshing ? "animate-spin" : ""}
-              />
-            </button>
-            <button
               onClick={() => {
                 setIsExpanded(false);
                 onExpandedChange?.(false);
@@ -490,12 +513,83 @@ export function TasksSummaryWidget({
             >
               <ChevronLeft size={18} />
             </button>
+
+            {/* Sort Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setIsSortMenuOpen(!isSortMenuOpen)}
+                className="p-1.5 rounded-lg hover:bg-gray-700/50 text-gray-400 hover:text-white transition cursor-pointer flex items-center gap-1"
+                title="Sort tasks"
+              >
+                <ArrowUpDown size={16} />
+                <span className="text-xs capitalize">{sortBy}</span>
+              </button>
+
+              {isSortMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-[100]"
+                    onClick={() => setIsSortMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 top-8 z-[101] bg-gray-800 border border-gray-700 rounded-lg shadow-2xl py-1 min-w-[120px]">
+                    <button
+                      onClick={() => {
+                        setSortBy("priority");
+                        setIsSortMenuOpen(false);
+                      }}
+                      className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-700 flex items-center gap-2 cursor-pointer ${
+                        sortBy === "priority" ? "text-purple-400" : "text-gray-300"
+                      }`}
+                    >
+                      <div className="w-2 h-2 rounded-full bg-gradient-to-r from-red-500 via-amber-500 to-green-500" />
+                      Priority
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSortBy("date");
+                        setIsSortMenuOpen(false);
+                      }}
+                      className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-700 flex items-center gap-2 cursor-pointer ${
+                        sortBy === "date" ? "text-purple-400" : "text-gray-300"
+                      }`}
+                    >
+                      <Calendar size={14} />
+                      Due Date
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSortBy("created");
+                        setIsSortMenuOpen(false);
+                      }}
+                      className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-700 flex items-center gap-2 cursor-pointer ${
+                        sortBy === "created" ? "text-purple-400" : "text-gray-300"
+                      }`}
+                    >
+                      <Clock size={14} />
+                      Created
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+
             <button
               onClick={onOpenModal}
               className="p-1.5 rounded-lg hover:bg-gray-700/50 text-gray-400 hover:text-white transition cursor-pointer"
               title="View all tasks"
             >
               <ExternalLink size={16} />
+            </button>
+            <button
+              onClick={() => fetchReminders(true)}
+              disabled={isRefreshing}
+              className="p-1.5 rounded-lg hover:bg-gray-700/50 text-gray-400 hover:text-white transition cursor-pointer disabled:opacity-50"
+              title="Refresh"
+            >
+              <RefreshCw
+                size={16}
+                className={isRefreshing ? "animate-spin" : ""}
+              />
             </button>
           </div>
         </div>
@@ -857,7 +951,6 @@ export function TasksSummaryWidget({
           Add Task
         </button>
       </div>
-
     </motion.div>
   );
 }
