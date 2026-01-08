@@ -187,15 +187,15 @@ const AIChatInput = ({
         <div className="flex flex-col items-stretch w-full h-full">
           {/* Input Row */}
 
-          <div className="flex items-center gap-2 px-5 py-2.5 rounded-lg max-w-[650px] w-full">
+          <div className="flex items-center gap-2 px-5 py-2.5 rounded-lg max-w-[650px] w-full min-h-[48px]">
             {/* Text Input & Placeholder */}
 
-            <div className="relative flex-1">
+            <div className="relative flex-1 flex items-center">
               <textarea
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyPress}
-                className="flex-1 border-0 outline-0 rounded-md px-0 py-2.5 text-[14px] bg-transparent w-full font-normal text-white placeholder:text-gray-500 resize-none overflow-y-auto"
+                className="flex-1 border-0 outline-0 rounded-md px-0 py-0 text-[14px] bg-transparent w-full font-normal text-white placeholder:text-gray-500 resize-none overflow-y-auto leading-normal"
                 style={{
                   position: "relative",
                   zIndex: 1,
@@ -207,12 +207,12 @@ const AIChatInput = ({
                 rows={1}
               />
 
-              <div className="absolute left-0 top-0 w-full h-full pointer-events-none flex items-start py-2.5">
+              <div className="absolute left-0 top-0 w-full h-full pointer-events-none flex items-center">
                 <AnimatePresence mode="wait">
                   {showPlaceholder && !inputValue && (
                     <motion.span
                       key={placeholderIndex}
-                      className="text-gray-500 select-none pointer-events-none text-[14px]"
+                      className="text-gray-500 select-none pointer-events-none text-[14px] leading-normal"
                       style={{
                         whiteSpace: "nowrap",
                         overflow: "hidden",
@@ -247,7 +247,7 @@ const AIChatInput = ({
             </div>
 
             <button
-              className="flex items-center gap-1 bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 hover:from-purple-500 hover:via-pink-400 hover:to-orange-400 text-white p-2.5 rounded-full font-medium justify-center transition-all shadow-lg shadow-purple-500/30 text-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center justify-center bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 hover:from-purple-500 hover:via-pink-400 hover:to-orange-400 text-white w-9 h-9 rounded-full font-medium transition-all shadow-lg shadow-purple-500/30 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
               title="Send"
               type="button"
               onClick={handleSend}

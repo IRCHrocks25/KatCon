@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ChannelsProvider } from "@/contexts/ChannelsContext";
 import { Toaster } from "@/components/ui/toaster";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,12 +31,14 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <AuthProvider>
-          <ChannelsProvider>
-            {children}
-            <Toaster />
-          </ChannelsProvider>
-        </AuthProvider>
+        <ErrorBoundary>
+          <AuthProvider>
+            <ChannelsProvider>
+              {children}
+              <Toaster />
+            </ChannelsProvider>
+          </AuthProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );

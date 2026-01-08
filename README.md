@@ -159,9 +159,15 @@ npm run dev          # Start development server
 npm run build        # Build for production
 npm run start        # Start production server
 npm run lint         # Run ESLint
+npm run type-check   # Run TypeScript type checking
+npm run security:audit # Run security audit
 npm run setup-admin  # Run database migration for admin functionality
 npm run create-admin # Create admin user
 ```
+
+### Health Check
+
+Visit `GET /api/health` to check if the application is running correctly. This endpoint returns system status, uptime, and version information.
 
 ## 🔒 Security Features
 
