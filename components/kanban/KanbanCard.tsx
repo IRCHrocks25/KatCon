@@ -13,9 +13,10 @@ interface KanbanCardProps {
   isDragging?: boolean;
   currentUserEmail?: string;
   availableChannels?: Conversation[];
+  isUpdating?: boolean;
 }
 
-export function KanbanCard({ task, onClick, isDragging = false, currentUserEmail, availableChannels }: KanbanCardProps) {
+export function KanbanCard({ task, onClick, isDragging = false, currentUserEmail, availableChannels, isUpdating = false }: KanbanCardProps) {
   const {
     attributes,
     listeners,
@@ -74,8 +75,8 @@ export function KanbanCard({ task, onClick, isDragging = false, currentUserEmail
       {...listeners}
       className={`bg-gray-700/50 border border-gray-600 rounded-lg p-3 md:p-4 cursor-pointer hover:bg-gray-600/50 hover:border-gray-500 transition-all relative ${
         isDragging || isSortableDragging ? "opacity-50 shadow-lg rotate-2" : ""
-      }`}
-      onClick={onClick}
+      } ${isUpdating ? "pointer-events-none" : ""}`}
+      onClick={isUpdating ? undefined : onClick}
     >
       {/* Stale Badge */}
       {isStale && (
@@ -155,6 +156,12 @@ export function KanbanCard({ task, onClick, isDragging = false, currentUserEmail
         </div>
       </div>
 
+      {/* Loading Overlay */}
+      {isUpdating && (
+        <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center">
+          <div className="w-6 h-6 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+        </div>
+      )}
 
     </div>
   );

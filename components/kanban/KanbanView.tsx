@@ -52,6 +52,7 @@ export function KanbanView({
   const [showTaskDetailsModal, setShowTaskDetailsModal] = useState(false);
   const [channelFilter, setChannelFilter] = useState<string>("all"); // "all" or channel ID
   const [showChannelFilter, setShowChannelFilter] = useState(false);
+  const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
 
   // Ref to track if we've already loaded reminders for this component instance
   const hasLoadedRemindersRef = useRef(false);
@@ -237,6 +238,8 @@ export function KanbanView({
     const activeId = active.id as string;
     const overId = over.id as string;
 
+    setUpdatingTaskId(activeId);
+
     try {
       // Find the task and its new status
       const task = reminders.find((r) => r.id === activeId);
@@ -297,6 +300,8 @@ export function KanbanView({
       // Revert optimistic update by refreshing reminders
       // In a real app, you'd have better error handling
       setReminders([...reminders]);
+    } finally {
+      setUpdatingTaskId(null);
     }
   };
 
@@ -527,6 +532,7 @@ export function KanbanView({
               onTaskClick={handleTaskClick}
               currentUserEmail={user?.email}
               availableChannels={availableChannels}
+              updatingTaskId={updatingTaskId}
             />
           ))}
         </div>
