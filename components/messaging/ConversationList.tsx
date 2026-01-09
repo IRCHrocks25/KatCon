@@ -13,6 +13,7 @@ interface ConversationListProps {
   readonly activeConversationId: string | null;
   readonly onSelectConversation: (conversationId: string) => void;
   readonly onOpenChannelSettings?: (conversationId: string) => void;
+  readonly searchQuery?: string;
 }
 
 export function ConversationList({
@@ -20,6 +21,7 @@ export function ConversationList({
   activeConversationId,
   onSelectConversation,
   onOpenChannelSettings,
+  searchQuery,
 }: ConversationListProps) {
   const { user: currentUser } = useAuth();
 
@@ -88,9 +90,37 @@ export function ConversationList({
     return "";
   };
 
-  // Separate channels and DMs
-  const channels = conversations.filter((c) => c.type === "channel");
-  const dms = conversations.filter((c) => c.type === "dm");
+  // Filter conversations based on search query
+  const filteredConversations = useMemo(() => {
+    if (!searchQuery || searchQuery.trim() === "") {
+      return conversations;
+    }
+
+    const query = searchQuery.trim().toLowerCase();
+    return conversations.filter((conversation) => {
+      const name = getConversationName(conversation).toLowerCase();
+      // For channels, search in the channel name
+      if (conversation.type === "channel") {
+        return name.includes(query);
+      }
+      // For DMs, search in participant names
+      if (conversation.type === "dm") {
+        const otherParticipant = getOtherParticipant(conversation);
+        const participantName = (
+          otherParticipant?.username ||
+          otherParticipant?.fullname ||
+          otherParticipant?.email ||
+          ""
+        ).toLowerCase();
+        return name.includes(query) || participantName.includes(query);
+      }
+      return false;
+    });
+  }, [conversations, searchQuery, currentUser?.id, getConversationName, getOtherParticipant]);
+
+  // Separate channels and DMs from filtered results
+  const channels = filteredConversations.filter((c) => c.type === "channel");
+  const dms = filteredConversations.filter((c) => c.type === "dm");
 
   return (
     <nav className="flex-1 overflow-y-auto custom-scrollbar" aria-label="Conversations navigation">

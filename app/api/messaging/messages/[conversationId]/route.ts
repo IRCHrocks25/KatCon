@@ -149,7 +149,9 @@ async function getMessagesHandler(
       }
     }
 
-    let { data: messages, error: messagesError } = await query;
+    const queryResult = await query;
+    let messages = queryResult.data;
+    const messagesError = queryResult.error;
 
     if (messagesError) {
       console.error("Error fetching messages:", messagesError);

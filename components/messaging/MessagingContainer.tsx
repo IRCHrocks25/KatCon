@@ -109,6 +109,7 @@ export function MessagingContainer({
   const [pinnedMessageIds, setPinnedMessageIds] = useState<string[]>([]);
   const [isKanbanModalOpen, setIsKanbanModalOpen] = useState(false);
   const [showActionMenu, setShowActionMenu] = useState(false);
+  const [conversationSearchQuery, setConversationSearchQuery] = useState("");
 
   // Refresh pinned message IDs
   const refreshPinnedMessageIds = useCallback(async (conversationId: string) => {
@@ -1490,9 +1491,8 @@ export function MessagingContainer({
       const other = getOtherParticipant(conversation);
       return other?.fullname || other?.email || "Unknown User";
     }
-    return "Unnamed Channel";
-  };
-
+  return "Unnamed Channel";
+};
 
   // Search handlers - memoized to prevent infinite loops
   const handleCloseSearch = useCallback(() => {
@@ -1583,32 +1583,54 @@ export function MessagingContainer({
         {/* Desktop Sidebar */}
         <div className="relative z-0 w-80 border-r border-gray-800 flex flex-col bg-gray-900/50">
           {/* Header */}
-          <div className="p-4 border-b border-gray-800 flex items-center justify-between">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <MessageSquare size={24} />
-              Messages
-            </h2>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleManualRefresh}
-                disabled={isRefreshing}
-                className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                aria-label="Refresh conversations and messages"
-              >
-                <RefreshCw
-                  size={20}
-                  className={isRefreshing ? "animate-spin" : ""}
-                  aria-hidden="true"
-                />
-                <span className="text-sm hidden sm:inline">Refresh</span>
-              </button>
-              <button
-                onClick={() => setShowCreateChannel(true)}
-                className="p-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition cursor-pointer flex items-center justify-center"
-                aria-label="Create new conversation or channel"
-              >
-                <Plus size={20} aria-hidden="true" />
-              </button>
+          <div className="p-4 border-b border-gray-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <MessageSquare size={24} />
+                Messages
+              </h2>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleManualRefresh}
+                  disabled={isRefreshing}
+                  className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Refresh conversations and messages"
+                >
+                  <RefreshCw
+                    size={20}
+                    className={isRefreshing ? "animate-spin" : ""}
+                    aria-hidden="true"
+                  />
+                  <span className="text-sm hidden sm:inline">Refresh</span>
+                </button>
+                <button
+                  onClick={() => setShowCreateChannel(true)}
+                  className="p-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition cursor-pointer flex items-center justify-center"
+                  aria-label="Create new conversation or channel"
+                >
+                  <Plus size={20} aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+
+            {/* Conversation Search */}
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search channels and DMs..."
+                value={conversationSearchQuery}
+                onChange={(e) => setConversationSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
+              {conversationSearchQuery && (
+                <button
+                  onClick={() => setConversationSearchQuery("")}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+                >
+                  <X size={16} />
+                </button>
+              )}
             </div>
           </div>
 
@@ -1625,6 +1647,7 @@ export function MessagingContainer({
               onOpenChannelSettings={(conversationId) =>
                 setShowChannelSettingsForId(conversationId)
               }
+              searchQuery={conversationSearchQuery}
             />
           )}
         </div>
@@ -1799,32 +1822,54 @@ export function MessagingContainer({
         /* Conversations List View */
         <div className="h-full flex flex-col bg-gray-900/50">
           {/* Header */}
-          <div className="p-4 border-b border-gray-800 flex items-center justify-between">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <MessageSquare size={24} />
-              Messages
-            </h2>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleManualRefresh}
-                disabled={isRefreshing}
-                className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                aria-label="Refresh conversations and messages"
-              >
-                <RefreshCw
-                  size={20}
-                  className={isRefreshing ? "animate-spin" : ""}
-                  aria-hidden="true"
-                />
-                <span className="text-sm">Refresh</span>
-              </button>
-              <button
-                onClick={() => setShowCreateChannel(true)}
-                className="p-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition cursor-pointer flex items-center justify-center"
-                aria-label="Create new conversation or channel"
-              >
-                <Plus size={20} aria-hidden="true" />
-              </button>
+          <div className="p-4 border-b border-gray-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <MessageSquare size={24} />
+                Messages
+              </h2>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleManualRefresh}
+                  disabled={isRefreshing}
+                  className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Refresh conversations and messages"
+                >
+                  <RefreshCw
+                    size={20}
+                    className={isRefreshing ? "animate-spin" : ""}
+                    aria-hidden="true"
+                  />
+                  <span className="text-sm">Refresh</span>
+                </button>
+                <button
+                  onClick={() => setShowCreateChannel(true)}
+                  className="p-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition cursor-pointer flex items-center justify-center"
+                  aria-label="Create new conversation or channel"
+                >
+                  <Plus size={20} aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+
+            {/* Conversation Search */}
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search channels and DMs..."
+                value={conversationSearchQuery}
+                onChange={(e) => setConversationSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+              />
+              {conversationSearchQuery && (
+                <button
+                  onClick={() => setConversationSearchQuery("")}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+                >
+                  <X size={16} />
+                </button>
+              )}
             </div>
           </div>
 
@@ -1843,6 +1888,7 @@ export function MessagingContainer({
               onOpenChannelSettings={(conversationId) =>
                 setShowChannelSettingsForId(conversationId)
               }
+              searchQuery={conversationSearchQuery}
             />
           )}
         </div>
