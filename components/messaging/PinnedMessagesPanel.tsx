@@ -23,6 +23,7 @@ export function PinnedMessagesPanel({
   const [pinnedMessages, setPinnedMessages] = useState<PinnedMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadedConversationId, setLoadedConversationId] = useState<string | null>(null);
+  const [loadingMessageId, setLoadingMessageId] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen && conversationId && loadedConversationId !== conversationId) {
@@ -74,9 +75,19 @@ export function PinnedMessagesPanel({
     }
   };
 
-  const handleMessageClick = (messageId: string) => {
-    onMessageClick(messageId);
-    onClose();
+  const handleMessageClick = async (messageId: string) => {
+    if (loadingMessageId) return; // Prevent multiple clicks
+
+    setLoadingMessageId(messageId);
+
+    try {
+      // Add a small delay to show loading feedback
+      await new Promise(resolve => setTimeout(resolve, 200));
+      onMessageClick(messageId);
+      onClose();
+    } finally {
+      setLoadingMessageId(null);
+    }
   };
 
   return (
@@ -155,13 +166,19 @@ export function PinnedMessagesPanel({
                       })()}
                     </p>
                   </div>
-                  <button
-                    onClick={(e) => handleUnpin(pinned.messageId, e)}
-                    className="p-1 hover:bg-gray-700 rounded transition flex-shrink-0"
-                    title="Unpin message"
-                  >
-                    <Pin size={14} className="text-gray-400" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    {loadingMessageId === pinned.messageId && (
+                      <div className="w-4 h-4 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin flex-shrink-0" />
+                    )}
+                    <button
+                      onClick={(e) => handleUnpin(pinned.messageId, e)}
+                      disabled={loadingMessageId === pinned.messageId}
+                      className="p-1 hover:bg-gray-700 rounded transition flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Unpin message"
+                    >
+                      <Pin size={14} className="text-gray-400" />
+                    </button>
+                  </div>
                 </div>
                 <p className="text-sm text-gray-300 mb-1 whitespace-pre-wrap break-words">
                   {pinned.message.content || "No message content"}
