@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { Loader2, Mail, Circle, Lock } from "lucide-react";
 import { UserStatusSelector } from "@/components/user/UserStatusSelector";
 import { getUserStatus, type UserStatus } from "@/lib/supabase/messaging";
+import { ProfileSkeleton } from "./ProfileSkeleton";
 
 export function ProfileView() {
   const { user, refreshProfile, logout } = useAuth();
@@ -239,6 +240,13 @@ export function ProfileView() {
   });
 
   const displayName = user?.fullname || user?.username || "User";
+
+  // Show skeleton while profile data is still loading
+  const isProfileLoading = !user?.accountType;
+
+  if (isProfileLoading) {
+    return <ProfileSkeleton />;
+  }
 
   return (
     <div className="h-full w-full bg-black text-white flex flex-col overflow-hidden" role="main" aria-label="User profile settings">

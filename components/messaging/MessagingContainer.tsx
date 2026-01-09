@@ -33,7 +33,9 @@ import {
 } from "@/lib/supabase/messaging";
 import { uploadFile } from "@/lib/supabase/file-upload";
 import { ConversationList } from "./ConversationList";
+import { ConversationSkeleton } from "./ConversationSkeleton";
 import { MessageList } from "./MessageList";
+import { MessageSkeleton } from "./MessageSkeleton";
 import { MessageInput } from "./MessageInput";
 import { ThreadPanel } from "./ThreadPanel";
 import { CreateChannelModal } from "./CreateChannelModal";
@@ -1706,9 +1708,7 @@ export function MessagingContainer({
 
           {/* Conversation List */}
           {isLoadingConversations ? (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="w-6 h-6 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
-            </div>
+            <ConversationSkeleton />
           ) : (
             <ConversationList
               conversations={conversations}
@@ -1822,9 +1822,7 @@ export function MessagingContainer({
               {/* Messages */}
               <div className="flex-1 min-h-0 overflow-hidden">
                 {isLoadingMessages ? (
-                  <div className="h-full flex items-center justify-center">
-                    <div className="w-6 h-6 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
-                  </div>
+                  <MessageSkeleton />
                 ) : (
                   <MessageList
                     messages={messages}
@@ -1950,9 +1948,7 @@ export function MessagingContainer({
 
             {/* Conversation List */}
             {isLoadingConversations ? (
-              <div className="flex-1 flex items-center justify-center">
-                <div className="w-6 h-6 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
-              </div>
+              <ConversationSkeleton />
             ) : (
               <ConversationList
                 conversations={conversations}
@@ -2092,9 +2088,7 @@ export function MessagingContainer({
             {/* Messages */}
             <div className="flex-1 min-h-0 overflow-hidden">
               {isLoadingMessages ? (
-                <div className="h-full flex items-center justify-center">
-                  <div className="w-6 h-6 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
-                </div>
+                <MessageSkeleton />
               ) : (
                 <MessageList
                   messages={messages}
