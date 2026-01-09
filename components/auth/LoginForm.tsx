@@ -66,12 +66,12 @@ export function LoginForm() {
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-purple-600/15 via-pink-500/10 via-blue-500/10 to-orange-500/10" />
 
       {/* Auth Form */}
-      <div className="relative z-10 w-full max-w-md px-4" role="main" aria-labelledby="auth-title">
+      <div className="relative z-10 w-full max-w-md px-4 sm:px-6" role="main" aria-labelledby="auth-title">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="bg-gray-900/80 backdrop-blur-sm border border-gray-800 rounded-2xl p-8 shadow-2xl"
+          className="bg-gray-900/80 backdrop-blur-sm border border-gray-800 rounded-2xl p-6 sm:p-8 shadow-2xl"
           role="dialog"
           aria-modal="true"
         >
@@ -85,13 +85,13 @@ export function LoginForm() {
               transition={{ duration: 0.3 }}
               className="text-center mb-8"
             >
-              <h1 id="auth-title" className="text-3xl font-bold text-white mb-2">Katalyst Concierge</h1>
+              <h1 id="auth-title" className="text-2xl sm:text-3xl font-bold text-white mb-2">Katalyst Concierge</h1>
               <motion.p
                 key={isSignUp ? "signup-text" : "signin-text"}
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.2, delay: 0.1 }}
-                className="text-gray-400 text-sm"
+                className="text-gray-400 text-sm px-2 sm:px-0"
               >
                 {isSignUp ? "Create your account" : "Welcome back"}
               </motion.p>
@@ -122,7 +122,7 @@ export function LoginForm() {
               exit={{ opacity: 0, x: 20 }}
               transition={{ duration: 0.3 }}
               onSubmit={handleSubmit}
-              className="space-y-4"
+              className="space-y-4 sm:space-y-5"
             >
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
@@ -224,7 +224,7 @@ export function LoginForm() {
                 transition={{ duration: 0.2, delay: 0.2 }}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="w-full py-3 bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 text-white font-semibold rounded-lg hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-3 sm:py-4 bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 text-white font-semibold rounded-lg hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer text-base sm:text-base"
               >
                 <AnimatePresence mode="wait">
                   {loading ? (

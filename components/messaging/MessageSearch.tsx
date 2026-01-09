@@ -46,6 +46,7 @@ export function MessageSearch({
   const [currentResultIndex, setCurrentResultIndex] = useState(-1);
   const [searchResults, setSearchResults] = useState<Message[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [isScrollingToResult, setIsScrollingToResult] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const debouncedQuery = useDebounce(searchQuery, 300); // Debounce search input
   
@@ -140,16 +141,18 @@ export function MessageSearch({
   const navigateToNext = useCallback(() => {
     const results = searchResultsRef.current;
     if (results.length === 0) return;
-    
+
+    setIsScrollingToResult(true);
+
     setCurrentResultIndex((prevIndex) => {
       const nextIndex = (prevIndex + 1) % results.length;
       const targetMessage = results[nextIndex];
       const allResultIds = results.map((m) => m.id);
-      
+
       // Use setTimeout to defer parent state update
       setTimeout(() => {
         onResultChangeRef.current(nextIndex, targetMessage.id, allResultIds);
-        
+
         // Load message if not already loaded
         if (onLoadMessageRef.current) {
           const isLoaded = messagesRef.current.some((m) => m.id === targetMessage.id);
@@ -157,8 +160,11 @@ export function MessageSearch({
             onLoadMessageRef.current(targetMessage.id).catch(console.error);
           }
         }
+
+        // Clear loading state after a short delay to show feedback
+        setTimeout(() => setIsScrollingToResult(false), 300);
       }, 0);
-      
+
       return nextIndex;
     });
   }, []);
@@ -166,7 +172,9 @@ export function MessageSearch({
   const navigateToPrevious = useCallback(() => {
     const results = searchResultsRef.current;
     if (results.length === 0) return;
-    
+
+    setIsScrollingToResult(true);
+
     setCurrentResultIndex((prevIndex) => {
       const newIndex =
         prevIndex === 0
@@ -174,11 +182,11 @@ export function MessageSearch({
           : prevIndex - 1;
       const targetMessage = results[newIndex];
       const allResultIds = results.map((m) => m.id);
-      
+
       // Use setTimeout to defer parent state update
       setTimeout(() => {
         onResultChangeRef.current(newIndex, targetMessage.id, allResultIds);
-        
+
         // Load message if not already loaded
         if (onLoadMessageRef.current) {
           const isLoaded = messagesRef.current.some((m) => m.id === targetMessage.id);
@@ -186,8 +194,11 @@ export function MessageSearch({
             onLoadMessageRef.current(targetMessage.id).catch(console.error);
           }
         }
+
+        // Clear loading state after a short delay to show feedback
+        setTimeout(() => setIsScrollingToResult(false), 300);
       }, 0);
-      
+
       return newIndex;
     });
   }, []);
@@ -196,17 +207,19 @@ export function MessageSearch({
   const scrollToResult = useCallback(() => {
     const results = searchResultsRef.current;
     if (results.length === 0) return;
-    
+
+    setIsScrollingToResult(true);
+
     const targetIndex = 0;
     const targetMessage = results[targetIndex];
     const allResultIds = results.map((m) => m.id);
-    
+
     setCurrentResultIndex(targetIndex);
-    
+
     // Use setTimeout to defer parent state update
     setTimeout(() => {
       onResultChangeRef.current(targetIndex, targetMessage.id, allResultIds);
-      
+
       // Load message if not already loaded
       if (onLoadMessageRef.current) {
         const isLoaded = messagesRef.current.some((m) => m.id === targetMessage.id);
@@ -214,6 +227,9 @@ export function MessageSearch({
           onLoadMessageRef.current(targetMessage.id).catch(console.error);
         }
       }
+
+      // Clear loading state after a short delay to show feedback
+      setTimeout(() => setIsScrollingToResult(false), 300);
     }, 0);
   }, []);
 
@@ -312,6 +328,11 @@ export function MessageSearch({
           <div className="text-sm text-gray-400 flex-shrink-0 min-w-[80px] text-right">
             {isSearching ? (
               <div className="w-4 h-4 border-2 border-gray-400/30 border-t-gray-400 rounded-full animate-spin mx-auto" />
+            ) : isScrollingToResult ? (
+              <div className="flex items-center justify-center gap-1">
+                <div className="w-3 h-3 border-2 border-purple-400/30 border-t-purple-400 rounded-full animate-spin" />
+                <span className="text-xs">Scrolling...</span>
+              </div>
             ) : (
               resultText
             )}

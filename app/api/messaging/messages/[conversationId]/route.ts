@@ -119,11 +119,19 @@ async function getMessagesHandler(
       .is("parent_message_id", null) // Only top-level messages
       .order("created_at", { ascending: false });
 
-    // If search query is provided, filter by content
+    // If search query is provided, filter by content with word boundaries
     if (searchQuery && searchQuery.trim()) {
-      query = query.ilike("content", `%${searchQuery.trim()}%`);
-      // For search, use a higher limit to get more results
-      query = query.limit(Math.min(limit * 3, 200));
+      const trimmedQuery = searchQuery.trim();
+
+      // Use PostgreSQL regex for word boundaries for more precise matching
+      // This prevents "hello" from matching in "helloworld" or partial words
+      query = query.ilike("content", `%${trimmedQuery}%`);
+
+      // Apply word boundary filtering in JavaScript after query
+      // We'll filter results to only include messages where the search term appears as a whole word
+
+      // For search, use a reasonable limit
+      query = query.limit(Math.min(limit * 2, 100)); // Up to 100 results
     } else {
       query = query.limit(limit);
     }
@@ -141,13 +149,23 @@ async function getMessagesHandler(
       }
     }
 
-    const { data: messages, error: messagesError } = await query;
+    let { data: messages, error: messagesError } = await query;
 
     if (messagesError) {
       console.error("Error fetching messages:", messagesError);
       return NextResponse.json(
         { error: "Failed to fetch messages", messages: [] },
         { status: 500 }
+      );
+    }
+
+    // Apply word boundary filtering for search queries
+    if (searchQuery && searchQuery.trim() && messages) {
+      const trimmedQuery = searchQuery.trim();
+      // Filter to only include messages where the search term appears as a whole word
+      const wordBoundaryRegex = new RegExp(`\\b${trimmedQuery}\\b`, 'i');
+      messages = messages.filter(msg =>
+        wordBoundaryRegex.test(msg.content)
       );
     }
 
