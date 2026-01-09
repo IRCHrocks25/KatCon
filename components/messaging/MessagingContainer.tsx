@@ -88,7 +88,8 @@ export function MessagingContainer({
   const [channelToJoin, setChannelToJoin] = useState<Conversation | null>(null);
   const [isJoiningChannel, setIsJoiningChannel] = useState(false);
   const [showRemindersModal, setShowRemindersModal] = useState(false);
-  const [initialEditingReminder, setInitialEditingReminder] = useState<Reminder | null>(null);
+  const [initialEditingReminder, setInitialEditingReminder] =
+    useState<Reminder | null>(null);
 
   // Callback for opening task modal from Kanban
   const handleOpenTaskModal = useCallback((editingReminder?: Reminder) => {
@@ -112,14 +113,17 @@ export function MessagingContainer({
   const [conversationSearchQuery, setConversationSearchQuery] = useState("");
 
   // Refresh pinned message IDs
-  const refreshPinnedMessageIds = useCallback(async (conversationId: string) => {
-    try {
-      const pinnedMessages = await getPinnedMessages(conversationId);
-      setPinnedMessageIds(pinnedMessages.map((pm) => pm.messageId));
-    } catch (error) {
-      console.error("Error refreshing pinned messages:", error);
-    }
-  }, []);
+  const refreshPinnedMessageIds = useCallback(
+    async (conversationId: string) => {
+      try {
+        const pinnedMessages = await getPinnedMessages(conversationId);
+        setPinnedMessageIds(pinnedMessages.map((pm) => pm.messageId));
+      } catch (error) {
+        console.error("Error refreshing pinned messages:", error);
+      }
+    },
+    []
+  );
 
   // Listen for pinned message refresh events
   useEffect(() => {
@@ -130,9 +134,15 @@ export function MessagingContainer({
       }
     };
 
-    window.addEventListener("refreshPinnedMessageIds", handleRefresh as EventListener);
+    window.addEventListener(
+      "refreshPinnedMessageIds",
+      handleRefresh as EventListener
+    );
     return () => {
-      window.removeEventListener("refreshPinnedMessageIds", handleRefresh as EventListener);
+      window.removeEventListener(
+        "refreshPinnedMessageIds",
+        handleRefresh as EventListener
+      );
     };
   }, [activeConversationId, refreshPinnedMessageIds]);
   const [hasMoreMessages, setHasMoreMessages] = useState<{
@@ -152,7 +162,7 @@ export function MessagingContainer({
     timestamp: number;
   } | null>(null);
   const markAsReadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
+
   // Track notification updates to prevent duplicates
   const notificationUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastNotificationCountRef = useRef<number>(-1);
@@ -214,7 +224,7 @@ export function MessagingContainer({
       if (!currentUser?.email) return;
 
       const totalUnread = calculateTotalUnread(convs);
-      
+
       // Skip if count hasn't changed
       if (totalUnread === lastNotificationCountRef.current) {
         return;
@@ -672,24 +682,34 @@ export function MessagingContainer({
           };
 
           // Check if this conversation was created by the current user
-          const isCreatedByCurrentUser = newConversation.created_by === currentUser.id;
+          const isCreatedByCurrentUser =
+            newConversation.created_by === currentUser.id;
 
           if (isCreatedByCurrentUser) {
-            console.log("[MESSAGING] Conversation created by current user, already handled locally");
+            console.log(
+              "[MESSAGING] Conversation created by current user, already handled locally"
+            );
             return;
           }
 
           // For conversations created by others, we need to check if current user should see it
           // Since there might be timing issues with participants table, let's refetch all conversations
           // This ensures we have the most up-to-date conversation list
-          console.log("[MESSAGING] Refetching conversations due to new conversation:", newConversation.id);
+          console.log(
+            "[MESSAGING] Refetching conversations due to new conversation:",
+            newConversation.id
+          );
 
           try {
             const allConversations = await getConversations();
             setConversations(allConversations);
             conversationsCache = allConversations;
             cachedUserId = currentUser?.id || null;
-            console.log("[MESSAGING] Refreshed conversations list with", allConversations.length, "conversations");
+            console.log(
+              "[MESSAGING] Refreshed conversations list with",
+              allConversations.length,
+              "conversations"
+            );
           } catch (error) {
             console.error("[MESSAGING] Error refetching conversations:", error);
           }
@@ -827,10 +847,18 @@ export function MessagingContainer({
             (conv) => conv.id === newMessage.conversation_id
           );
 
-          console.log("[MESSAGING] Message received for conversation:", newMessage.conversation_id, "Has conversation locally:", hasConversation);
+          console.log(
+            "[MESSAGING] Message received for conversation:",
+            newMessage.conversation_id,
+            "Has conversation locally:",
+            hasConversation
+          );
 
           if (!hasConversation) {
-            console.log("[MESSAGING] Received message for unknown conversation, refreshing conversations:", newMessage.conversation_id);
+            console.log(
+              "[MESSAGING] Received message for unknown conversation, refreshing conversations:",
+              newMessage.conversation_id
+            );
 
             // Try multiple times with delay to handle potential race conditions
             let attempts = 0;
@@ -838,32 +866,59 @@ export function MessagingContainer({
 
             while (attempts < maxAttempts) {
               try {
-                console.log(`[MESSAGING] Attempt ${attempts + 1}/${maxAttempts} to fetch conversations`);
+                console.log(
+                  `[MESSAGING] Attempt ${
+                    attempts + 1
+                  }/${maxAttempts} to fetch conversations`
+                );
 
                 const allConversations = await getConversations();
-                console.log("[MESSAGING] Fetched conversations result:", allConversations.length, "conversations");
+                console.log(
+                  "[MESSAGING] Fetched conversations result:",
+                  allConversations.length,
+                  "conversations"
+                );
 
                 // Check if the target conversation is now in the fetched list
-                const targetConversation = allConversations.find(c => c.id === newMessage.conversation_id);
-                console.log("[MESSAGING] Target conversation found in fetch:", !!targetConversation, targetConversation?.id);
+                const targetConversation = allConversations.find(
+                  (c) => c.id === newMessage.conversation_id
+                );
+                console.log(
+                  "[MESSAGING] Target conversation found in fetch:",
+                  !!targetConversation,
+                  targetConversation?.id
+                );
 
                 if (targetConversation) {
                   setConversations(allConversations);
                   conversationsCache = allConversations;
                   cachedUserId = currentUser?.id || null;
-                  console.log("[MESSAGING] Successfully refreshed conversations list with", allConversations.length, "conversations");
+                  console.log(
+                    "[MESSAGING] Successfully refreshed conversations list with",
+                    allConversations.length,
+                    "conversations"
+                  );
                   break; // Success, exit the retry loop
                 } else {
-                  console.log("[MESSAGING] Target conversation not found, will retry...");
+                  console.log(
+                    "[MESSAGING] Target conversation not found, will retry..."
+                  );
                   attempts++;
 
                   if (attempts < maxAttempts) {
                     // Wait before retrying
-                    await new Promise(resolve => setTimeout(resolve, 1000 * attempts)); // 1s, 2s
+                    await new Promise((resolve) =>
+                      setTimeout(resolve, 1000 * attempts)
+                    ); // 1s, 2s
                   }
                 }
               } catch (error) {
-                console.error(`[MESSAGING] Error refreshing conversations on attempt ${attempts + 1}:`, error);
+                console.error(
+                  `[MESSAGING] Error refreshing conversations on attempt ${
+                    attempts + 1
+                  }:`,
+                  error
+                );
                 attempts++;
 
                 if (attempts >= maxAttempts) {
@@ -871,12 +926,18 @@ export function MessagingContainer({
                 }
 
                 // Wait before retrying
-                await new Promise(resolve => setTimeout(resolve, 1000 * attempts));
+                await new Promise((resolve) =>
+                  setTimeout(resolve, 1000 * attempts)
+                );
               }
             }
 
             if (attempts >= maxAttempts) {
-              console.error("[MESSAGING] Failed to find conversation after", maxAttempts, "attempts");
+              console.error(
+                "[MESSAGING] Failed to find conversation after",
+                maxAttempts,
+                "attempts"
+              );
             }
           }
 
@@ -1439,12 +1500,19 @@ export function MessagingContainer({
           toast.success("Opened existing conversation");
         } else {
           // New conversation, add it to the list
-          console.log("[MESSAGING] Adding new DM to conversation list:", conversation.id);
+          console.log(
+            "[MESSAGING] Adding new DM to conversation list:",
+            conversation.id
+          );
           setConversations((prev) => {
             const updated = [conversation, ...prev];
             conversationsCache = updated;
             cachedUserId = currentUser?.id || null;
-            console.log("[MESSAGING] Updated conversations cache with", updated.length, "conversations");
+            console.log(
+              "[MESSAGING] Updated conversations cache with",
+              updated.length,
+              "conversations"
+            );
             return updated;
           });
           setActiveConversationId(conversation.id);
@@ -1491,8 +1559,8 @@ export function MessagingContainer({
       const other = getOtherParticipant(conversation);
       return other?.fullname || other?.email || "Unknown User";
     }
-  return "Unnamed Channel";
-};
+    return "Unnamed Channel";
+  };
 
   // Search handlers - memoized to prevent infinite loops
   const handleCloseSearch = useCallback(() => {
@@ -1601,7 +1669,6 @@ export function MessagingContainer({
                     className={isRefreshing ? "animate-spin" : ""}
                     aria-hidden="true"
                   />
-                  <span className="text-sm hidden sm:inline">Refresh</span>
                 </button>
                 <button
                   onClick={() => setShowCreateChannel(true)}
@@ -1615,7 +1682,10 @@ export function MessagingContainer({
 
             {/* Conversation Search */}
             <div className="relative">
-              <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <Search
+                size={16}
+                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+              />
               <input
                 type="text"
                 placeholder="Search channels and DMs..."
@@ -1653,17 +1723,269 @@ export function MessagingContainer({
         </div>
 
         {/* Desktop Main Chat Area */}
-      <div className="flex-1 flex flex-col min-h-0">
-        {activeConversation ? (
-          <>
-            {/* Chat Header */}
+        <div className="flex-1 flex flex-col min-h-0">
+          {activeConversation ? (
+            <>
+              {/* Chat Header */}
+              <div className="flex-shrink-0 border-b border-gray-800 bg-gray-900">
+                <div className="p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {/* Avatar for DM or Icon for Channel */}
+                    {activeConversation.type === "channel" ? (
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center">
+                        <Hash size={20} className="text-white" />
+                      </div>
+                    ) : (
+                      (() => {
+                        const other = getOtherParticipant(activeConversation);
+                        return (
+                          <Avatar
+                            src={other?.avatarUrl || null}
+                            name={
+                              other?.username || other?.fullname || undefined
+                            }
+                            email={other?.email || undefined}
+                            size="lg"
+                          />
+                        );
+                      })()
+                    )}
+                    <div>
+                      <h3 className="text-white font-semibold text-lg">
+                        {getConversationDisplayName(activeConversation)}
+                      </h3>
+                      {activeConversation.type === "dm" ? (
+                        <p className="text-xs text-gray-400">
+                          {getOtherParticipant(activeConversation)?.email || ""}
+                        </p>
+                      ) : (
+                        activeConversation.description && (
+                          <p className="text-xs text-gray-400">
+                            {activeConversation.description}
+                          </p>
+                        )
+                      )}
+                    </div>
+                  </div>
+                  {/* Header Buttons */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setIsSearchOpen(true)}
+                      className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2"
+                      aria-label="Search messages in conversation (Ctrl+F)"
+                    >
+                      <Search size={20} aria-hidden="true" />
+                      <span className="text-sm hidden sm:inline">Search</span>
+                    </button>
+                    <button
+                      onClick={() => setIsPinnedMessagesOpen(true)}
+                      className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2"
+                      aria-label="View pinned messages"
+                    >
+                      <Pin size={20} aria-hidden="true" />
+                      <span className="text-sm hidden sm:inline">Pinned</span>
+                    </button>
+                    <button
+                      onClick={() => setShowFilesModal(true)}
+                      className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2"
+                      aria-label="View shared files"
+                    >
+                      <FolderOpen size={20} aria-hidden="true" />
+                      <span className="text-sm hidden sm:inline">Files</span>
+                    </button>
+
+                    {activeConversation?.type === "channel" && (
+                      <button
+                        onClick={() => setIsKanbanModalOpen(true)}
+                        className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2"
+                        aria-label="Open Kanban board for project management"
+                      >
+                        <KanbanSquare size={20} aria-hidden="true" />
+                        <span className="text-sm hidden sm:inline">Kanban</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Search Bar */}
+                <MessageSearch
+                  messages={messages}
+                  conversationId={activeConversationId || ""}
+                  isOpen={isSearchOpen}
+                  onClose={handleCloseSearch}
+                  onResultChange={handleSearchResultChange}
+                  onQueryChange={setSearchQuery}
+                  onLoadMessage={handleLoadSearchMessage}
+                />
+              </div>
+
+              {/* Messages */}
+              <div className="flex-1 min-h-0 overflow-hidden">
+                {isLoadingMessages ? (
+                  <div className="h-full flex items-center justify-center">
+                    <div className="w-6 h-6 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+                  </div>
+                ) : (
+                  <MessageList
+                    messages={messages}
+                    participants={activeConversation.participants}
+                    currentUserId={currentUser?.id || ""}
+                    conversationId={activeConversationId || ""}
+                    onMessageClick={(messageId) => setThreadParentId(messageId)}
+                    onLoadMore={loadOlderMessages}
+                    hasMore={
+                      activeConversationId
+                        ? hasMoreMessages[activeConversationId] || false
+                        : false
+                    }
+                    isLoadingMore={isLoadingOlderMessages}
+                    searchQuery={searchQuery}
+                    activeSearchResultId={activeSearchResultId}
+                    allSearchResults={searchResultIds}
+                    pinnedMessageIds={pinnedMessageIds}
+                  />
+                )}
+              </div>
+
+              {/* Message Input */}
+              <div className="flex-shrink-0">
+                <MessageInput
+                  onSend={(content, files) =>
+                    handleSendMessage(content, undefined, files)
+                  }
+                  isLoading={isSendingMessage}
+                  participants={activeConversation.participants}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-gray-400">
+              <div className="text-center">
+                <MessageSquare size={64} className="mx-auto mb-4 opacity-50" />
+                <p className="text-lg mb-2">Select a conversation</p>
+                <p className="text-sm">or start a new one</p>
+              </div>
+            </div>
+          )}
+
+          {/* Thread Panel Overlay */}
+          {threadParentId && activeConversation && (
+            <ThreadPanel
+              parentMessage={messages.find((m) => m.id === threadParentId)}
+              threadMessages={threadMessages}
+              participants={activeConversation.participants}
+              currentUserId={currentUser?.id || ""}
+              onClose={() => {
+                setThreadParentId(null);
+                setThreadMessages([]);
+              }}
+              onSendReply={(content, files) =>
+                handleSendMessage(content, threadParentId, files)
+              }
+              isLoading={isSendingMessage}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Mobile Layout */}
+      <div className="lg:hidden h-full">
+        {!activeConversationId ? (
+          /* Conversations List View */
+          <div className="h-full flex flex-col bg-gray-900/50">
+            {/* Header */}
+            <div className="p-4 border-b border-gray-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <MessageSquare size={24} />
+                  Messages
+                </h2>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleManualRefresh}
+                    disabled={isRefreshing}
+                    className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Refresh conversations and messages"
+                  >
+                    <RefreshCw
+                      size={20}
+                      className={isRefreshing ? "animate-spin" : ""}
+                      aria-hidden="true"
+                    />
+                    <span className="text-sm">Refresh</span>
+                  </button>
+                  <button
+                    onClick={() => setShowCreateChannel(true)}
+                    className="p-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition cursor-pointer flex items-center justify-center"
+                    aria-label="Create new conversation or channel"
+                  >
+                    <Plus size={20} aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Conversation Search */}
+              <div className="relative">
+                <Search
+                  size={16}
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                />
+                <input
+                  type="text"
+                  placeholder="Search channels and DMs..."
+                  value={conversationSearchQuery}
+                  onChange={(e) => setConversationSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                />
+                {conversationSearchQuery && (
+                  <button
+                    onClick={() => setConversationSearchQuery("")}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Conversation List */}
+            {isLoadingConversations ? (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+              </div>
+            ) : (
+              <ConversationList
+                conversations={conversations}
+                activeConversationId={activeConversationId}
+                onSelectConversation={(conversationId) => {
+                  handleSelectConversation(conversationId);
+                }}
+                onOpenChannelSettings={(conversationId) =>
+                  setShowChannelSettingsForId(conversationId)
+                }
+                searchQuery={conversationSearchQuery}
+              />
+            )}
+          </div>
+        ) : activeConversation ? (
+          /* Chat View with Back Button */
+          <div className="h-full flex flex-col bg-black">
+            {/* Chat Header with Back Button */}
             <div className="flex-shrink-0 border-b border-gray-800 bg-gray-900">
-              <div className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
+              <div className="p-3 flex items-center gap-2">
+                <button
+                  onClick={() => setActiveConversationId(null)}
+                  className="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer"
+                  title="Back to conversations"
+                >
+                  <X size={16} />
+                </button>
+
+                <div className="flex items-center gap-2">
                   {/* Avatar for DM or Icon for Channel */}
                   {activeConversation.type === "channel" ? (
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center">
-                      <Hash size={20} className="text-white" />
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center">
+                      <Hash size={16} className="text-white" />
                     </div>
                   ) : (
                     (() => {
@@ -1673,64 +1995,84 @@ export function MessagingContainer({
                           src={other?.avatarUrl || null}
                           name={other?.username || other?.fullname || undefined}
                           email={other?.email || undefined}
-                          size="lg"
+                          size="sm"
                         />
                       );
                     })()
                   )}
                   <div>
-                    <h3 className="text-white font-semibold text-lg">
+                    <h3 className="text-white font-semibold text-base">
                       {getConversationDisplayName(activeConversation)}
                     </h3>
                     {activeConversation.type === "dm" ? (
-                      <p className="text-xs text-gray-400">
+                      <p className="text-[10px] text-gray-400">
                         {getOtherParticipant(activeConversation)?.email || ""}
                       </p>
                     ) : (
                       activeConversation.description && (
-                        <p className="text-xs text-gray-400">
+                        <p className="text-[10px] text-gray-400">
                           {activeConversation.description}
                         </p>
                       )
                     )}
                   </div>
                 </div>
-                {/* Header Buttons */}
-                <div className="flex items-center gap-2">
+
+                {/* 3-dot Menu for Actions */}
+                <div className="ml-auto relative">
                   <button
-                    onClick={() => setIsSearchOpen(true)}
-                    className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2"
-                    aria-label="Search messages in conversation (Ctrl+F)"
+                    onClick={() => setShowActionMenu(!showActionMenu)}
+                    className="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer"
+                    title="More actions"
                   >
-                    <Search size={20} aria-hidden="true" />
-                    <span className="text-sm hidden sm:inline">Search</span>
-                  </button>
-                  <button
-                    onClick={() => setIsPinnedMessagesOpen(true)}
-                    className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2"
-                    aria-label="View pinned messages"
-                  >
-                    <Pin size={20} aria-hidden="true" />
-                    <span className="text-sm hidden sm:inline">Pinned</span>
-                  </button>
-                  <button
-                    onClick={() => setShowFilesModal(true)}
-                    className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2"
-                    aria-label="View shared files"
-                  >
-                    <FolderOpen size={20} aria-hidden="true" />
-                    <span className="text-sm hidden sm:inline">Files</span>
+                    <MoreVertical size={16} />
                   </button>
 
-                  {activeConversation?.type === "channel" && (
-                    <button
-                      onClick={() => setIsKanbanModalOpen(true)}
-                      className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2"
-                      aria-label="Open Kanban board for project management"
-                    >
-                      <KanbanSquare size={20} aria-hidden="true" />
-                      <span className="text-sm hidden sm:inline">Kanban</span>
-                    </button>
+                  {showActionMenu && (
+                    <div className="absolute right-0 top-full mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-lg py-1 z-10 min-w-[140px]">
+                      <button
+                        onClick={() => {
+                          setIsSearchOpen(true);
+                          setShowActionMenu(false);
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2 cursor-pointer"
+                      >
+                        <Search size={14} />
+                        Search
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsPinnedMessagesOpen(true);
+                          setShowActionMenu(false);
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2 cursor-pointer"
+                      >
+                        <Pin size={14} />
+                        Pinned
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowFilesModal(true);
+                          setShowActionMenu(false);
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2 cursor-pointer"
+                      >
+                        <FolderOpen size={14} />
+                        Files
+                      </button>
+                      {activeConversation?.type === "channel" && (
+                        <button
+                          onClick={() => {
+                            setIsKanbanModalOpen(true);
+                            setShowActionMenu(false);
+                          }}
+                          className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2 cursor-pointer"
+                        >
+                          <KanbanSquare size={14} />
+                          Kanban
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -1785,406 +2127,144 @@ export function MessagingContainer({
                 participants={activeConversation.participants}
               />
             </div>
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-400">
-            <div className="text-center">
-              <MessageSquare size={64} className="mx-auto mb-4 opacity-50" />
-              <p className="text-lg mb-2">Select a conversation</p>
-              <p className="text-sm">or start a new one</p>
-            </div>
-          </div>
-        )}
 
-        {/* Thread Panel Overlay */}
-        {threadParentId && activeConversation && (
-          <ThreadPanel
-            parentMessage={messages.find((m) => m.id === threadParentId)}
-            threadMessages={threadMessages}
-            participants={activeConversation.participants}
-            currentUserId={currentUser?.id || ""}
-            onClose={() => {
-              setThreadParentId(null);
-              setThreadMessages([]);
-            }}
-            onSendReply={(content, files) =>
-              handleSendMessage(content, threadParentId, files)
-            }
-            isLoading={isSendingMessage}
-          />
-        )}
-      </div>
-    </div>
-
-    {/* Mobile Layout */}
-    <div className="lg:hidden h-full">
-      {!activeConversationId ? (
-        /* Conversations List View */
-        <div className="h-full flex flex-col bg-gray-900/50">
-          {/* Header */}
-          <div className="p-4 border-b border-gray-800 space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <MessageSquare size={24} />
-                Messages
-              </h2>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleManualRefresh}
-                  disabled={isRefreshing}
-                  className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  aria-label="Refresh conversations and messages"
-                >
-                  <RefreshCw
-                    size={20}
-                    className={isRefreshing ? "animate-spin" : ""}
-                    aria-hidden="true"
-                  />
-                  <span className="text-sm">Refresh</span>
-                </button>
-                <button
-                  onClick={() => setShowCreateChannel(true)}
-                  className="p-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition cursor-pointer flex items-center justify-center"
-                  aria-label="Create new conversation or channel"
-                >
-                  <Plus size={20} aria-hidden="true" />
-                </button>
-              </div>
-            </div>
-
-            {/* Conversation Search */}
-            <div className="relative">
-              <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search channels and DMs..."
-                value={conversationSearchQuery}
-                onChange={(e) => setConversationSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
-              />
-              {conversationSearchQuery && (
-                <button
-                  onClick={() => setConversationSearchQuery("")}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
-                >
-                  <X size={16} />
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Conversation List */}
-          {isLoadingConversations ? (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="w-6 h-6 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
-            </div>
-          ) : (
-            <ConversationList
-              conversations={conversations}
-              activeConversationId={activeConversationId}
-              onSelectConversation={(conversationId) => {
-                handleSelectConversation(conversationId);
-              }}
-              onOpenChannelSettings={(conversationId) =>
-                setShowChannelSettingsForId(conversationId)
-              }
-              searchQuery={conversationSearchQuery}
-            />
-          )}
-        </div>
-      ) : activeConversation ? (
-        /* Chat View with Back Button */
-        <div className="h-full flex flex-col bg-black">
-          {/* Chat Header with Back Button */}
-          <div className="flex-shrink-0 border-b border-gray-800 bg-gray-900">
-            <div className="p-3 flex items-center gap-2">
-              <button
-                onClick={() => setActiveConversationId(null)}
-                className="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer"
-                title="Back to conversations"
-              >
-                <X size={16} />
-              </button>
-
-              <div className="flex items-center gap-2">
-                {/* Avatar for DM or Icon for Channel */}
-                {activeConversation.type === "channel" ? (
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center">
-                    <Hash size={16} className="text-white" />
-                  </div>
-                ) : (
-                  (() => {
-                    const other = getOtherParticipant(activeConversation);
-                    return (
-                      <Avatar
-                        src={other?.avatarUrl || null}
-                        name={other?.username || other?.fullname || undefined}
-                        email={other?.email || undefined}
-                        size="sm"
-                      />
-                    );
-                  })()
-                )}
-                <div>
-                  <h3 className="text-white font-semibold text-base">
-                    {getConversationDisplayName(activeConversation)}
-                  </h3>
-                  {activeConversation.type === "dm" ? (
-                    <p className="text-[10px] text-gray-400">
-                      {getOtherParticipant(activeConversation)?.email || ""}
-                    </p>
-                  ) : (
-                    activeConversation.description && (
-                      <p className="text-[10px] text-gray-400">
-                        {activeConversation.description}
-                      </p>
-                    )
-                  )}
-                </div>
-              </div>
-
-              {/* 3-dot Menu for Actions */}
-              <div className="ml-auto relative">
-                <button
-                  onClick={() => setShowActionMenu(!showActionMenu)}
-                  className="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer"
-                  title="More actions"
-                >
-                  <MoreVertical size={16} />
-                </button>
-
-                {showActionMenu && (
-                  <div className="absolute right-0 top-full mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-lg py-1 z-10 min-w-[140px]">
-                    <button
-                      onClick={() => {
-                        setIsSearchOpen(true);
-                        setShowActionMenu(false);
-                      }}
-                      className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2 cursor-pointer"
-                    >
-                      <Search size={14} />
-                      Search
-                    </button>
-                    <button
-                      onClick={() => {
-                        setIsPinnedMessagesOpen(true);
-                        setShowActionMenu(false);
-                      }}
-                      className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2 cursor-pointer"
-                    >
-                      <Pin size={14} />
-                      Pinned
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowFilesModal(true);
-                        setShowActionMenu(false);
-                      }}
-                      className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2 cursor-pointer"
-                    >
-                      <FolderOpen size={14} />
-                      Files
-                    </button>
-                    {activeConversation?.type === "channel" && (
-                      <button
-                        onClick={() => {
-                          setIsKanbanModalOpen(true);
-                          setShowActionMenu(false);
-                        }}
-                        className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2 cursor-pointer"
-                      >
-                        <KanbanSquare size={14} />
-                        Kanban
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Search Bar */}
-            <MessageSearch
-              messages={messages}
-              conversationId={activeConversationId || ""}
-              isOpen={isSearchOpen}
-              onClose={handleCloseSearch}
-              onResultChange={handleSearchResultChange}
-              onQueryChange={setSearchQuery}
-              onLoadMessage={handleLoadSearchMessage}
-            />
-          </div>
-
-          {/* Messages */}
-          <div className="flex-1 min-h-0 overflow-hidden">
-            {isLoadingMessages ? (
-              <div className="h-full flex items-center justify-center">
-                <div className="w-6 h-6 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
-              </div>
-            ) : (
-              <MessageList
-                messages={messages}
+            {/* Thread Panel Overlay */}
+            {threadParentId && (
+              <ThreadPanel
+                parentMessage={messages.find((m) => m.id === threadParentId)}
+                threadMessages={threadMessages}
                 participants={activeConversation.participants}
                 currentUserId={currentUser?.id || ""}
-                conversationId={activeConversationId || ""}
-                onMessageClick={(messageId) => setThreadParentId(messageId)}
-                onLoadMore={loadOlderMessages}
-                hasMore={
-                  activeConversationId
-                    ? hasMoreMessages[activeConversationId] || false
-                    : false
+                onClose={() => {
+                  setThreadParentId(null);
+                  setThreadMessages([]);
+                }}
+                onSendReply={(content, files) =>
+                  handleSendMessage(content, threadParentId, files)
                 }
-                isLoadingMore={isLoadingOlderMessages}
-                searchQuery={searchQuery}
-                activeSearchResultId={activeSearchResultId}
-                allSearchResults={searchResultIds}
-                pinnedMessageIds={pinnedMessageIds}
+                isLoading={isSendingMessage}
               />
             )}
           </div>
+        ) : null}
+      </div>
 
-          {/* Message Input */}
-          <div className="flex-shrink-0">
-            <MessageInput
-              onSend={(content, files) =>
-                handleSendMessage(content, undefined, files)
-              }
-              isLoading={isSendingMessage}
-              participants={activeConversation.participants}
-            />
-          </div>
-
-          {/* Thread Panel Overlay */}
-          {threadParentId && (
-            <ThreadPanel
-              parentMessage={messages.find((m) => m.id === threadParentId)}
-              threadMessages={threadMessages}
-              participants={activeConversation.participants}
-              currentUserId={currentUser?.id || ""}
-              onClose={() => {
-                setThreadParentId(null);
-                setThreadMessages([]);
-              }}
-              onSendReply={(content, files) =>
-                handleSendMessage(content, threadParentId, files)
-              }
-              isLoading={isSendingMessage}
-            />
-          )}
-        </div>
-      ) : null}
-    </div>
-
-    {/* Modals - outside the responsive layout */}
-    <ChannelSettingsDialog
-      open={Boolean(showChannelSettingsForId)}
-      conversation={
-        conversations.find((c) => c.id === showChannelSettingsForId) || null
-      }
-      onClose={() => setShowChannelSettingsForId(null)}
-      onParticipantsChanged={async () => {
-        await refreshConversations();
-      }}
-    />
-
-    {showCreateChannel && (
-      <CreateChannelModal
-        onClose={() => setShowCreateChannel(false)}
-        onCreate={handleCreateChannel}
-        onCreateDM={handleCreateDM}
+      {/* Modals - outside the responsive layout */}
+      <ChannelSettingsDialog
+        open={Boolean(showChannelSettingsForId)}
+        conversation={
+          conversations.find((c) => c.id === showChannelSettingsForId) || null
+        }
+        onClose={() => setShowChannelSettingsForId(null)}
+        onParticipantsChanged={async () => {
+          await refreshConversations();
+        }}
       />
-    )}
 
-    {activeConversation && (
-      <FilesModal
-        isOpen={showFilesModal}
-        onClose={() => setShowFilesModal(false)}
-        conversationId={activeConversation.id}
-        conversationName={getConversationDisplayName(activeConversation)}
-      />
-    )}
-
-    <RemindersModal
-      key={showRemindersModal ? 'open' : 'closed'}
-      isOpen={showRemindersModal}
-      onClose={() => {
-        setShowRemindersModal(false);
-        setInitialEditingReminder(null);
-        setForceShowCreateForm(false);
-      }}
-      reminders={reminders}
-      setReminders={setReminders}
-      channelId={activeConversation?.type === "channel" ? (activeConversationId || undefined) : undefined}
-      initialShowForm={!!initialEditingReminder}
-      initialEditingReminder={initialEditingReminder}
-      forceShowCreateForm={forceShowCreateForm}
-    />
-
-    {activeConversation && (
-      <PinnedMessagesPanel
-        conversationId={activeConversation.id}
-        isOpen={isPinnedMessagesOpen}
-        onClose={() => setIsPinnedMessagesOpen(false)}
-        onMessageClick={handleLoadSearchMessage}
-      />
-    )}
-
-    {activeConversation?.type === "channel" && (
-      <div
-        className={`fixed inset-0 z-50 transition-opacity duration-300 ${
-          isKanbanModalOpen ? "opacity-100" : "opacity-0 pointer-events-none"
-        }`}
-      >
-        <div
-          className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-          onClick={() => setIsKanbanModalOpen(false)}
+      {showCreateChannel && (
+        <CreateChannelModal
+          onClose={() => setShowCreateChannel(false)}
+          onCreate={handleCreateChannel}
+          onCreateDM={handleCreateDM}
         />
-        <div className="absolute inset-4 md:inset-8 lg:inset-12 bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
-          <div className="flex-shrink-0 border-b border-gray-800 bg-gray-900/95 backdrop-blur-sm">
-            <div className="flex items-center justify-between px-6 py-4">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center">
-                  <KanbanSquare size={18} className="text-white" />
+      )}
+
+      {activeConversation && (
+        <FilesModal
+          isOpen={showFilesModal}
+          onClose={() => setShowFilesModal(false)}
+          conversationId={activeConversation.id}
+          conversationName={getConversationDisplayName(activeConversation)}
+        />
+      )}
+
+      <RemindersModal
+        key={showRemindersModal ? "open" : "closed"}
+        isOpen={showRemindersModal}
+        onClose={() => {
+          setShowRemindersModal(false);
+          setInitialEditingReminder(null);
+          setForceShowCreateForm(false);
+        }}
+        reminders={reminders}
+        setReminders={setReminders}
+        channelId={
+          activeConversation?.type === "channel"
+            ? activeConversationId || undefined
+            : undefined
+        }
+        initialShowForm={!!initialEditingReminder}
+        initialEditingReminder={initialEditingReminder}
+        forceShowCreateForm={forceShowCreateForm}
+      />
+
+      {activeConversation && (
+        <PinnedMessagesPanel
+          conversationId={activeConversation.id}
+          isOpen={isPinnedMessagesOpen}
+          onClose={() => setIsPinnedMessagesOpen(false)}
+          onMessageClick={handleLoadSearchMessage}
+        />
+      )}
+
+      {activeConversation?.type === "channel" && (
+        <div
+          className={`fixed inset-0 z-50 transition-opacity duration-300 ${
+            isKanbanModalOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+          }`}
+        >
+          <div
+            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            onClick={() => setIsKanbanModalOpen(false)}
+          />
+          <div className="absolute inset-4 md:inset-8 lg:inset-12 bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="flex-shrink-0 border-b border-gray-800 bg-gray-900/95 backdrop-blur-sm">
+              <div className="flex items-center justify-between px-6 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center">
+                    <KanbanSquare size={18} className="text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-white">
+                      {getConversationDisplayName(activeConversation)} - Kanban
+                      Board
+                    </h2>
+                    <p className="text-sm text-gray-400">
+                      Project management for this channel
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-white">
-                    {getConversationDisplayName(activeConversation)} - Kanban Board
-                  </h2>
-                  <p className="text-sm text-gray-400">
-                    Project management for this channel
-                  </p>
-                </div>
+                <button
+                  onClick={() => setIsKanbanModalOpen(false)}
+                  className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer"
+                  title="Close Kanban board"
+                >
+                  <X size={20} />
+                </button>
               </div>
-              <button
-                onClick={() => setIsKanbanModalOpen(false)}
-                className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer"
-                title="Close Kanban board"
-              >
-                <X size={20} />
-              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <KanbanView
+                reminders={reminders}
+                setReminders={setReminders}
+                channelId={activeConversationId || undefined}
+                onOpenTaskModal={handleOpenTaskModal}
+              />
             </div>
           </div>
-          <div className="flex-1 overflow-hidden">
-            <KanbanView
-              reminders={reminders}
-              setReminders={setReminders}
-              channelId={activeConversationId || undefined}
-              onOpenTaskModal={handleOpenTaskModal}
-            />
-          </div>
         </div>
-      </div>
-    )}
+      )}
 
-    <JoinChannelModal
-      isOpen={showJoinChannelModal}
-      channel={channelToJoin}
-      onClose={() => {
-        setShowJoinChannelModal(false);
-        setChannelToJoin(null);
-      }}
-      onJoin={handleJoinChannel}
-      isJoining={isJoiningChannel}
-    />
-  </div>
+      <JoinChannelModal
+        isOpen={showJoinChannelModal}
+        channel={channelToJoin}
+        onClose={() => {
+          setShowJoinChannelModal(false);
+          setChannelToJoin(null);
+        }}
+        onJoin={handleJoinChannel}
+        isJoining={isJoiningChannel}
+      />
+    </div>
   );
 }
