@@ -569,7 +569,8 @@ export function AdminDashboard() {
                       <button
                         onClick={() => handleUserAction(user.id, "approve")}
                         disabled={actionLoading === user.id}
-                        className="px-3 py-1 bg-green-600 hover:bg-green-500 text-white text-sm rounded transition disabled:opacity-50"
+                        className="px-3 py-1 bg-green-600 hover:bg-green-500 active:bg-green-700 text-white text-sm rounded transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95 cursor-pointer"
+                        title="Approve this user account"
                       >
                         {actionLoading === user.id ? (
                           <Loader2 size={14} className="animate-spin" />
@@ -580,7 +581,8 @@ export function AdminDashboard() {
                       <button
                         onClick={() => handleUserAction(user.id, "reject")}
                         disabled={actionLoading === user.id}
-                        className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-sm rounded transition disabled:opacity-50"
+                        className="px-3 py-1 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white text-sm rounded transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95 cursor-pointer"
+                        title="Reject this user account"
                       >
                         {actionLoading === user.id ? (
                           <Loader2 size={14} className="animate-spin" />
@@ -730,24 +732,24 @@ export function AdminDashboard() {
                               });
                               setShowKanbanView(true);
                             }}
-                            className="px-2 py-1 bg-purple-600 hover:bg-purple-500 text-white text-xs rounded transition"
-                            title="View kanban board"
+                            className="px-2 py-1 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white text-xs rounded transition transform hover:scale-110 active:scale-95 cursor-pointer"
+                            title="View this user's kanban board"
                           >
                             <Eye size={12} />
                           </button>
                           <button
                             onClick={() => openEditModal(user)}
                             disabled={actionLoading === user.id}
-                            className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded transition disabled:opacity-50"
-                            title="Edit user"
+                            className="px-2 py-1 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-xs rounded transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-110 active:scale-95 cursor-pointer"
+                            title="Edit user details"
                           >
                             <Edit size={12} />
                           </button>
                           <button
                             onClick={() => openDeleteModal(user)}
                             disabled={actionLoading === user.id}
-                            className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white text-xs rounded transition disabled:opacity-50"
-                            title="Delete user"
+                            className="px-2 py-1 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white text-xs rounded transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-110 active:scale-95 cursor-pointer"
+                            title="Delete this user account"
                           >
                             <Trash2 size={12} />
                           </button>
@@ -758,8 +760,8 @@ export function AdminDashboard() {
                                   handleUserAction(user.id, "approve")
                                 }
                                 disabled={actionLoading === user.id}
-                                className="px-2 py-1 bg-green-600 hover:bg-green-500 text-white text-xs rounded transition disabled:opacity-50"
-                                title="Approve user"
+                                className="px-2 py-1 bg-green-600 hover:bg-green-500 active:bg-green-700 text-white text-xs rounded transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-110 active:scale-95 cursor-pointer"
+                                title="Approve this user account"
                               >
                                 {actionLoading === user.id ? (
                                   <Loader2 size={12} className="animate-spin" />
@@ -772,8 +774,8 @@ export function AdminDashboard() {
                                   handleUserAction(user.id, "reject")
                                 }
                                 disabled={actionLoading === user.id}
-                                className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white text-xs rounded transition disabled:opacity-50"
-                                title="Reject user"
+                                className="px-2 py-1 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white text-xs rounded transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-110 active:scale-95 cursor-pointer"
+                                title="Reject this user account"
                               >
                                 {actionLoading === user.id ? (
                                   <Loader2 size={12} className="animate-spin" />
@@ -873,7 +875,8 @@ export function AdminDashboard() {
                       });
                       setShowKanbanView(true);
                     }}
-                    className="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white text-xs rounded transition"
+                    className="px-3 py-1 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white text-xs rounded transition transform hover:scale-105 active:scale-95 cursor-pointer"
+                    title="View this user's kanban board"
                   >
                     <Eye size={12} className="inline mr-1" />
                     Kanban
@@ -881,7 +884,8 @@ export function AdminDashboard() {
                   <button
                     onClick={() => openEditModal(user)}
                     disabled={actionLoading === user.id}
-                    className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded transition disabled:opacity-50"
+                    className="px-3 py-1 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-xs rounded transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95 cursor-pointer"
+                    title="Edit user details"
                   >
                     <Edit size={12} className="inline mr-1" />
                     Edit
@@ -889,7 +893,8 @@ export function AdminDashboard() {
                   <button
                     onClick={() => openDeleteModal(user)}
                     disabled={actionLoading === user.id}
-                    className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-xs rounded transition disabled:opacity-50"
+                    className="px-3 py-1 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white text-xs rounded transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95 cursor-pointer"
+                    title="Delete this user account"
                   >
                     <Trash2 size={12} className="inline mr-1" />
                     Delete
@@ -901,7 +906,8 @@ export function AdminDashboard() {
                           handleUserAction(user.id, "approve")
                         }
                         disabled={actionLoading === user.id}
-                        className="px-3 py-1 bg-green-600 hover:bg-green-500 text-white text-xs rounded transition disabled:opacity-50"
+                        className="px-3 py-1 bg-green-600 hover:bg-green-500 active:bg-green-700 text-white text-xs rounded transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95 cursor-pointer"
+                        title="Approve this user account"
                       >
                         {actionLoading === user.id ? (
                           <Loader2 size={12} className="animate-spin mr-1" />
@@ -915,7 +921,8 @@ export function AdminDashboard() {
                           handleUserAction(user.id, "reject")
                         }
                         disabled={actionLoading === user.id}
-                        className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-xs rounded transition disabled:opacity-50"
+                        className="px-3 py-1 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white text-xs rounded transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95 cursor-pointer"
+                        title="Reject this user account"
                       >
                         ✗ Reject
                       </button>
