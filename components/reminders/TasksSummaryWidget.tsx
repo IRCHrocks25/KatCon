@@ -24,10 +24,8 @@ import type { Reminder } from "@/lib/supabase/reminders";
 import {
   getReminders,
   updateReminderStatus,
-  deleteReminder,
 } from "@/lib/supabase/reminders";
 import { useAuth } from "@/contexts/AuthContext";
-import { useChannels } from "@/contexts/ChannelsContext";
 import { supabase } from "@/lib/supabase/client";
 import {
   getStorageItem,

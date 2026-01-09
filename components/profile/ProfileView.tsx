@@ -9,7 +9,6 @@ import {
 } from "@/lib/supabase/avatar-upload";
 import { toast } from "sonner";
 import { Loader2, Mail, Circle, Lock } from "lucide-react";
-import type { Reminder } from "@/lib/supabase/reminders";
 import { UserStatusSelector } from "@/components/user/UserStatusSelector";
 import { getUserStatus, type UserStatus } from "@/lib/supabase/messaging";
 

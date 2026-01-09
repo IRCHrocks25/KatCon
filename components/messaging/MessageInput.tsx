@@ -96,7 +96,6 @@ export function MessageInput({
         if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
       });
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run on mount/unmount
 
   // Close emoji picker when clicking outside

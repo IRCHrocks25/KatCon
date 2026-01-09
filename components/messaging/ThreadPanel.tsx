@@ -185,132 +185,138 @@ export function ThreadPanel({
   const parentHasContent = parentMessage.content && parentMessage.content.trim().length > 0;
 
   return (
-    <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-50 flex">
-      <div className="w-full md:w-96 bg-gray-900 border-l border-gray-800 flex flex-col">
-        {/* Header */}
-        <div className="p-3 md:p-4 border-b border-gray-800 flex items-center justify-between">
-          <h3 className="text-white font-medium text-base md:text-lg">Thread</h3>
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-gray-800 rounded transition"
-          >
-            <X size={18} className="md:w-5 md:h-5 text-gray-400" />
-          </button>
-        </div>
+    <div className="absolute inset-0 z-50 flex">
+      <div className="flex-1 relative">
+        {/* Backdrop for mobile/close button */}
+        <div className="absolute inset-0 bg-black/50 lg:bg-transparent" onClick={onClose} />
 
-        {/* Parent Message */}
-        <div className="p-3 md:p-4 border-b border-gray-800">
-          <div className="flex gap-2 md:gap-3">
-            <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center text-white text-[10px] md:text-xs font-medium flex-shrink-0">
-              {getParticipantInitials(parentMessage.authorId)}
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-white font-medium text-sm">
-                  {getParticipantName(parentMessage.authorId)}
-                </span>
-                <span className="text-xs text-gray-500">
-                  {new Date(parentMessage.createdAt).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
+        {/* Thread Panel - positioned within chat area */}
+        <div className="absolute right-0 top-0 bottom-0 w-full max-w-md bg-gray-900 border-l border-gray-800 flex flex-col shadow-2xl">
+          {/* Header */}
+          <div className="p-3 md:p-4 border-b border-gray-800 flex items-center justify-between">
+            <h3 className="text-white font-medium text-base md:text-lg">Thread</h3>
+            <button
+              onClick={onClose}
+              className="p-1 hover:bg-gray-800 rounded transition"
+            >
+              <X size={18} className="md:w-5 md:h-5 text-gray-400" />
+            </button>
+          </div>
+
+          {/* Parent Message */}
+          <div className="p-3 md:p-4 border-b border-gray-800">
+            <div className="flex gap-2 md:gap-3">
+              <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center text-white text-[10px] md:text-xs font-medium flex-shrink-0">
+                {getParticipantInitials(parentMessage.authorId)}
               </div>
-              <div className="bg-gray-800 border border-gray-700 rounded-lg px-2 md:px-3 py-2 text-gray-100 text-sm">
-                {parentHasContent && formatMentions(
-                  parentMessage.content,
-                  participants.map((p) => ({
-                    id: p.userId,
-                    email: p.email,
-                    fullname: p.fullname,
-                  }))
-                )}
-                {parentHasFile && (
-                  <ThreadFileAttachment
-                    fileUrl={parentMessage.fileUrl!}
-                    fileName={parentMessage.fileName!}
-                    fileType={parentMessage.fileType || "application/octet-stream"}
-                    fileSize={parentMessage.fileSize || 0}
-                    isOwnMessage={false}
-                  />
-                )}
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-white font-medium text-sm">
+                    {getParticipantName(parentMessage.authorId)}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    {new Date(parentMessage.createdAt).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </div>
+                <div className="bg-gray-800 border border-gray-700 rounded-lg px-2 md:px-3 py-2 text-gray-100 text-sm">
+                  {parentHasContent && formatMentions(
+                    parentMessage.content,
+                    participants.map((p) => ({
+                      id: p.userId,
+                      email: p.email,
+                      fullname: p.fullname,
+                    }))
+                  )}
+                  {parentHasFile && (
+                    <ThreadFileAttachment
+                      fileUrl={parentMessage.fileUrl!}
+                      fileName={parentMessage.fileName!}
+                      fileType={parentMessage.fileType || "application/octet-stream"}
+                      fileSize={parentMessage.fileSize || 0}
+                      isOwnMessage={false}
+                    />
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Thread Replies */}
-        <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-3 md:space-y-4 custom-scrollbar">
-          {threadMessages.length === 0 ? (
-            <div className="text-center text-gray-400 py-8">
-              <p className="text-sm">No replies yet</p>
-            </div>
-          ) : (
-            threadMessages.map((message) => {
-              const isOwnMessage = message.authorId === currentUserId;
-              const hasFile = message.fileUrl && message.fileName;
-              const hasContent = message.content && message.content.trim().length > 0;
+          {/* Thread Replies */}
+          <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-3 md:space-y-4 custom-scrollbar">
+            {threadMessages.length === 0 ? (
+              <div className="text-center text-gray-400 py-8">
+                <p className="text-sm">No replies yet</p>
+              </div>
+            ) : (
+              threadMessages.map((message) => {
+                const isOwnMessage = message.authorId === currentUserId;
+                const hasFile = message.fileUrl && message.fileName;
+                const hasContent = message.content && message.content.trim().length > 0;
 
-              return (
-                <div
-                  key={message.id}
-                  className={`flex gap-3 ${isOwnMessage ? "flex-row-reverse" : "flex-row"}`}
-                >
-                  <div className="w-6 h-6 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
-                    {getParticipantInitials(message.authorId)}
-                  </div>
+                return (
                   <div
-                    className={`flex flex-col max-w-[80%] ${isOwnMessage ? "items-end" : "items-start"}`}
+                    key={message.id}
+                    className={`flex gap-3 ${isOwnMessage ? "flex-row-reverse" : "flex-row"}`}
                   >
-                    <span className="text-white text-xs font-medium mb-1">
-                      {getParticipantName(message.authorId)}
-                    </span>
-                    <div
-                      className={`px-3 py-2 rounded-lg text-sm ${
-                        isOwnMessage
-                          ? "bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 text-white"
-                          : "bg-gray-800 text-gray-100 border border-gray-700"
-                      }`}
-                    >
-                      {hasContent && formatMentions(
-                        message.content,
-                        participants.map((p) => ({
-                          id: p.userId,
-                          email: p.email,
-                          fullname: p.fullname,
-                        }))
-                      )}
-                      {hasFile && (
-                        <ThreadFileAttachment
-                          fileUrl={message.fileUrl!}
-                          fileName={message.fileName!}
-                          fileType={message.fileType || "application/octet-stream"}
-                          fileSize={message.fileSize || 0}
-                          isOwnMessage={isOwnMessage}
-                        />
-                      )}
+                    <div className="w-6 h-6 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
+                      {getParticipantInitials(message.authorId)}
                     </div>
-                    <span className={`text-[10px] text-gray-500 mt-1 ${isOwnMessage ? "text-right" : "text-left"}`}>
-                      {new Date(message.createdAt).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
+                    <div
+                      className={`flex flex-col max-w-[80%] ${isOwnMessage ? "items-end" : "items-start"}`}
+                    >
+                      <span className="text-white text-xs font-medium mb-1">
+                        {getParticipantName(message.authorId)}
+                      </span>
+                      <div
+                        className={`px-3 py-2 rounded-lg text-sm ${
+                          isOwnMessage
+                            ? "bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 text-white"
+                            : "bg-gray-800 text-gray-100 border border-gray-700"
+                        }`}
+                      >
+                        {hasContent && formatMentions(
+                          message.content,
+                          participants.map((p) => ({
+                            id: p.userId,
+                            email: p.email,
+                            fullname: p.fullname,
+                          }))
+                        )}
+                        {hasFile && (
+                          <ThreadFileAttachment
+                            fileUrl={message.fileUrl!}
+                            fileName={message.fileName!}
+                            fileType={message.fileType || "application/octet-stream"}
+                            fileSize={message.fileSize || 0}
+                            isOwnMessage={isOwnMessage}
+                          />
+                        )}
+                      </div>
+                      <span className={`text-[10px] text-gray-500 mt-1 ${isOwnMessage ? "text-right" : "text-left"}`}>
+                        {new Date(message.createdAt).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              );
-            })
-          )}
-          <div ref={threadEndRef} />
-        </div>
+                );
+              })
+            )}
+            <div ref={threadEndRef} />
+          </div>
 
-        {/* Reply Input */}
-        <div className="border-t border-gray-800">
-          <MessageInput
-            onSend={onSendReply}
-            isLoading={isLoading}
-            participants={participants}
-          />
+          {/* Reply Input */}
+          <div className="border-t border-gray-800">
+            <MessageInput
+              onSend={onSendReply}
+              isLoading={isLoading}
+              participants={participants}
+            />
+          </div>
         </div>
       </div>
     </div>
