@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
 import { updateProfile, invalidateProfileCache } from "@/lib/supabase/profile";
 import {
@@ -267,9 +268,11 @@ export function ProfileView() {
               <div className="relative">
                 <div className="w-32 h-32 rounded-full flex items-center justify-center flex-shrink-0 relative overflow-hidden border-4 border-gray-800">
                   {avatarPreview || user?.avatarUrl ? (
-                    <img
+                    <Image
                       src={avatarPreview || user?.avatarUrl || ""}
                       alt={user?.fullname || user?.username || "Avatar"}
+                      width={128}
+                      height={128}
                       className="w-full h-full object-cover"
                     />
                   ) : (

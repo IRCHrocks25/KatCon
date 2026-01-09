@@ -8,6 +8,7 @@ import {
   useMemo,
 } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import Image from "next/image";
 import {
   Download,
   FileText,
@@ -77,9 +78,11 @@ function ImageLightbox({
       >
         <X size={24} />
       </button>
-      <img
+      <Image
         src={src}
         alt={alt}
+        width={800}
+        height={600}
         className="max-w-full max-h-full object-contain rounded-lg"
         onClick={(e) => e.stopPropagation()}
       />
@@ -125,9 +128,11 @@ function FileAttachment({
     return (
       <>
         <div className="mt-2 relative group">
-          <img
+          <Image
             src={fileUrl}
             alt={fileName}
+            width={300}
+            height={200}
             className="max-w-[300px] max-h-[200px] object-cover rounded-lg cursor-pointer hover:opacity-90 transition"
             onClick={() => setShowLightbox(true)}
           />

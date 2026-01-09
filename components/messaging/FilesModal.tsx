@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import Image from "next/image";
 import {
   X,
   Search,
@@ -265,7 +266,7 @@ export function FilesModal({
     }, 300);
 
     return () => clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [fetchFiles, isOpen]); // fetchFiles depends on searchQuery, so including it covers search changes
 
   const getFileIcon = (mimeType: string) => {
@@ -411,9 +412,11 @@ export function FilesModal({
                       {/* Preview */}
                       <div className="aspect-square relative bg-gray-800 flex items-center justify-center">
                         {isImageFile(file.file_type) ? (
-                          <img
+                          <Image
                             src={file.file_url}
                             alt={file.file_name}
+                            width={200}
+                            height={200}
                             className="w-full h-full object-cover cursor-pointer"
                             onClick={() => setSelectedImage(file.file_url)}
                           />
@@ -472,9 +475,11 @@ export function FilesModal({
                 >
                   <X size={24} />
                 </button>
-                <img
+                <Image
                   src={selectedImage}
                   alt="Preview"
+                  width={800}
+                  height={600}
                   className="max-w-full max-h-full object-contain rounded-lg"
                   onClick={(e) => e.stopPropagation()}
                 />

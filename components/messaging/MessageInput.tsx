@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Paperclip, X, FileText, Image, Archive, File, Trash2, Smile } from "lucide-react";
+import Image from "next/image";
+import { Send, Paperclip, X, FileText, Image as ImageIcon, Archive, File, Trash2, Smile } from "lucide-react";
 import dynamic from "next/dynamic";
 import type { EmojiClickData } from "emoji-picker-react";
 import { Theme } from "emoji-picker-react";
@@ -305,7 +306,7 @@ export function MessageInput({
   };
 
   const getFileIcon = (mimeType: string) => {
-    if (mimeType.startsWith("image/")) return <Image size={16} className="text-blue-400" />;
+    if (mimeType.startsWith("image/")) return <ImageIcon size={16} className="text-blue-400" />;
     if (mimeType.includes("pdf") || mimeType.includes("word") || mimeType.includes("text"))
       return <FileText size={16} className="text-orange-400" />;
     if (mimeType.includes("zip") || mimeType.includes("rar") || mimeType.includes("7z"))
@@ -387,9 +388,11 @@ export function MessageInput({
                 className="relative flex-shrink-0 group"
               >
                 {fileItem.previewUrl ? (
-                  <img
+                  <Image
                     src={fileItem.previewUrl}
                     alt={fileItem.file.name}
+                    width={64}
+                    height={64}
                     className="w-16 h-16 object-cover rounded-md border border-gray-600"
                   />
                 ) : (

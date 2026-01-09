@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 
 interface AvatarProps {
   readonly src?: string | null;
@@ -69,9 +70,11 @@ export function Avatar({
               {getInitials()}
             </div>
           )}
-          <img
+          <Image
             src={src}
             alt={name || email || "Avatar"}
+            width={size === "sm" ? 24 : size === "md" ? 32 : 48}
+            height={size === "sm" ? 24 : size === "md" ? 32 : 48}
             className={`w-full h-full object-cover ${
               imageLoaded ? "opacity-100" : "opacity-0"
             } transition-opacity duration-200`}
