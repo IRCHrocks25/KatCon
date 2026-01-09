@@ -140,7 +140,19 @@ export function PinnedMessagesPanel({
                       {pinned.message.author.fullname || pinned.message.author.email}
                     </p>
                     <p className="text-xs text-gray-400">
-                      {new Date(pinned.message.createdAt).toLocaleString()}
+                      {(() => {
+                        try {
+                          if (!pinned.message.createdAt) return "Unknown time";
+                          const date = new Date(pinned.message.createdAt);
+                          if (isNaN(date.getTime())) return "Invalid time";
+                          return date.toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          });
+                        } catch {
+                          return "Invalid time";
+                        }
+                      })()}
                     </p>
                   </div>
                   <button
@@ -152,7 +164,7 @@ export function PinnedMessagesPanel({
                   </button>
                 </div>
                 <p className="text-sm text-gray-300 mb-1 whitespace-pre-wrap break-words">
-                  {pinned.message.content}
+                  {pinned.message.content || "No message content"}
                 </p>
                 <p className="text-xs text-gray-500">
                   Pinned by {pinned.pinnedBy.fullname || pinned.pinnedBy.email}

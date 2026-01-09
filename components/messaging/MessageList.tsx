@@ -405,7 +405,7 @@ export function MessageList({
           const hasSearchQuery =
             searchQuery.trim().length > 0 && effectiveSearchResults.length > 0;
           const isSearchResult = effectiveSearchResults.includes(message.id);
-          const isPinned = pinnedMessageIds?.includes(message.id) || false;
+          const isPinned = pinnedMessageIds.includes(message.id);
 
           return (
             <motion.div

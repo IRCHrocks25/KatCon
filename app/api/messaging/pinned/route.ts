@@ -4,25 +4,19 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
-interface PinnedMessage {
-  id: string;
-  message_id: string;
-  pinned_by_user_id: string;
-  pinned_at: string;
-  message: {
-    id: string;
-    content: string;
-    created_at: string;
-    author_id: string;
-  }[];
-}
-
 interface Profile {
   id: string;
   email: string;
   fullname: string | null;
   username: string | null;
   avatar_url: string | null;
+}
+
+interface MessageData {
+  id: string;
+  content: string;
+  created_at: string;
+  author_id: string;
 }
 
 // GET: Get pinned messages for a conversation
@@ -76,7 +70,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get pinned messages
+    // Get pinned messages with their associated message data
     const { data: pinnedMessages, error: pinnedError } = await supabase
       .from("pinned_messages")
       .select(
@@ -84,13 +78,7 @@ export async function GET(request: NextRequest) {
         id,
         message_id,
         pinned_by_user_id,
-        pinned_at,
-        message:messages!inner(
-          id,
-          content,
-          created_at,
-          author_id
-        )
+        pinned_at
       `
       )
       .eq("conversation_id", conversationId)
@@ -105,11 +93,34 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Get the actual message data for each pinned message
+    const messageIds = (pinnedMessages || []).map((pm) => pm.message_id);
+    let messagesData: MessageData[] = [];
+    if (messageIds.length > 0) {
+      const { data: messages, error: messagesError } = await supabase
+        .from("messages")
+        .select("id, content, created_at, author_id")
+        .in("id", messageIds);
+
+      if (messagesError) {
+        console.error("Error fetching messages:", messagesError);
+      } else {
+        messagesData = messages || [];
+      }
+    }
+
+    // Combine pinned messages with their message data
+    const combinedPinnedMessages = (pinnedMessages || []).map((pm) => ({
+      ...pm,
+      message: messagesData.filter((msg) => msg.id === pm.message_id),
+    }));
+
     // Get profiles for message authors and users who pinned
     const authorIds = new Set<string>();
     const pinnedByIds = new Set<string>();
-    (pinnedMessages || []).forEach((pm: PinnedMessage) => {
-      if (pm.message?.[0]?.author_id) authorIds.add(pm.message[0].author_id);
+    combinedPinnedMessages.forEach((pm) => {
+      const message = pm.message?.[0];
+      if (message?.author_id) authorIds.add(message.author_id);
       if (pm.pinned_by_user_id) pinnedByIds.add(pm.pinned_by_user_id);
     });
 
@@ -125,10 +136,38 @@ export async function GET(request: NextRequest) {
     });
 
     // Format response
-    const formatted = (pinnedMessages || []).map((pm: PinnedMessage) => {
+    const formatted = combinedPinnedMessages.map((pm) => {
       const message = pm.message?.[0]; // Get first (and only) message from array
       const authorProfile = profileMap.get(message?.author_id || "");
       const pinnedByProfile = profileMap.get(pm.pinned_by_user_id);
+
+      // Debug logging
+      console.log("Processing pinned message:", {
+        pinnedMessageId: pm.id,
+        messageId: pm.message_id,
+        messageArray: pm.message,
+        messageData: message,
+        hasContent: !!message?.content,
+        contentLength: message?.content?.length,
+        createdAt: message?.created_at,
+        authorId: message?.author_id,
+      });
+
+      // Debug logging for date issues
+      let createdAt = null;
+      if (message?.created_at) {
+        try {
+          createdAt = new Date(message.created_at).toISOString();
+        } catch (error) {
+          console.error(
+            "Invalid created_at for message:",
+            message.id,
+            message.created_at,
+            error
+          );
+          createdAt = null;
+        }
+      }
 
       return {
         id: pm.id,
@@ -136,7 +175,7 @@ export async function GET(request: NextRequest) {
         message: {
           id: message?.id,
           content: message?.content,
-          createdAt: message?.created_at,
+          createdAt: createdAt,
           author: {
             id: message?.author_id,
             email: authorProfile?.email || "",
@@ -208,10 +247,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (messageError || !message) {
-      return NextResponse.json(
-        { error: "Message not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Message not found" }, { status: 404 });
     }
 
     // Verify user is a participant
@@ -397,8 +433,3 @@ export async function DELETE(request: NextRequest) {
     );
   }
 }
-
-
-
-
-

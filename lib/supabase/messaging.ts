@@ -129,8 +129,8 @@ interface RawMessageData {
   file_name?: string | null;
   file_type?: string | null;
   file_size?: number | null;
-  reactions?: MessageReaction[];
   is_pinned?: boolean;
+  reactions?: MessageReaction[];
 }
 
 interface RawPinnedMessageData {
@@ -278,6 +278,7 @@ export async function getMessages(
         fileName: msg.file_name || null,
         fileType: msg.file_type || null,
         fileSize: msg.file_size || null,
+        isPinned: msg.is_pinned || false,
         reactions: (msg.reactions || []) as MessageReaction[],
       })),
       hasMore: data.hasMore || false,

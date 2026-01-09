@@ -167,7 +167,8 @@ async function getMessagesHandler(
       threadCountsResult,
       readsResult,
       reactionsResult,
-      profilesResult
+      profilesResult,
+      pinnedMessagesResult
     ] = await Promise.all([
       // Get thread reply counts for all messages at once
       supabase
@@ -192,7 +193,14 @@ async function getMessagesHandler(
       supabase
         .from("profiles")
         .select("id, email, fullname, username, avatar_url")
-        .in("id", senderIds)
+        .in("id", senderIds),
+
+      // Get pinned messages for this conversation
+      supabase
+        .from("pinned_messages")
+        .select("message_id")
+        .eq("conversation_id", conversationId)
+        .is("unpinned_at", null)
     ]);
 
     // Process thread counts
@@ -265,6 +273,12 @@ async function getMessagesHandler(
       profileMap.set(p.id, p);
     });
 
+    // Create pinned messages set for quick lookup
+    const pinnedMessageIds = new Set<string>();
+    (pinnedMessagesResult.data || []).forEach((pm: { message_id: string }) => {
+      pinnedMessageIds.add(pm.message_id);
+    });
+
     // Format messages (reverse to show oldest first)
     const formattedMessages = (messages || [])
       .reverse()
@@ -287,6 +301,7 @@ async function getMessagesHandler(
           file_name: msg.file_name || null,
           file_type: msg.file_type || null,
           file_size: msg.file_size || null,
+          is_pinned: pinnedMessageIds.has(msg.id),
           reactions: (() => {
             const messageReactions = reactionsByMessage.get(msg.id);
             if (!messageReactions || messageReactions.size === 0) {
