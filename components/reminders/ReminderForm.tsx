@@ -18,7 +18,6 @@ import { getAllUsers, type UserWithTeam } from "@/lib/supabase/users";
 import type { AccountType } from "@/lib/supabase/auth";
 import { getConversations, type Conversation } from "@/lib/supabase/messaging";
 import { useClients } from "@/contexts/ClientsContext";
-import type { Client } from "@/lib/supabase/clients";
 
 interface ReminderFormProps {
   initialData?: Reminder;

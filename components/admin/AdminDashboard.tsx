@@ -105,8 +105,11 @@ export function AdminDashboard() {
     fullname: "",
   });
 
-  // Check if current user is admin
+  // Check permissions
   const isAdmin = user?.role === "admin";
+  const isManager = user?.role === "admin" || user?.role === "manager";
+  const canManageUsers = isAdmin; // Only admins can create/edit/delete users
+  const canViewKanban = isManager; // Managers and admins can view kanban
 
   // Clear cache when user changes or logs out
   useEffect(() => {
@@ -447,17 +450,17 @@ export function AdminDashboard() {
     );
   }
 
-  // Only show access denied if we're sure the user is not an admin
-  if (!isAdmin) {
+  // Only show access denied if we're sure the user is not a manager or admin
+  if (!isManager) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
           <Shield size={48} className="mx-auto mb-4 text-gray-400" />
           <h2 className="text-xl font-semibold text-gray-300 mb-2">
-            Admin Access Required
+            Manager/Admin Access Required
           </h2>
           <p className="text-gray-500">
-            You don&apos;t have permission to access the admin panel.
+            You don't have permission to access the management panel.
           </p>
         </div>
       </div>
@@ -685,6 +688,7 @@ export function AdminDashboard() {
                           className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-purple-500"
                         >
                           <option value="user">User</option>
+                          <option value="manager">Manager</option>
                           <option value="admin">Admin</option>
                         </select>
                       </td>
@@ -840,6 +844,7 @@ export function AdminDashboard() {
                       className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-purple-500"
                     >
                       <option value="user">User</option>
+                      <option value="manager">Manager</option>
                       <option value="admin">Admin</option>
                     </select>
                   </div>
@@ -1033,6 +1038,7 @@ export function AdminDashboard() {
                   className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-purple-500"
                 >
                   <option value="user">User</option>
+                  <option value="manager">Manager</option>
                   <option value="admin">Admin</option>
                 </select>
               </div>

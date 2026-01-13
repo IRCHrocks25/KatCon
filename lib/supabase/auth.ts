@@ -14,7 +14,7 @@ export type AccountType =
   | "COPYWRITING"
   | "OTHERS";
 
-export type UserRole = "user" | "admin";
+export type UserRole = "user" | "manager" | "admin";
 
 export interface AuthUser {
   id: string;
