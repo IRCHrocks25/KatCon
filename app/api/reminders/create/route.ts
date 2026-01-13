@@ -13,6 +13,8 @@ interface DatabaseReminder {
   due_date: string | null;
   status: "backlog" | "in_progress" | "review" | "done" | "hidden";
   priority: "low" | "medium" | "high" | "urgent";
+  channel_id: string | null;
+  client_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -80,7 +82,7 @@ async function expandTeamAssignments(
 
 // Convert database reminder to app reminder format
 function dbToAppReminder(
-  dbReminder: DatabaseReminder & { is_recurring: boolean; rrule: string | null },
+  dbReminder: DatabaseReminder & { is_recurring: boolean; rrule: string | null; client_id?: string | null },
   assignments: ReminderAssignment[] = []
 ) {
   return {
@@ -92,6 +94,8 @@ function dbToAppReminder(
     priority: dbReminder.priority,
     createdBy: dbReminder.user_id,
     assignedTo: assignments.map((a) => a.assignedto),
+    channelId: dbReminder.channel_id || undefined,
+    clientId: dbReminder.client_id || undefined,
     createdAt: new Date(dbReminder.created_at), // Include created_at for sorting
     isRecurring: dbReminder.is_recurring,
     rrule: dbReminder.rrule,
@@ -108,7 +112,7 @@ export const POST = moderateRateLimit(async (request: NextRequest) => {
 
     const { user } = authResult;
   const body = await request.json();
-  const { title, description, dueDate, assignedTo, channelId, priority = "medium", isRecurring = false, rrule } = body;
+  const { title, description, dueDate, assignedTo, channelId, clientId, priority = "medium", isRecurring = false, rrule } = body;
 
     // Validate request body
     if (!title) {
@@ -204,6 +208,7 @@ export const POST = moderateRateLimit(async (request: NextRequest) => {
         status: "backlog",
         last_status_change_at: new Date().toISOString(),
         channel_id: channelId || null,
+        client_id: clientId || null,
         is_recurring: isRecurring,
         rrule: isRecurring ? rrule : null,
       })

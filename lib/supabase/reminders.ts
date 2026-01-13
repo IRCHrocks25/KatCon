@@ -58,6 +58,7 @@ export interface Reminder {
   createdBy: string; // Email of the creator
   assignedTo: string[]; // Array of emails of assigned users
   channelId?: string; // ID of the channel this task belongs to (null for global tasks)
+  clientId?: string; // ID of the client this task is associated with (null for non-client tasks)
   createdAt?: Date; // When the task was created
   isRecurring?: boolean; // Whether this reminder is recurring
   rrule?: string | null; // RRULE string for recurrence pattern
@@ -76,6 +77,7 @@ interface DatabaseReminder {
   snoozed_until: string | null;
   priority: "low" | "medium" | "high" | "urgent"; // Task priority level
   channel_id: string | null;
+  client_id: string | null; // Client association for tasks
   is_recurring: boolean;
   rrule: string | null;
   parent_reminder_id: string | null;
@@ -169,6 +171,7 @@ async function dbToAppReminder(
     createdBy: dbReminder.user_id,
     assignedTo: assignments.map((a) => a.assignedto),
     channelId: dbReminder.channel_id || undefined,
+    clientId: dbReminder.client_id || undefined,
     createdAt: new Date(dbReminder.created_at),
     isRecurring: dbReminder.is_recurring,
     rrule: dbReminder.rrule,
