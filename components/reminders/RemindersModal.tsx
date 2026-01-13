@@ -328,6 +328,7 @@ export function RemindersModal({
     try {
       if (editingReminder) {
         // Update existing reminder
+        // Preserve null to clear client association, undefined means don't update
         const updated = await updateReminder(editingReminder.id, {
           title: data.title,
           description: data.description || undefined,
@@ -335,8 +336,8 @@ export function RemindersModal({
           priority: data.priority,
           assignedTo: data.assignedTo.length > 0 ? data.assignedTo : undefined,
           channelId: data.channelId,
-          clientId: data.clientId as string | null | undefined, // Explicitly allow null to clear association
-        });
+          clientId: data.clientId === null ? null : data.clientId || undefined,
+        } as Parameters<typeof updateReminder>[1]);
 
         setReminders((prev) =>
           prev.map((r) => (r.id === editingReminder.id ? updated : r))
@@ -344,6 +345,7 @@ export function RemindersModal({
         toast.success("Task updated");
       } else {
         // Create new reminder using the proper Supabase client function
+        // For creates, null means no association, undefined also means no association
         const reminder = await createReminder({
           title: data.title,
           description: data.description || undefined,
@@ -351,8 +353,8 @@ export function RemindersModal({
           priority: data.priority,
           assignedTo: data.assignedTo.length > 0 ? data.assignedTo : undefined,
           channelId: data.channelId || channelId || undefined,
-          clientId: data.clientId as string | null | undefined, // Explicitly allow null for no association
-        });
+          clientId: data.clientId || null,
+        } as Parameters<typeof createReminder>[0]);
 
         setReminders((prev) => [reminder, ...prev]);
         toast.success("Task created");

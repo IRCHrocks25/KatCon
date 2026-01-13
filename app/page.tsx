@@ -21,6 +21,7 @@ import {
   setStorageItem,
   removeStorageItem,
 } from "@/lib/utils/storage";
+import { clearUserCache } from "@/lib/utils/cache-clear";
 import { AIChatView } from "@/components/chat/AIChatView";
 import { ProfileView } from "@/components/profile/ProfileView";
 import { KanbanView } from "@/components/kanban/KanbanView";
@@ -82,7 +83,9 @@ export default function Home() {
 
     if (currentUserId !== previousUserId) {
       if (user) {
-        // New user logged in - clear previous data
+        // New user logged in - clear previous user's data
+        console.log("[PAGE] Different user logged in, clearing previous data");
+        clearUserCache();
         Promise.resolve().then(() => {
           setReminders([]);
         });
@@ -104,6 +107,8 @@ export default function Home() {
         loginTimestampRef.current = now;
       } else {
         // User logged out - clear everything
+        console.log("[PAGE] User logged out, clearing all data");
+        clearUserCache();
         Promise.resolve().then(() => {
           setReminders([]);
           removeStorageItem("chatSessionId");

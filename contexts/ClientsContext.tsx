@@ -48,11 +48,19 @@ export function ClientsProvider({ children }: ClientsProviderProps) {
   };
 
   useEffect(() => {
+    // Clear clients when user logs out
+    if (!user) {
+      setClients([]);
+      setError(null);
+      return;
+    }
+    
     // Only load clients after authentication is complete
     if (!authLoading) {
       loadClients();
     }
-  }, [user, authLoading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, authLoading]); // Only depend on user.id to trigger refresh on user change
 
   const value: ClientsContextType = {
     clients,

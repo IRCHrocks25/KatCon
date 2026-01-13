@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { getConversations, type Conversation } from "@/lib/supabase/messaging";
 
 interface ChannelsContextType {
@@ -17,11 +18,18 @@ interface ChannelsProviderProps {
 }
 
 export function ChannelsProvider({ children }: ChannelsProviderProps) {
+  const { user } = useAuth();
   const [channels, setChannels] = useState<Conversation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadChannels = async () => {
+    // Only load if user is authenticated
+    if (!user) {
+      setChannels([]);
+      return;
+    }
+
     try {
       setIsLoading(true);
       setError(null);
@@ -44,8 +52,17 @@ export function ChannelsProvider({ children }: ChannelsProviderProps) {
   };
 
   useEffect(() => {
+    // Clear channels when user logs out
+    if (!user) {
+      setChannels([]);
+      setError(null);
+      return;
+    }
+    
+    // Load channels when user is available (this will refresh on user change)
     loadChannels();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]); // Only depend on user.id to trigger refresh on user change
 
   const value: ChannelsContextType = {
     channels,

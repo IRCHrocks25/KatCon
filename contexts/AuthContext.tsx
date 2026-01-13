@@ -10,6 +10,7 @@ import React, {
 } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { removeStorageItem } from "@/lib/utils/storage";
+import { clearUserCache } from "@/lib/utils/cache-clear";
 import type { Session } from "@supabase/supabase-js";
 import {
   AccountType,
@@ -72,8 +73,14 @@ export function AuthProvider({
       setSession(session);
 
       if (session?.user) {
-        // Preserve existing profile data if user ID hasn't changed
+        // Check if this is a different user logging in
         setUser((prev) => {
+          // If different user, clear cache and reset
+          if (prev && prev.id !== session.user.id) {
+            console.log("[AUTH] Different user detected, clearing cache");
+            clearUserCache();
+          }
+          
           // If same user, preserve profile data to avoid unnecessary refetches
           if (prev?.id === session.user.id && prev.accountType) {
             return {
@@ -96,6 +103,8 @@ export function AuthProvider({
       } else {
         setUser(null);
         profileFetchingRef.current = null; // Clear ref on logout
+        // Clear cache when user becomes null (logout)
+        clearUserCache();
       }
 
       setLoading(false);
@@ -294,15 +303,20 @@ export function AuthProvider({
       // Optimistically clear state immediately (don't wait for API)
       setUser(null);
       setSession(null);
+      
+      // Clear all user-specific cache
+      clearUserCache();
       removeStorageItem("chatSessionId");
 
-      // Then call signOut in background
+      // Then call signOut in background (this clears Supabase session keys)
       await signOut();
 
-      console.log("[AUTH] Logout complete");
+      console.log("[AUTH] Logout complete - all cache cleared");
     } catch (error) {
       console.error("[AUTH] Logout error (ignored):", error);
       // Even if signOut fails, state is already cleared
+      // Ensure cache is still cleared even on error
+      clearUserCache();
     }
   }, []);
 
