@@ -1,0 +1,33 @@
+name: Deadline Notifications
+
+on:
+  schedule:
+    # Run every 15 minutes
+    - cron: '*/15 * * * *'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  check-deadlines:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check Deadlines & Send Notifications
+        run: |
+          echo "Checking for deadline notifications..."
+
+          # Make HTTP request to Supabase Edge Function
+          response=$(curl -s -o response.json -w "%{http_code}" \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            ${{ secrets.SUPABASE_URL }}/functions/v1/deadline-monitor)
+
+          # Check if the request was successful
+          if [ "$response" -eq 200 ]; then
+            echo "✅ Successfully checked deadlines"
+            cat response.json
+          else
+            echo "❌ Failed to check deadlines (HTTP $response)"
+            cat response.json
+            exit 1
+          fi

@@ -132,6 +132,18 @@ export function NotificationCenter({ onTabChange, onOpenTask }: NotificationCent
           onOpenTask(notification.reminderId!);
         }, 100);
       }
+    } else if (notification.type === 'deadline_approaching' || notification.type === 'deadline_overdue') {
+      // Deadline notifications - go to kanban tab and open the task
+      console.log('Redirecting to Kanban for deadline notification');
+      onTabChange?.('kanban');
+
+      // If there's a specific task, open it
+      if (notification.reminderId && onOpenTask) {
+        // Small delay to allow tab switch
+        setTimeout(() => {
+          onOpenTask(notification.reminderId!);
+        }, 100);
+      }
     } else if (notification.type === 'unread_messages' || notification.title === 'New Messages') {
       // Unread messages - go to messages tab
       console.log('Redirecting to Messages for unread messages notification');
@@ -181,6 +193,10 @@ export function NotificationCenter({ onTabChange, onOpenTask }: NotificationCent
         return "🗑️";
       case "unread_messages":
         return "💬";
+      case "deadline_approaching":
+        return "⏰";
+      case "deadline_overdue":
+        return "🚨";
       default:
         return "🔔";
     }

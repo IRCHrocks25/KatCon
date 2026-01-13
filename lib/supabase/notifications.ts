@@ -9,7 +9,9 @@ export interface Notification {
     | "reminder_completed"
     | "reminder_updated"
     | "reminder_deleted"
-    | "unread_messages";
+    | "unread_messages"
+    | "deadline_approaching"
+    | "deadline_overdue";
   title: string;
   message: string;
   reminderId?: string;
