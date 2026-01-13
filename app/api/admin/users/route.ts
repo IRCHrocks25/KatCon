@@ -197,9 +197,9 @@ export const POST = moderateRateLimit(async (request: NextRequest) => {
         } else if (action === "reject") {
           updates.approved = false;
         } else if (action === "update_role") {
-          if (!role || !["user", "admin"].includes(role)) {
+          if (!role || !["user", "manager", "admin"].includes(role)) {
             return NextResponse.json(
-              { error: "Invalid role. Must be 'user' or 'admin'" },
+              { error: "Invalid role. Must be 'user', 'manager', or 'admin'" },
               { status: 400 }
             );
           }
