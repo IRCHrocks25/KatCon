@@ -462,7 +462,7 @@ export function AdminDashboard() {
             Manager/Admin Access Required
           </h2>
           <p className="text-gray-500">
-            You don't have permission to access the management panel.
+            You don&apos;t have permission to access the management panel.
           </p>
         </div>
       </div>

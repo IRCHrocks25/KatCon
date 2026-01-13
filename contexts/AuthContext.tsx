@@ -80,7 +80,7 @@ export function AuthProvider({
             console.log("[AUTH] Different user detected, clearing cache");
             clearUserCache();
           }
-          
+
           // If same user, preserve profile data to avoid unnecessary refetches
           if (prev?.id === session.user.id && prev.accountType) {
             return {
@@ -303,7 +303,7 @@ export function AuthProvider({
       // Optimistically clear state immediately (don't wait for API)
       setUser(null);
       setSession(null);
-      
+
       // Clear all user-specific cache
       clearUserCache();
       removeStorageItem("chatSessionId");
