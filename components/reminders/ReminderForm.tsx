@@ -11,11 +11,14 @@ import {
   Check,
   Loader2,
   Hash,
+  Building,
 } from "lucide-react";
 import type { Reminder } from "@/lib/supabase/reminders";
 import { getAllUsers, type UserWithTeam } from "@/lib/supabase/users";
 import type { AccountType } from "@/lib/supabase/auth";
 import { getConversations, type Conversation } from "@/lib/supabase/messaging";
+import { useClients } from "@/contexts/ClientsContext";
+import type { Client } from "@/lib/supabase/clients";
 
 interface ReminderFormProps {
   initialData?: Reminder;
@@ -26,6 +29,7 @@ interface ReminderFormProps {
     assignedTo: string[];
     priority: "low" | "medium" | "high" | "urgent";
     channelId?: string;
+    clientId?: string;
   }) => Promise<void>;
   onCancel: () => void;
   isSubmitting: boolean;
@@ -53,6 +57,7 @@ export function ReminderForm({
     initialData?.priority || "medium"
   );
   const [channelId, setChannelId] = useState<string>(initialData?.channelId || "");
+  const [clientId, setClientId] = useState<string>(initialData?.clientId || "");
 
   // Sync state with initialData prop changes
   useEffect(() => {
@@ -78,8 +83,11 @@ export function ReminderForm({
   const [showChannelDropdown, setShowChannelDropdown] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [channelSearchQuery, setChannelSearchQuery] = useState("");
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const [clientSearchQuery, setClientSearchQuery] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const channelDropdownRef = useRef<HTMLDivElement>(null);
+  const clientDropdownRef = useRef<HTMLDivElement>(null);
 
   const isEditing = !!initialData;
 
@@ -128,15 +136,21 @@ export function ReminderForm({
       ) {
         setShowChannelDropdown(false);
       }
+      if (
+        clientDropdownRef.current &&
+        !clientDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowClientDropdown(false);
+      }
     };
 
-    if (showDropdown || showChannelDropdown) {
+    if (showDropdown || showChannelDropdown || showClientDropdown) {
       document.addEventListener("mousedown", handleClickOutside);
     }
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [showDropdown, showChannelDropdown]);
+  }, [showDropdown, showChannelDropdown, showClientDropdown]);
 
   // Group users by team
   const usersByTeam = allUsers.reduce((acc, user) => {
@@ -197,6 +211,23 @@ export function ReminderForm({
     setShowChannelDropdown(false);
   };
 
+  // Client functionality
+  const { clients, isLoading: isLoadingClients } = useClients();
+
+  // Filter clients based on search
+  const filteredClients = clients.filter((client) =>
+    client.name.toLowerCase().includes(clientSearchQuery.toLowerCase()) ||
+    client.company?.toLowerCase().includes(clientSearchQuery.toLowerCase()) ||
+    client.email?.toLowerCase().includes(clientSearchQuery.toLowerCase())
+  );
+
+  const selectedClient = clients.find((client) => client.id === clientId);
+
+  const handleClientSelect = (clientId: string) => {
+    setClientId(clientId === "none" ? "" : clientId);
+    setShowClientDropdown(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
@@ -208,6 +239,7 @@ export function ReminderForm({
       assignedTo,
       priority,
       channelId: channelId || undefined,
+      clientId: clientId || undefined,
     });
   };
 
@@ -587,6 +619,139 @@ export function ReminderForm({
                   {filteredChannels.length === 0 && !isLoadingConversations && (
                     <div className="p-4 text-center text-gray-500 text-sm">
                       No channels found
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </div>
+
+      {/* Client */}
+      <div className="space-y-2 relative" ref={clientDropdownRef}>
+        <label className="text-sm text-gray-400 flex items-center gap-2">
+          <Building size={14} />
+          Client (optional)
+        </label>
+
+        {/* Dropdown Trigger */}
+        <button
+          type="button"
+          onClick={() => setShowClientDropdown(!showClientDropdown)}
+          disabled={isLoadingClients}
+          className="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg text-left flex items-center justify-between hover:border-gray-500 transition disabled:opacity-50"
+        >
+          <span className="text-gray-400">
+            {selectedClient
+              ? `${selectedClient.name}${selectedClient.company ? ` (${selectedClient.company})` : ''}`
+              : "No client association"}
+          </span>
+          <ChevronDown
+            size={18}
+            className={`text-gray-400 transition-transform ${
+              showClientDropdown ? "rotate-180" : ""
+            }`}
+          />
+        </button>
+
+        {/* Dropdown Menu */}
+        {showClientDropdown && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="absolute z-[100] w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-2xl max-h-64 overflow-hidden flex flex-col"
+          >
+            {/* Search */}
+            <div className="p-2 border-b border-gray-700">
+              <input
+                type="text"
+                placeholder="Search clients..."
+                value={clientSearchQuery}
+                onChange={(e) => setClientSearchQuery(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-900/50 border border-gray-600 rounded text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                autoFocus
+              />
+            </div>
+
+            {/* Options */}
+            <div className="overflow-y-auto flex-1 custom-scrollbar">
+              {isLoadingClients ? (
+                <div className="p-4 text-center text-gray-400">
+                  <Loader2 size={20} className="animate-spin mx-auto mb-2" />
+                  <span className="text-sm">Loading clients...</span>
+                </div>
+              ) : (
+                <>
+                  {/* No client option */}
+                  <button
+                    type="button"
+                    onClick={() => handleClientSelect("none")}
+                    className="w-full px-3 py-2 flex items-center gap-3 hover:bg-gray-700/50 rounded transition"
+                  >
+                    <div
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                        !clientId
+                          ? "bg-purple-600 border-purple-600"
+                          : "border-gray-600"
+                      }`}
+                    >
+                      {!clientId && <Check size={12} className="text-white" />}
+                    </div>
+                    <div className="flex-1 text-left">
+                      <div className="text-sm text-white font-medium">
+                        No client association
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Task not linked to any specific client
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Clients */}
+                  {filteredClients.length > 0 && (
+                    <div className="p-2">
+                      <div className="text-xs text-gray-500 font-medium px-2 py-1 uppercase tracking-wider">
+                        Clients
+                      </div>
+                      {filteredClients.map((client) => {
+                        const isSelected = clientId === client.id;
+
+                        return (
+                          <button
+                            key={client.id}
+                            type="button"
+                            onClick={() => handleClientSelect(client.id)}
+                            className="w-full px-3 py-2 flex items-center gap-3 hover:bg-gray-700/50 rounded transition"
+                          >
+                            <div
+                              className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                                isSelected
+                                  ? "bg-purple-600 border-purple-600"
+                                  : "border-gray-600"
+                              }`}
+                            >
+                              {isSelected && <Check size={12} className="text-white" />}
+                            </div>
+                            <Building size={16} className="text-blue-400" />
+                            <div className="flex-1 text-left">
+                              <div className="text-sm text-white font-medium">
+                                {client.name}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {client.company && `${client.company}`}
+                                {client.email && ` • ${client.email}`}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {filteredClients.length === 0 && !isLoadingClients && (
+                    <div className="p-4 text-center text-gray-500 text-sm">
+                      No clients found
                     </div>
                   )}
                 </>
