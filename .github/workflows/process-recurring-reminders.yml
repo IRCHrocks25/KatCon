@@ -1,0 +1,32 @@
+name: Process Recurring Reminders
+
+on:
+  schedule:
+    # Run every 4 hours: at minute 0 of 0, 4, 8, 12, 16, 20
+    - cron: '0 */4 * * *'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  process-reminders:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Process Recurring Reminders
+        run: |
+          echo "Processing recurring reminders..."
+
+          # Make HTTP request to your API endpoint
+          response=$(curl -s -o response.json -w "%{http_code}" \
+            -X POST \
+            -H "Content-Type: application/json" \
+            ${{ secrets.APP_URL }}/api/reminders/process-recurring)
+
+          # Check if the request was successful
+          if [ "$response" -eq 200 ]; then
+            echo "✅ Successfully processed recurring reminders"
+            cat response.json
+          else
+            echo "❌ Failed to process recurring reminders (HTTP $response)"
+            cat response.json
+            exit 1
+          fi

@@ -59,6 +59,8 @@ export interface Reminder {
   assignedTo: string[]; // Array of emails of assigned users
   channelId?: string; // ID of the channel this task belongs to (null for global tasks)
   createdAt?: Date; // When the task was created
+  isRecurring?: boolean; // Whether this reminder is recurring
+  rrule?: string | null; // RRULE string for recurrence pattern
 }
 
 // Database reminder format (matches Supabase schema)
@@ -74,6 +76,9 @@ interface DatabaseReminder {
   snoozed_until: string | null;
   priority: "low" | "medium" | "high" | "urgent"; // Task priority level
   channel_id: string | null;
+  is_recurring: boolean;
+  rrule: string | null;
+  parent_reminder_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -165,6 +170,8 @@ async function dbToAppReminder(
     assignedTo: assignments.map((a) => a.assignedto),
     channelId: dbReminder.channel_id || undefined,
     createdAt: new Date(dbReminder.created_at),
+    isRecurring: dbReminder.is_recurring,
+    rrule: dbReminder.rrule,
   };
 }
 
@@ -278,6 +285,8 @@ export async function createReminder(
       priority: reminder.priority,
       assignedTo: reminder.assignedTo,
       channelId: reminder.channelId,
+      isRecurring: reminder.isRecurring,
+      rrule: reminder.rrule,
     }),
   });
 
@@ -1031,4 +1040,73 @@ async function sendStaleTaskNotification(userEmail: string, task: Reminder): Pro
   } catch (error) {
     console.error(`Error sending stale task notification to ${userEmail}:`, error);
   }
+}
+
+// ==================== Chatbot Payload Support ====================
+
+/**
+ * Chatbot reminder input format (single reminder)
+ */
+export interface ChatbotReminderInput {
+  task: string;
+  datetime: string | "indefinite" | null;
+  assignees: string[];
+  notes: string;
+  channel_id: string | null;
+  priority: "low" | "medium" | "high" | "urgent";
+  is_recurring: boolean;
+  rrule: string | null;
+}
+
+/**
+ * Chatbot payload format (multiple reminders)
+ */
+export interface ChatbotReminderPayload {
+  reminders: ChatbotReminderInput[];
+}
+
+/**
+ * Create multiple reminders from chatbot payload
+ * Handles validation, loops through reminders, and returns created reminders
+ */
+export async function createRemindersFromChatbotPayload(
+  payload: ChatbotReminderPayload
+): Promise<{ created: Reminder[]; skipped: number }> {
+  if (!payload.reminders || !Array.isArray(payload.reminders)) {
+    throw new Error("Invalid payload: reminders array is required");
+  }
+
+  const created: Reminder[] = [];
+  let skipped = 0;
+
+  for (const reminderInput of payload.reminders) {
+    try {
+      // Skip reminders without datetime (indefinite/null)
+      if (!reminderInput.datetime || reminderInput.datetime === "indefinite") {
+        skipped++;
+        continue;
+      }
+
+      // Map chatbot fields to app fields
+      const reminderData = {
+        title: reminderInput.task,
+        description: reminderInput.notes,
+        dueDate: new Date(reminderInput.datetime),
+        assignedTo: reminderInput.assignees,
+        priority: reminderInput.priority,
+        channelId: reminderInput.channel_id || undefined,
+        isRecurring: reminderInput.is_recurring,
+        rrule: reminderInput.rrule,
+      };
+
+      // Create the reminder using existing function
+      const createdReminder = await createReminder(reminderData);
+      created.push(createdReminder);
+    } catch (error) {
+      console.error("Error creating reminder from chatbot payload:", error);
+      // Continue processing other reminders even if one fails
+    }
+  }
+
+  return { created, skipped };
 }

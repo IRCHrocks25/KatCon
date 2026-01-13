@@ -80,7 +80,7 @@ async function expandTeamAssignments(
 
 // Convert database reminder to app reminder format
 function dbToAppReminder(
-  dbReminder: DatabaseReminder,
+  dbReminder: DatabaseReminder & { is_recurring: boolean; rrule: string | null },
   assignments: ReminderAssignment[] = []
 ) {
   return {
@@ -93,6 +93,8 @@ function dbToAppReminder(
     createdBy: dbReminder.user_id,
     assignedTo: assignments.map((a) => a.assignedto),
     createdAt: new Date(dbReminder.created_at), // Include created_at for sorting
+    isRecurring: dbReminder.is_recurring,
+    rrule: dbReminder.rrule,
   };
 }
 
@@ -105,13 +107,28 @@ export const POST = moderateRateLimit(async (request: NextRequest) => {
     }
 
     const { user } = authResult;
-    const body = await request.json();
-    const { title, description, dueDate, assignedTo, channelId, priority = "medium" } = body;
+  const body = await request.json();
+  const { title, description, dueDate, assignedTo, channelId, priority = "medium", isRecurring = false, rrule } = body;
 
     // Validate request body
     if (!title) {
       return NextResponse.json(
         { error: "Missing required field: title" },
+        { status: 400 }
+      );
+    }
+
+    // Validate recurring fields
+    if (isRecurring === true && (!rrule || rrule.trim() === "")) {
+      return NextResponse.json(
+        { error: "RRULE is required when is_recurring is true" },
+        { status: 400 }
+      );
+    }
+
+    if (isRecurring === false && rrule !== null && rrule !== undefined) {
+      return NextResponse.json(
+        { error: "RRULE must be null when is_recurring is false" },
         { status: 400 }
       );
     }
@@ -187,6 +204,8 @@ export const POST = moderateRateLimit(async (request: NextRequest) => {
         status: "backlog",
         last_status_change_at: new Date().toISOString(),
         channel_id: channelId || null,
+        is_recurring: isRecurring,
+        rrule: isRecurring ? rrule : null,
       })
       .select()
       .single();

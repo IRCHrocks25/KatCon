@@ -21,7 +21,7 @@ import { TaskDetailsModal } from "@/components/reminders/TaskDetailsModal";
 import { TaskDeleteConfirmationModal } from "@/components/ui/TaskDeleteConfirmationModal";
 
 import type { Reminder } from "@/lib/supabase/reminders";
-import { createReminder } from "@/lib/supabase/reminders";
+import { createReminder, createRemindersFromChatbotPayload } from "@/lib/supabase/reminders";
 import { robustFetch } from "@/lib/utils/fetch";
 import {
   getStorageItem,
@@ -266,150 +266,273 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
       );
 
       if (response.ok) {
-        const data = await response.json();
-
-        let reminderData: {
-          task: string;
-          datetime: string;
-          assignees?: string[];
-          notes?: string;
-          channelId?: string;
-          priority?: string;
-        } | null = null;
-
-        if (data.task && data.datetime) {
-          reminderData = {
-            task: data.task,
-            datetime: data.datetime,
-            assignees: data.assignees,
-            notes: data.notes,
-            channelId: data.channelId || data.channel_id,
-            priority: data.priority,
+        let data;
+        try {
+          data = await response.json();
+        } catch (parseError) {
+          console.error("Error parsing AI response JSON:", parseError);
+          const errorBotMessage: Message = {
+            id: `bot-error-${Date.now()}`,
+            text: "I'm sorry, I received an invalid response from the server. Please try again later.",
+            timestamp: new Date(),
+            type: "bot",
           };
-        } else if (
-          data.output &&
-          typeof data.output === "object" &&
-          data.output.task &&
-          data.output.datetime
-        ) {
-          reminderData = {
-            task: data.output.task,
-            datetime: data.output.datetime,
-            assignees: data.output.assignees,
-            notes: data.output.notes,
-            channelId: data.output.channelId || data.output.channel_id,
-            priority: data.output.priority,
-          };
+          setMessages((prev) => [...prev, errorBotMessage]);
+
+          toast.warning("Response Error", {
+            description: "Received an invalid response format from the AI assistant.",
+          });
+          return;
         }
 
-        if (reminderData) {
+        // Check if data is null, undefined, or empty
+        if (!data) {
+          const errorBotMessage: Message = {
+            id: `bot-error-${Date.now()}`,
+            text: "I'm sorry, I didn't receive a proper response. Please try again.",
+            timestamp: new Date(),
+            type: "bot",
+          };
+          setMessages((prev) => [...prev, errorBotMessage]);
+
+          toast.warning("Empty Response", {
+            description: "The AI assistant didn't return any content.",
+          });
+          return;
+        }
+
+        // Check for new multi-reminder payload format first
+        // Check both direct response and nested in output
+        console.log("[AI CHAT] Processing response:", JSON.stringify(data, null, 2));
+        let remindersPayload = null;
+        if (data.reminders && Array.isArray(data.reminders) && data.reminders.length > 0) {
+          console.log("[AI CHAT] Found reminders in direct response");
+          remindersPayload = data;
+        } else if (data.output && typeof data.output === "object" && data.output.reminders && Array.isArray(data.output.reminders) && data.output.reminders.length > 0) {
+          console.log("[AI CHAT] Found reminders in output field");
+          remindersPayload = data.output;
+        } else {
+          console.log("[AI CHAT] No reminders found in response");
+        }
+
+        if (remindersPayload) {
           try {
-            const assignees = Array.isArray(reminderData.assignees)
-              ? reminderData.assignees.filter(
-                  (email: string) => email && typeof email === "string"
-                )
-              : [];
+            const { created, skipped } = await createRemindersFromChatbotPayload(remindersPayload);
 
-            const assignedTo = assignees.length > 0 ? assignees : undefined;
-
-            // Validate priority from webhook response
-            const validPriorities: readonly string[] = [
-              "low",
-              "medium",
-              "high",
-              "urgent",
-            ];
-            const priority = validPriorities.includes(
-              reminderData.priority || ""
-            )
-              ? (reminderData.priority as "low" | "medium" | "high" | "urgent")
-              : "medium";
-
-            const reminder = await createReminder({
-              title: reminderData.task,
-              description: reminderData.notes,
-              dueDate: new Date(reminderData.datetime),
-              priority: priority,
-              assignedTo: assignedTo,
-              channelId: reminderData.channelId,
-            });
-
-            setReminders((prev) => {
-              const updated = [...prev, reminder];
-              return updated.sort((a, b) => {
-                if (a.dueDate && b.dueDate) {
-                  const dateDiff =
-                    new Date(a.dueDate).getTime() -
-                    new Date(b.dueDate).getTime();
-                  if (dateDiff !== 0) return dateDiff;
-                }
-                if (a.dueDate && !b.dueDate) return -1;
-                if (!a.dueDate && b.dueDate) return 1;
-                const aCreated =
-                  "createdAt" in a && typeof a.createdAt === "string"
-                    ? new Date(a.createdAt).getTime()
-                    : 0;
-                const bCreated =
-                  "createdAt" in b && typeof b.createdAt === "string"
-                    ? new Date(b.createdAt).getTime()
-                    : 0;
-                if (aCreated && bCreated) {
-                  return bCreated - aCreated;
-                }
-                return 0;
+            // Add all created reminders to state
+            if (created.length > 0) {
+              setReminders((prev) => {
+                const updated = [...prev, ...created];
+                return updated.sort((a, b) => {
+                  if (a.dueDate && b.dueDate) {
+                    const dateDiff = new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+                    if (dateDiff !== 0) return dateDiff;
+                  }
+                  if (a.dueDate && !b.dueDate) return -1;
+                  if (!a.dueDate && b.dueDate) return 1;
+                  const aCreated = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                  const bCreated = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                  if (aCreated && bCreated) {
+                    return bCreated - aCreated;
+                  }
+                  return 0;
+                });
               });
-            });
 
-            const botMessage: Message = {
-              id: `bot-${Date.now()}`,
-              text: "Reminder set!",
-              timestamp: new Date(),
-              type: "bot",
-            };
-            setMessages((prev) => [...prev, botMessage]);
+              const botMessage: Message = {
+                id: `bot-${Date.now()}`,
+                text: `Created ${created.length} reminder${created.length !== 1 ? 's' : ''}!${skipped > 0 ? ` (${skipped} skipped due to missing dates)` : ''}`,
+                timestamp: new Date(),
+                type: "bot",
+              };
+              setMessages((prev) => [...prev, botMessage]);
 
-            let assigneeText: string;
-            if (assignedTo && assignedTo.length > 0) {
-              assigneeText =
-                assignedTo.length === 1
-                  ? `assigned to ${assignedTo[0]}`
-                  : `assigned to ${assignedTo.length} people`;
+              toast.success(`${created.length} reminder${created.length !== 1 ? 's' : ''} created`, {
+                description: skipped > 0 ? `${skipped} reminder${skipped !== 1 ? 's' : ''} skipped (no date)` : "All reminders added successfully",
+              });
             } else {
-              assigneeText = "added to your reminders";
-            }
+              const botMessage: Message = {
+                id: `bot-${Date.now()}`,
+                text: "No valid reminders could be created from your request.",
+                timestamp: new Date(),
+                type: "bot",
+              };
+              setMessages((prev) => [...prev, botMessage]);
 
-            toast.success("Reminder added", {
-              description: `"${reminderData.task}" has been ${assigneeText}.`,
-            });
+              toast.warning("No reminders created", {
+                description: "All reminders were skipped due to missing dates",
+              });
+            }
           } catch (error) {
-            console.error("Error creating reminder from webhook:", error);
-            const errorMessage =
-              error instanceof Error ? error.message : "Unknown error";
+            console.error("Error creating reminders from chatbot payload:", error);
+            const errorMessage = error instanceof Error ? error.message : "Unknown error";
 
             const errorBotMessage: Message = {
               id: `bot-error-${Date.now()}`,
-              text: errorMessage,
+              text: `I couldn't create the reminders: ${errorMessage}`,
               timestamp: new Date(),
               type: "bot",
             };
             setMessages((prev) => [...prev, errorBotMessage]);
 
-            toast.error("Failed to save reminder", {
+            toast.error("Failed to create reminders", {
               description: errorMessage,
             });
           }
-        } else if (data.output && typeof data.output === "string") {
-          const botMessage: Message = {
-            id: `bot-${Date.now()}`,
-            text: data.output,
-            timestamp: new Date(),
-            type: "bot",
-          };
-          setMessages((prev) => [...prev, botMessage]);
         } else {
-          toast.warning("No response from server", {
-            description: "The server didn't return a message.",
-          });
+          // Handle legacy single reminder format or text responses
+          let reminderData: {
+            task: string;
+            datetime: string;
+            assignees?: string[];
+            notes?: string;
+            channelId?: string;
+            priority?: string;
+          } | null = null;
+
+          if (data.task && data.datetime) {
+            reminderData = {
+              task: data.task,
+              datetime: data.datetime,
+              assignees: data.assignees,
+              notes: data.notes,
+              channelId: data.channelId || data.channel_id,
+              priority: data.priority,
+            };
+          } else if (
+            data.output &&
+            typeof data.output === "object" &&
+            data.output.task &&
+            data.output.datetime
+          ) {
+            reminderData = {
+              task: data.output.task,
+              datetime: data.output.datetime,
+              assignees: data.output.assignees,
+              notes: data.output.notes,
+              channelId: data.output.channelId || data.output.channel_id,
+              priority: data.output.priority,
+            };
+          }
+
+          if (reminderData) {
+            try {
+              const assignees = Array.isArray(reminderData.assignees)
+                ? reminderData.assignees.filter(
+                    (email: string) => email && typeof email === "string"
+                  )
+                : [];
+
+              const assignedTo = assignees.length > 0 ? assignees : undefined;
+
+              // Validate priority from webhook response
+              const validPriorities: readonly string[] = [
+                "low",
+                "medium",
+                "high",
+                "urgent",
+              ];
+              const priority = validPriorities.includes(
+                reminderData.priority || ""
+              )
+                ? (reminderData.priority as "low" | "medium" | "high" | "urgent")
+                : "medium";
+
+              const reminder = await createReminder({
+                title: reminderData.task,
+                description: reminderData.notes,
+                dueDate: new Date(reminderData.datetime),
+                priority: priority,
+                assignedTo: assignedTo,
+                channelId: reminderData.channelId,
+              });
+
+              setReminders((prev) => {
+                const updated = [...prev, reminder];
+                return updated.sort((a, b) => {
+                  if (a.dueDate && b.dueDate) {
+                    const dateDiff =
+                      new Date(a.dueDate).getTime() -
+                      new Date(b.dueDate).getTime();
+                    if (dateDiff !== 0) return dateDiff;
+                  }
+                  if (a.dueDate && !b.dueDate) return -1;
+                  if (!a.dueDate && b.dueDate) return 1;
+                  const aCreated =
+                    "createdAt" in a && typeof a.createdAt === "string"
+                      ? new Date(a.createdAt).getTime()
+                      : 0;
+                  const bCreated =
+                    "createdAt" in b && typeof b.createdAt === "string"
+                      ? new Date(b.createdAt).getTime()
+                      : 0;
+                  if (aCreated && bCreated) {
+                    return bCreated - aCreated;
+                  }
+                  return 0;
+                });
+              });
+
+              const botMessage: Message = {
+                id: `bot-${Date.now()}`,
+                text: "Reminder set!",
+                timestamp: new Date(),
+                type: "bot",
+              };
+              setMessages((prev) => [...prev, botMessage]);
+
+              let assigneeText: string;
+              if (assignedTo && assignedTo.length > 0) {
+                assigneeText =
+                  assignedTo.length === 1
+                    ? `assigned to ${assignedTo[0]}`
+                    : `assigned to ${assignedTo.length} people`;
+              } else {
+                assigneeText = "added to your reminders";
+              }
+
+              toast.success("Reminder added", {
+                description: `"${reminderData.task}" has been ${assigneeText}.`,
+              });
+            } catch (error) {
+              console.error("Error creating reminder from webhook:", error);
+              const errorMessage =
+                error instanceof Error ? error.message : "Unknown error";
+
+              const errorBotMessage: Message = {
+                id: `bot-error-${Date.now()}`,
+                text: errorMessage,
+                timestamp: new Date(),
+                type: "bot",
+              };
+              setMessages((prev) => [...prev, errorBotMessage]);
+
+              toast.error("Failed to save reminder", {
+                description: errorMessage,
+              });
+            }
+          } else if (data.output && typeof data.output === "string") {
+            const botMessage: Message = {
+              id: `bot-${Date.now()}`,
+              text: data.output,
+              timestamp: new Date(),
+              type: "bot",
+            };
+            setMessages((prev) => [...prev, botMessage]);
+          } else {
+            // Handle cases where AI returns invalid or empty response
+            const errorBotMessage: Message = {
+              id: `bot-error-${Date.now()}`,
+              text: "I'm sorry, I couldn't process your request properly. Please try rephrasing your message or try again later.",
+              timestamp: new Date(),
+              type: "bot",
+            };
+            setMessages((prev) => [...prev, errorBotMessage]);
+
+            toast.warning("AI Response Error", {
+              description: "The AI assistant returned an invalid response. Please try again.",
+            });
+          }
         }
       } else {
         const errorData = await response.json().catch(() => ({}));

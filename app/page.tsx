@@ -27,6 +27,7 @@ import { KanbanView } from "@/components/kanban/KanbanView";
 import { AdminDashboard } from "@/components/admin/AdminDashboard";
 import { RemindersModal } from "@/components/reminders/RemindersModal";
 import { LogoutConfirmationModal } from "@/components/ui/LogoutConfirmationModal";
+import { LoginStatusModal } from "@/components/ui/LoginStatusModal";
 
 // Lazy load heavy components
 const MessagesView = lazy(() => import("@/components/messaging/MessagesView"));
@@ -41,6 +42,7 @@ export default function Home() {
   const [forceShowCreateForm, setForceShowCreateForm] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showMobileNav, setShowMobileNav] = useState(false);
+  const [showLoginStatusModal, setShowLoginStatusModal] = useState(false);
 
   // Tab state with session storage persistence
   const [activeTab, setActiveTab] = useState<TabType>(() => {
@@ -57,6 +59,7 @@ export default function Home() {
   // Track previous user ID to detect actual user changes
   const previousUserIdRef = useRef<string | null>(null);
   const isInitialMount = useRef(true);
+  const loginTimestampRef = useRef<number | null>(null);
 
   // Persist tab selection
   useEffect(() => {
@@ -81,6 +84,22 @@ export default function Home() {
         Promise.resolve().then(() => {
           setReminders([]);
         });
+
+        // Check if this is a fresh login (not page refresh)
+        const now = Date.now();
+        const timeSinceLastLogin = loginTimestampRef.current
+          ? now - loginTimestampRef.current
+          : Infinity;
+
+        // If it's been more than 30 seconds since last login, consider it a fresh login
+        if (timeSinceLastLogin > 30000) {
+          // Delay showing modal to allow data to load first
+          setTimeout(() => {
+            setShowLoginStatusModal(true);
+          }, 1500); // 1.5 seconds delay
+        }
+
+        loginTimestampRef.current = now;
       } else {
         // User logged out - clear everything
         Promise.resolve().then(() => {
@@ -375,6 +394,27 @@ export default function Home() {
           logout();
         }}
         isLoggingOut={authLoading}
+      />
+
+      {/* Login Status Modal */}
+      <LoginStatusModal
+        isOpen={showLoginStatusModal}
+        onClose={() => setShowLoginStatusModal(false)}
+        reminders={reminders}
+        userFullname={user?.fullname}
+        onViewTasks={() => {
+          setActiveTab("kanban");
+          setShowLoginStatusModal(false);
+        }}
+        onCreateTask={() => {
+          setForceShowCreateForm(true);
+          setShowRemindersModal(true);
+          setShowLoginStatusModal(false);
+        }}
+        onGoToKanban={() => {
+          setActiveTab("kanban");
+          setShowLoginStatusModal(false);
+        }}
       />
     </div>
   );
