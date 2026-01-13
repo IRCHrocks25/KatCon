@@ -30,7 +30,11 @@ import {
 } from "@/lib/utils/storage";
 
 // Lazy load the TasksSummaryWidget to improve initial load performance
-const TasksSummaryWidget = lazy(() => import("@/components/reminders/TasksSummaryWidget").then(module => ({ default: module.TasksSummaryWidget })));
+const TasksSummaryWidget = lazy(() =>
+  import("@/components/reminders/TasksSummaryWidget").then((module) => ({
+    default: module.TasksSummaryWidget,
+  }))
+);
 
 interface Message {
   id: string;
@@ -63,8 +67,10 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
 
   const [showTaskWidget, setShowTaskWidget] = useState(true);
   const [isTaskWidgetExpanded, setIsTaskWidgetExpanded] = useState(false);
-  const [showTaskDeleteConfirmation, setShowTaskDeleteConfirmation] = useState(false);
-  const [deletingTaskFromWidget, setDeletingTaskFromWidget] = useState<Reminder | null>(null);
+  const [showTaskDeleteConfirmation, setShowTaskDeleteConfirmation] =
+    useState(false);
+  const [deletingTaskFromWidget, setDeletingTaskFromWidget] =
+    useState<Reminder | null>(null);
 
   // Ref for auto-scrolling to bottom
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -239,7 +245,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
 
     try {
       const response = await robustFetch(
-        "https://katalyst-crm.fly.dev/webhook/send-message",
+        "https://katalyst-crm2.fly.dev/webhook/send-message",
         {
           method: "POST",
           headers: {
@@ -484,10 +490,19 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
   };
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-black flex" role="main">
+    <div
+      className="relative h-full w-full overflow-hidden bg-black flex"
+      role="main"
+    >
       {/* Gradient Background */}
-      <div className="absolute inset-0 bg-gradient-to-b from-purple-950/40 via-black to-black" aria-hidden="true" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-purple-600/15 via-pink-500/10 via-blue-500/10 to-orange-500/10" aria-hidden="true" />
+      <div
+        className="absolute inset-0 bg-gradient-to-b from-purple-950/40 via-black to-black"
+        aria-hidden="true"
+      />
+      <div
+        className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-purple-600/15 via-pink-500/10 via-blue-500/10 to-orange-500/10"
+        aria-hidden="true"
+      />
 
       {/* Tasks Summary Widget - Desktop/Tablet: Always visible and expanded */}
       <div className="relative z-10 h-full hidden md:block">
@@ -526,7 +541,9 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
         <button
           onClick={() => setShowTaskWidget(!showTaskWidget)}
           className="p-2 bg-gray-900/80 backdrop-blur-sm border border-gray-700 rounded-lg text-gray-400 hover:text-white transition cursor-pointer"
-          aria-label={showTaskWidget ? "Hide task summary" : "Show task summary"}
+          aria-label={
+            showTaskWidget ? "Hide task summary" : "Show task summary"
+          }
           aria-expanded={showTaskWidget}
           aria-controls="mobile-task-widget"
         >
