@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 console.log("Deadline Monitor Edge Function Started")
 
-serve(async (req) => {
+serve(async (_req: Request) => {
   try {
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
@@ -75,7 +75,7 @@ serve(async (req) => {
       processedTasks.add(task.id)
 
       // Get all assignees for this task
-      const assignees = task.reminder_assignments?.map((ra: any) => ra.assignedto) || []
+      const assignees = task.reminder_assignments?.map((ra: { assignedto: string }) => ra.assignedto) || []
 
       for (const assigneeEmail of assignees) {
         try {

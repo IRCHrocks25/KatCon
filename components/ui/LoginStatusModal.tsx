@@ -63,12 +63,8 @@ export function LoginStatusModal({
   };
 
   // Calculate task counts and stats
-  const { taskCounts, upcomingDeadlines } = useMemo(() => {
+  const taskCounts: TaskCounts = (() => {
     const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
     const counts: TaskCounts = {
       backlog: 0,
       in_progress: 0,
@@ -76,8 +72,6 @@ export function LoginStatusModal({
       done: 0,
       overdue: 0,
     };
-
-    const deadlines: Array<{ reminder: Reminder; priority: 'overdue' | 'today' | 'upcoming'; dueDate: Date }> = [];
 
     reminders.forEach((reminder) => {
       // Count by status
@@ -93,7 +87,20 @@ export function LoginStatusModal({
           counts.overdue++;
         }
       }
+    });
 
+    return counts;
+  })();
+
+  const upcomingDeadlines = (() => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const deadlines: Array<{ reminder: Reminder; priority: 'overdue' | 'today' | 'upcoming'; dueDate: Date }> = [];
+
+    reminders.forEach((reminder) => {
       // Collect upcoming deadlines
       if (reminder.dueDate && reminder.status !== "done") {
         const dueDate = new Date(reminder.dueDate);
@@ -120,11 +127,8 @@ export function LoginStatusModal({
       return a.dueDate.getTime() - b.dueDate.getTime();
     });
 
-    return {
-      taskCounts: counts,
-      upcomingDeadlines: deadlines.slice(0, 3), // Show top 3
-    };
-  }, [reminders]);
+    return deadlines.slice(0, 3); // Show top 3
+  })();
 
   const formatDeadline = (deadline: typeof upcomingDeadlines[0]) => {
     const { priority, dueDate } = deadline;
@@ -187,10 +191,11 @@ export function LoginStatusModal({
             <div className="flex items-center justify-between p-6 border-b border-gray-800">
               <div>
                 <h2 className="text-xl font-bold text-white">
-                  Welcome back{userFullname ? `, ${userFullname.split(' ')[0]}` : ''}!
+                  Welcome back
+                  {userFullname ? `, ${userFullname.split(" ")[0]}` : ""}!
                 </h2>
                 <p className="text-sm text-gray-400 mt-1">
-                  Here's what's on your plate today
+                  Here&apos;s what&apos;s on your plate today
                 </p>
               </div>
               <button
@@ -213,13 +218,17 @@ export function LoginStatusModal({
                   <div className="bg-gray-800/50 rounded-lg p-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-gray-400">Active</span>
-                      <span className="text-lg font-bold text-purple-400">{totalActiveTasks}</span>
+                      <span className="text-lg font-bold text-purple-400">
+                        {totalActiveTasks}
+                      </span>
                     </div>
                   </div>
                   <div className="bg-gray-800/50 rounded-lg p-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-gray-400">Completed</span>
-                      <span className="text-lg font-bold text-green-400">{taskCounts.done}</span>
+                      <span className="text-lg font-bold text-green-400">
+                        {taskCounts.done}
+                      </span>
                     </div>
                   </div>
                   {taskCounts.overdue > 0 && (
@@ -229,7 +238,9 @@ export function LoginStatusModal({
                           <AlertCircle size={12} />
                           Overdue
                         </span>
-                        <span className="text-lg font-bold text-red-400">{taskCounts.overdue}</span>
+                        <span className="text-lg font-bold text-red-400">
+                          {taskCounts.overdue}
+                        </span>
                       </div>
                     </div>
                   )}
@@ -258,15 +269,22 @@ export function LoginStatusModal({
                           <p className="text-sm font-medium text-white truncate">
                             {deadline.reminder.title}
                           </p>
-                          <p className={`text-xs ${
-                            deadline.priority === 'overdue' ? 'text-red-400' :
-                            deadline.priority === 'today' ? 'text-amber-400' :
-                            'text-green-400'
-                          }`}>
+                          <p
+                            className={`text-xs ${
+                              deadline.priority === "overdue"
+                                ? "text-red-400"
+                                : deadline.priority === "today"
+                                ? "text-amber-400"
+                                : "text-green-400"
+                            }`}
+                          >
                             {formatDeadline(deadline)}
                           </p>
                         </div>
-                        <ChevronRight size={16} className="text-gray-500 flex-shrink-0" />
+                        <ChevronRight
+                          size={16}
+                          className="text-gray-500 flex-shrink-0"
+                        />
                       </div>
                     ))}
                   </div>
@@ -275,7 +293,9 @@ export function LoginStatusModal({
 
               {/* Quick Actions */}
               <div>
-                <h3 className="text-sm font-semibold text-gray-300 mb-3">Quick Actions</h3>
+                <h3 className="text-sm font-semibold text-gray-300 mb-3">
+                  Quick Actions
+                </h3>
                 <div className="grid grid-cols-1 gap-2">
                   <button
                     onClick={() => {
@@ -286,8 +306,12 @@ export function LoginStatusModal({
                   >
                     <ListTodo size={18} className="text-purple-400" />
                     <div>
-                      <p className="text-sm font-medium text-white">View All Tasks</p>
-                      <p className="text-xs text-gray-400">See your complete task list</p>
+                      <p className="text-sm font-medium text-white">
+                        View All Tasks
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        See your complete task list
+                      </p>
                     </div>
                   </button>
 
@@ -300,8 +324,12 @@ export function LoginStatusModal({
                   >
                     <Plus size={18} className="text-blue-400" />
                     <div>
-                      <p className="text-sm font-medium text-white">Create New Task</p>
-                      <p className="text-xs text-gray-400">Add a task to your list</p>
+                      <p className="text-sm font-medium text-white">
+                        Create New Task
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        Add a task to your list
+                      </p>
                     </div>
                   </button>
 
@@ -314,8 +342,12 @@ export function LoginStatusModal({
                   >
                     <KanbanSquare size={18} className="text-green-400" />
                     <div>
-                      <p className="text-sm font-medium text-white">Open Kanban Board</p>
-                      <p className="text-xs text-gray-400">Visualize your workflow</p>
+                      <p className="text-sm font-medium text-white">
+                        Open Kanban Board
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        Visualize your workflow
+                      </p>
                     </div>
                   </button>
                 </div>
@@ -331,7 +363,9 @@ export function LoginStatusModal({
                   onChange={(e) => setDontShowAgain(e.target.checked)}
                   className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-purple-600 focus:ring-purple-600 focus:ring-2"
                 />
-                <span className="text-sm text-gray-400">Don't show this again</span>
+                <span className="text-sm text-gray-400">
+                  Don&apos;t show this again
+                </span>
               </label>
 
               <button

@@ -117,8 +117,8 @@ const req = requestModule.request(options, (res) => {
       });
     });
 
-    createReq.on('error', (error) => {
-      console.log('❌ Create test failed (expected without auth):', error.message);
+    createReq.on('error', () => {
+      console.log('❌ Create test failed (expected without auth):', 'No auth headers provided');
       console.log('');
       console.log('🎉 Basic API test complete!');
       console.log('');

@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import {  NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
-import { RRule, rrulestr } from "rrule";
+import { rrulestr } from "rrule";
 
-export const POST = async (req: NextRequest) => {
+export const POST = async () => {
   try {
     const supabase = createServerClient();
     const now = new Date();
