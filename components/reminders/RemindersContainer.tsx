@@ -14,6 +14,7 @@ import {
   ArrowUpDown,
   ChevronDown,
   Check,
+  Building,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -24,6 +25,7 @@ import {
   type Reminder,
 } from "@/lib/supabase/reminders";
 import { useAuth } from "@/contexts/AuthContext";
+import { useClients } from "@/contexts/ClientsContext";
 import { getAllUsers, type UserWithTeam } from "@/lib/supabase/users";
 import { robustFetch } from "@/lib/utils/fetch";
 import type { AccountType } from "@/lib/supabase/auth";
@@ -45,6 +47,7 @@ export function RemindersContainer({
   setReminders,
 }: RemindersContainerProps) {
   const { user: currentUser } = useAuth();
+  const { clients } = useClients();
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -60,12 +63,16 @@ export function RemindersContainer({
     description: "",
     dueDate: "",
     assignedTo: [] as string[],
+    clientId: "",
   });
   const [allUsers, setAllUsers] = useState<UserWithTeam[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [clientSearchQuery, setClientSearchQuery] = useState("");
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const clientDropdownRef = useRef<HTMLDivElement>(null);
 
   // Reusable fetch function
   const fetchReminders = useCallback(
@@ -139,16 +146,22 @@ export function RemindersContainer({
       ) {
         setShowDropdown(false);
       }
+      if (
+        clientDropdownRef.current &&
+        !clientDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowClientDropdown(false);
+      }
     };
 
-    if (showDropdown) {
+    if (showDropdown || showClientDropdown) {
       document.addEventListener("mousedown", handleClickOutside);
     }
 
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [showDropdown]);
+  }, [showDropdown, showClientDropdown]);
 
   // Real-time subscription for reminders
   useEffect(() => {
@@ -450,6 +463,7 @@ export function RemindersContainer({
               newReminder.assignedTo.length > 0
                 ? newReminder.assignedTo
                 : undefined,
+            clientId: newReminder.clientId || undefined,
             userEmail: currentUser?.email || null,
           }),
           retries: 0, // No retries for POST - prevents duplicate reminders on timeout
@@ -504,6 +518,7 @@ export function RemindersContainer({
         description: "",
         dueDate: "",
         assignedTo: [],
+        clientId: "",
       });
       setSearchQuery("");
       setIsAdding(false);
@@ -528,20 +543,21 @@ export function RemindersContainer({
     }
 
     setEditingId(reminder.id);
-    setNewReminder({
-      title: reminder.title,
-      description: reminder.description || "",
-      dueDate: reminder.dueDate
-        ? new Date(reminder.dueDate).toISOString().slice(0, 16)
-        : "",
-      assignedTo: reminder.assignedTo || [],
-    });
+        setNewReminder({
+          title: reminder.title,
+          description: reminder.description || "",
+          dueDate: reminder.dueDate
+            ? new Date(reminder.dueDate).toISOString().slice(0, 16)
+            : "",
+          assignedTo: reminder.assignedTo || [],
+          clientId: reminder.clientId || "",
+        });
     setIsAdding(true);
   };
 
   const handleCancelEdit = () => {
     setEditingId(null);
-    setNewReminder({ title: "", description: "", dueDate: "", assignedTo: [] });
+    setNewReminder({ title: "", description: "", dueDate: "", assignedTo: [], clientId: "" });
     setSearchQuery("");
     setShowDropdown(false);
     setIsAdding(false);
@@ -717,6 +733,7 @@ export function RemindersContainer({
                   description: "",
                   dueDate: "",
                   assignedTo: [],
+                  clientId: "",
                 });
               }
             }}
@@ -941,6 +958,155 @@ export function RemindersContainer({
                   );
                 })}
               </div>
+            )}
+          </div>
+
+          {/* Client selection */}
+          <div className="space-y-2 relative" ref={clientDropdownRef}>
+            <label className="text-xs text-gray-400 flex items-center gap-1">
+              <Building size={12} />
+              Client (optional)
+            </label>
+
+            {/* Dropdown Trigger */}
+            <button
+              type="button"
+              onClick={() => setShowClientDropdown(!showClientDropdown)}
+              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm text-left flex items-center justify-between hover:border-gray-500 transition"
+            >
+              <span className="text-gray-400">
+                {newReminder.clientId
+                  ? (() => {
+                      const client = clients.find((c) => c.id === newReminder.clientId);
+                      return client ? `${client.name}${client.company ? ` (${client.company})` : ''}` : "Select client";
+                    })()
+                  : "No client association"}
+              </span>
+              <ChevronDown
+                size={16}
+                className={`transition-transform ${
+                  showClientDropdown ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+
+            {/* Dropdown Menu */}
+            {showClientDropdown && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="absolute z-[100] w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-2xl max-h-64 overflow-hidden flex flex-col"
+              >
+                {/* Search */}
+                <div className="p-2 border-b border-gray-700">
+                  <input
+                    type="text"
+                    placeholder="Search clients..."
+                    value={clientSearchQuery}
+                    onChange={(e) => setClientSearchQuery(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-900/50 border border-gray-600 rounded text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                    autoFocus
+                  />
+                </div>
+
+                {/* Options */}
+                <div className="overflow-y-auto flex-1 custom-scrollbar">
+                  {/* No client option */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewReminder({ ...newReminder, clientId: "" });
+                      setShowClientDropdown(false);
+                    }}
+                    className="w-full px-3 py-2 flex items-center gap-3 hover:bg-gray-700/50 rounded transition"
+                  >
+                    <div
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                        !newReminder.clientId
+                          ? "bg-purple-600 border-purple-600"
+                          : "border-gray-600"
+                      }`}
+                    >
+                      {!newReminder.clientId && <Check size={12} className="text-white" />}
+                    </div>
+                    <div className="flex-1 text-left">
+                      <div className="text-sm text-white font-medium">
+                        No client association
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Task not linked to any specific client
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Clients */}
+                  {(() => {
+                    const filteredClients = clients.filter((client) =>
+                      client.name.toLowerCase().includes(clientSearchQuery.toLowerCase()) ||
+                      client.company?.toLowerCase().includes(clientSearchQuery.toLowerCase()) ||
+                      client.email?.toLowerCase().includes(clientSearchQuery.toLowerCase())
+                    );
+
+                    return filteredClients.length > 0 ? (
+                      <div className="p-2">
+                        <div className="text-xs text-gray-500 font-medium px-2 py-1 uppercase tracking-wider">
+                          Clients
+                        </div>
+                        {filteredClients.map((client) => {
+                          const isSelected = newReminder.clientId === client.id;
+
+                          return (
+                            <button
+                              key={client.id}
+                              type="button"
+                              onClick={() => {
+                                setNewReminder({ ...newReminder, clientId: client.id });
+                                setShowClientDropdown(false);
+                              }}
+                              className="w-full px-3 py-2 flex items-center gap-3 hover:bg-gray-700/50 rounded transition"
+                            >
+                              <div
+                                className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                                  isSelected
+                                    ? "bg-purple-600 border-purple-600"
+                                    : "border-gray-600"
+                                }`}
+                              >
+                                {isSelected && <Check size={12} className="text-white" />}
+                              </div>
+                              <Building size={16} className="text-blue-400" />
+                              <div className="flex-1 text-left">
+                                <div className="text-sm text-white font-medium">
+                                  {client.name}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {client.company && `${client.company}`}
+                                  {client.email && ` • ${client.email}`}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : null;
+                  })()}
+
+                  {(() => {
+                    const filteredClients = clients.filter((client) =>
+                      client.name.toLowerCase().includes(clientSearchQuery.toLowerCase()) ||
+                      client.company?.toLowerCase().includes(clientSearchQuery.toLowerCase()) ||
+                      client.email?.toLowerCase().includes(clientSearchQuery.toLowerCase())
+                    );
+
+                    return filteredClients.length === 0 && clientSearchQuery && (
+                      <div className="p-4 text-center text-gray-500 text-sm">
+                        No clients found
+                      </div>
+                    );
+                  })()}
+                </div>
+              </motion.div>
             )}
           </div>
           <div className="flex gap-2">

@@ -18,6 +18,8 @@ import {
   User,
   Users,
   ArrowUpDown,
+  Building,
+  Hash,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Reminder } from "@/lib/supabase/reminders";
@@ -26,6 +28,7 @@ import {
   updateReminderStatus,
 } from "@/lib/supabase/reminders";
 import { useAuth } from "@/contexts/AuthContext";
+import { useClients } from "@/contexts/ClientsContext";
 import { supabase } from "@/lib/supabase/client";
 import {
   getStorageItem,
@@ -69,6 +72,7 @@ export function TasksSummaryWidget({
   forceExpanded = false,
 }: TasksSummaryWidgetProps) {
   const { user: currentUser } = useAuth();
+  const { clients } = useClients();
   const [isExpanded, setIsExpanded] = useState(forceExpanded);
   const [sortBy, setSortBy] = useState<SortOption>(() => {
     const saved = getStorageItem("tasks_widget_sort");
@@ -658,6 +662,9 @@ export function TasksSummaryWidget({
               const isCreator = reminder.createdBy === currentUser?.email;
               const isDeleting = deletingId === reminder.id;
 
+              // Find the client this reminder belongs to
+              const client = clients.find((c) => c.id === reminder.clientId);
+
               return (
                 <motion.div
                   key={reminder.id}
@@ -732,6 +739,14 @@ export function TasksSummaryWidget({
                                 priority
                               )}
                             </span>
+                          </div>
+                        )}
+
+                        {/* Client indicator */}
+                        {client && (
+                          <div className="flex items-center gap-1 text-xs text-green-400">
+                            <Building size={12} />
+                            <span>{client.name}</span>
                           </div>
                         )}
 

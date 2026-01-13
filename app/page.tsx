@@ -25,6 +25,7 @@ import { AIChatView } from "@/components/chat/AIChatView";
 import { ProfileView } from "@/components/profile/ProfileView";
 import { KanbanView } from "@/components/kanban/KanbanView";
 import { AdminDashboard } from "@/components/admin/AdminDashboard";
+import { ClientManagement } from "@/components/admin/ClientManagement";
 import { RemindersModal } from "@/components/reminders/RemindersModal";
 import { LogoutConfirmationModal } from "@/components/ui/LogoutConfirmationModal";
 import { LoginStatusModal } from "@/components/ui/LoginStatusModal";
@@ -32,7 +33,7 @@ import { LoginStatusModal } from "@/components/ui/LoginStatusModal";
 // Lazy load heavy components
 const MessagesView = lazy(() => import("@/components/messaging/MessagesView"));
 
-type TabType = "chat" | "messages" | "kanban" | "profile" | "admin";
+type TabType = "chat" | "messages" | "kanban" | "clients" | "profile" | "admin";
 
 export default function Home() {
   const { user, loading: authLoading, logout } = useAuth();
@@ -50,6 +51,7 @@ export default function Home() {
     return saved === "chat" ||
       saved === "messages" ||
       saved === "kanban" ||
+      saved === "clients" ||
       saved === "profile" ||
       saved === "admin"
       ? (saved as TabType)
@@ -175,6 +177,19 @@ export default function Home() {
               <KanbanSquare size={18} />
               <span className="font-medium">Kanban</span>
             </button>
+            {(user?.role === "admin" || user?.role === "manager") && (
+              <button
+                onClick={() => setActiveTab("clients")}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all cursor-pointer ${
+                  activeTab === "clients"
+                    ? "bg-gradient-to-r from-green-600/20 via-teal-500/20 to-blue-500/20 text-white border-b-2 border-green-500"
+                    : "text-gray-400 hover:text-white hover:bg-gray-800/50"
+                }`}
+              >
+                <Users size={18} />
+                <span className="font-medium">Clients</span>
+              </button>
+            )}
             <button
               onClick={() => setActiveTab("profile")}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all cursor-pointer ${
@@ -186,7 +201,7 @@ export default function Home() {
               <User size={18} />
               <span className="font-medium">Profile</span>
             </button>
-            {user?.role === "admin" && (
+            {(user?.role === "admin" || user?.role === "manager") && (
               <button
                 onClick={() => setActiveTab("admin")}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all cursor-pointer ${
@@ -196,7 +211,7 @@ export default function Home() {
                 }`}
               >
                 <Shield size={18} />
-                <span className="font-medium">Admin</span>
+                <span className="font-medium">{user?.role === "manager" ? "Management" : "Admin"}</span>
               </button>
             )}
           </div>
@@ -206,13 +221,16 @@ export default function Home() {
             {activeTab === "chat" && <MessageSquare size={18} className="text-purple-400" />}
             {activeTab === "messages" && <Users size={18} className="text-purple-400" />}
             {activeTab === "kanban" && <KanbanSquare size={18} className="text-purple-400" />}
+            {activeTab === "clients" && <Users size={18} className="text-green-400" />}
             {activeTab === "profile" && <User size={18} className="text-purple-400" />}
             {activeTab === "admin" && <Shield size={18} className="text-red-400" />}
             <span className="text-white font-medium capitalize">
               {activeTab === "chat" ? "AI Chat" :
                activeTab === "messages" ? "Messages" :
                activeTab === "kanban" ? "Kanban" :
-               activeTab === "profile" ? "Profile" : "Admin"}
+               activeTab === "clients" ? "Clients" :
+               activeTab === "profile" ? "Profile" :
+               activeTab === "admin" && user?.role === "manager" ? "Management" : "Admin"}
             </span>
           </div>
 
@@ -296,6 +314,22 @@ export default function Home() {
                 <KanbanSquare size={20} />
                 <span className="font-medium">Kanban</span>
               </button>
+              {(user?.role === "admin" || user?.role === "manager") && (
+                <button
+                  onClick={() => {
+                    setActiveTab("clients");
+                    setShowMobileNav(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
+                    activeTab === "clients"
+                      ? "bg-gradient-to-r from-green-600/20 via-teal-500/20 to-blue-500/20 text-white border border-green-500"
+                      : "text-gray-400 hover:text-white hover:bg-gray-800/50"
+                  }`}
+                >
+                  <Users size={20} />
+                  <span className="font-medium">Clients</span>
+                </button>
+              )}
               <button
                 onClick={() => {
                   setActiveTab("profile");
@@ -310,7 +344,7 @@ export default function Home() {
                 <User size={20} />
                 <span className="font-medium">Profile</span>
               </button>
-              {user?.role === "admin" && (
+              {(user?.role === "admin" || user?.role === "manager") && (
                 <button
                   onClick={() => {
                     setActiveTab("admin");
@@ -323,7 +357,7 @@ export default function Home() {
                   }`}
                 >
                   <Shield size={20} />
-                  <span className="font-medium">Admin</span>
+                  <span className="font-medium">{user?.role === "manager" ? "Management" : "Admin"}</span>
                 </button>
               )}
             </div>
@@ -361,6 +395,8 @@ export default function Home() {
                   setShowRemindersModal(true);
                 }}
               />
+            ) : activeTab === "clients" ? (
+              <ClientManagement />
             ) : activeTab === "profile" ? (
               <ProfileView />
             ) : activeTab === "admin" ? (

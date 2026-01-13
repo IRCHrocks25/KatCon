@@ -39,16 +39,16 @@ export const GET = moderateRateLimit(async (request: NextRequest) => {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if user is admin
+    // Check if user is admin or manager
     const { data: profile } = await userSupabase
       .from("profiles")
       .select("role")
       .eq("id", user.id)
       .single();
 
-    if (!profile || profile.role !== "admin") {
+    if (!profile || (profile.role !== "admin" && profile.role !== "manager")) {
       return NextResponse.json(
-        { error: "Admin access required" },
+        { error: "Admin or Manager access required" },
         { status: 403 }
       );
     }
@@ -120,16 +120,16 @@ export const POST = moderateRateLimit(async (request: NextRequest) => {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if user is admin
+    // Check if user is admin or manager
     const { data: adminProfile } = await userSupabase
       .from("profiles")
       .select("role")
       .eq("id", adminUser.id)
       .single();
 
-    if (!adminProfile || adminProfile.role !== "admin") {
+    if (!adminProfile || (adminProfile.role !== "admin" && adminProfile.role !== "manager")) {
       return NextResponse.json(
-        { error: "Admin access required" },
+        { error: "Admin or Manager access required" },
         { status: 403 }
       );
     }
@@ -242,7 +242,14 @@ export const POST = moderateRateLimit(async (request: NextRequest) => {
         }
 
         result = updatedUser;
-        message = `User ${action.replace("_", " ")} successful`;
+        if (action === "update_role") {
+          const roleNames = { user: "User", manager: "Manager", admin: "Admin" };
+          message = `User role updated to ${roleNames[role as keyof typeof roleNames] || role}`;
+        } else if (action === "update_account_type") {
+          message = `Account type updated to ${accountType}`;
+        } else {
+          message = `User ${action.replace("_", " ")} successful`;
+        }
         break;
 
       case "create_user":

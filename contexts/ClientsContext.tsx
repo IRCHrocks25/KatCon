@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { getClients, type Client } from "@/lib/supabase/clients";
 
 interface ClientsContextType {
@@ -17,11 +18,18 @@ interface ClientsProviderProps {
 }
 
 export function ClientsProvider({ children }: ClientsProviderProps) {
+  const { user, loading: authLoading } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadClients = async () => {
+    // Only load clients if user is authenticated
+    if (!user) {
+      setClients([]);
+      return;
+    }
+
     try {
       setIsLoading(true);
       setError(null);
@@ -40,8 +48,11 @@ export function ClientsProvider({ children }: ClientsProviderProps) {
   };
 
   useEffect(() => {
-    loadClients();
-  }, []);
+    // Only load clients after authentication is complete
+    if (!authLoading) {
+      loadClients();
+    }
+  }, [user, authLoading]);
 
   const value: ClientsContextType = {
     clients,

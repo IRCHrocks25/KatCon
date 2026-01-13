@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useChannels } from "@/contexts/ChannelsContext";
+import { useClients } from "@/contexts/ClientsContext";
 import {
   DndContext,
   DragEndEvent,
@@ -46,12 +47,15 @@ export function KanbanView({
 }: KanbanViewProps) {
   const { user } = useAuth();
   const { channels: availableChannels } = useChannels();
+  const { clients: availableClients } = useClients();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Reminder | null>(null);
   const [showTaskDetailsModal, setShowTaskDetailsModal] = useState(false);
   const [channelFilter, setChannelFilter] = useState<string>("all"); // "all" or channel ID
+  const [clientFilter, setClientFilter] = useState<string>("all"); // "all" or client ID
   const [showChannelFilter, setShowChannelFilter] = useState(false);
+  const [showClientFilter, setShowClientFilter] = useState(false);
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
 
   // Ref to track if we've already loaded reminders for this component instance
@@ -113,6 +117,13 @@ export function KanbanView({
       );
     }
 
+    // Apply client filter
+    if (clientFilter !== "all") {
+      filteredTasks = filteredTasks.filter(
+        (reminder) => reminder.clientId === clientFilter
+      );
+    }
+
     // If channelId is specified (when opened from channel kanban), further filter to only show tasks for this channel
     if (channelId) {
       filteredTasks = filteredTasks.filter(
@@ -121,7 +132,7 @@ export function KanbanView({
     }
 
     return filteredTasks;
-  }, [reminders, user, channelId, channelFilter]);
+  }, [reminders, user, channelId, channelFilter, clientFilter]);
 
   // Group tasks by status and sort by position
   const tasksByStatus = useMemo(() => {
@@ -319,6 +330,9 @@ export function KanbanView({
   const selectedChannelFilter = availableChannels.find(
     (c) => c.id === channelFilter
   );
+  const selectedClientFilter = availableClients.find(
+    (c) => c.id === clientFilter
+  );
 
   return (
     <div className="h-full w-full bg-gray-900/50 backdrop-blur-sm p-3 md:p-4" role="main" aria-label="Kanban board for task management">
@@ -333,11 +347,14 @@ export function KanbanView({
 
           {/* Mobile: Filter and Add Button in same row - Only when not in channel context */}
           {!channelId && (
-            <div className="flex md:hidden items-center justify-between w-full">
+            <div className="flex md:hidden items-center gap-2 justify-between w-full">
               {/* Channel Filter Dropdown */}
               <div className="relative">
                 <button
-                  onClick={() => setShowChannelFilter(!showChannelFilter)}
+                  onClick={() => {
+                    setShowChannelFilter(!showChannelFilter);
+                    setShowClientFilter(false);
+                  }}
                   className="flex items-center gap-2 px-2 py-1.5 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-xs hover:bg-gray-700/50 transition cursor-pointer"
                   aria-label="Filter tasks by channel"
                   aria-expanded={showChannelFilter}
@@ -407,6 +424,82 @@ export function KanbanView({
                 )}
               </div>
 
+              {/* Client Filter Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setShowClientFilter(!showClientFilter);
+                    setShowChannelFilter(false);
+                  }}
+                  className="flex items-center gap-2 px-2 py-1.5 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-xs hover:bg-gray-700/50 transition cursor-pointer"
+                  aria-label="Filter tasks by client"
+                  aria-expanded={showClientFilter}
+                  aria-haspopup="listbox"
+                >
+                  <Filter size={14} aria-hidden="true" />
+                  <span>
+                    {clientFilter === "all" ? "All" : "Client"}
+                  </span>
+                  <ChevronDown
+                    size={12}
+                    className={`transition-transform ${
+                      showClientFilter ? "rotate-180" : ""
+                    }`}
+                    aria-hidden="true"
+                  />
+                </button>
+
+                {showClientFilter && (
+                  <div className="absolute top-full left-0 mt-1 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50">
+                    <div className="p-1">
+                      {/* All Tasks Option */}
+                      <button
+                        onClick={() => {
+                          setClientFilter("all");
+                          setShowClientFilter(false);
+                        }}
+                        className={`w-full px-2 py-1.5 text-left rounded transition cursor-pointer text-xs ${
+                          clientFilter === "all"
+                            ? "bg-green-600/20 text-green-400"
+                            : "text-gray-300 hover:bg-gray-700/50"
+                        }`}
+                      >
+                        All Clients
+                      </button>
+
+                      {/* Client Options */}
+                      {availableClients.map((client) => (
+                        <button
+                          key={client.id}
+                          onClick={() => {
+                            setClientFilter(client.id);
+                            setShowClientFilter(false);
+                          }}
+                          className={`w-full px-2 py-1.5 text-left rounded transition cursor-pointer text-xs ${
+                            clientFilter === client.id
+                              ? "bg-green-600/20 text-green-400"
+                              : "text-gray-300 hover:bg-gray-700/50"
+                          }`}
+                        >
+                          <span className="truncate">{client.name}</span>
+                          {client.company && (
+                            <span className="text-[10px] text-gray-500 ml-1">
+                              ({client.company})
+                            </span>
+                          )}
+                        </button>
+                      ))}
+
+                      {availableClients.length === 0 && (
+                        <div className="px-2 py-1.5 text-gray-500 text-xs">
+                          No clients available
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Add Task Button - Always visible on mobile */}
               {onOpenTaskModal && (
                 <button
@@ -421,30 +514,35 @@ export function KanbanView({
             </div>
           )}
 
-          {/* Desktop: Channel Filter Dropdown - Only show when not in channel context */}
+          {/* Desktop: Filters - Only show when not in channel context */}
           {!channelId && (
-            <div className="hidden md:block relative">
-              <button
-                onClick={() => setShowChannelFilter(!showChannelFilter)}
-                className="flex items-center gap-2 px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm hover:bg-gray-700/50 transition cursor-pointer"
-                aria-label="Filter tasks by channel"
-                aria-expanded={showChannelFilter}
-                aria-haspopup="listbox"
-              >
-                <Filter size={16} aria-hidden="true" />
-                <span>
-                  {channelFilter === "all"
-                    ? "All Tasks"
-                    : selectedChannelFilter?.name || "Channel"}
-                </span>
-                <ChevronDown
-                  size={14}
-                  className={`transition-transform ${
-                    showChannelFilter ? "rotate-180" : ""
-                  }`}
-                  aria-hidden="true"
-                />
-              </button>
+            <div className="hidden md:flex items-center gap-2">
+              {/* Channel Filter Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setShowChannelFilter(!showChannelFilter);
+                    setShowClientFilter(false);
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm hover:bg-gray-700/50 transition cursor-pointer"
+                  aria-label="Filter tasks by channel"
+                  aria-expanded={showChannelFilter}
+                  aria-haspopup="listbox"
+                >
+                  <Filter size={16} aria-hidden="true" />
+                  <span>
+                    {channelFilter === "all"
+                      ? "All Tasks"
+                      : selectedChannelFilter?.name || "Channel"}
+                  </span>
+                  <ChevronDown
+                    size={14}
+                    className={`transition-transform ${
+                      showChannelFilter ? "rotate-180" : ""
+                    }`}
+                    aria-hidden="true"
+                  />
+                </button>
 
               {showChannelFilter && (
                 <div className="absolute top-full left-0 mt-1 w-64 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50">
@@ -495,6 +593,85 @@ export function KanbanView({
                   </div>
                 </div>
               )}
+              </div>
+
+              {/* Client Filter Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setShowClientFilter(!showClientFilter);
+                    setShowChannelFilter(false);
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm hover:bg-gray-700/50 transition cursor-pointer"
+                  aria-label="Filter tasks by client"
+                  aria-expanded={showClientFilter}
+                  aria-haspopup="listbox"
+                >
+                  <Filter size={16} aria-hidden="true" />
+                  <span>
+                    {clientFilter === "all"
+                      ? "All Clients"
+                      : selectedClientFilter?.name || "Client"}
+                  </span>
+                  <ChevronDown
+                    size={14}
+                    className={`transition-transform ${
+                      showClientFilter ? "rotate-180" : ""
+                    }`}
+                    aria-hidden="true"
+                  />
+                </button>
+
+                {showClientFilter && (
+                  <div className="absolute top-full left-0 mt-1 w-64 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50">
+                    <div className="p-2">
+                      {/* All Clients Option */}
+                      <button
+                        onClick={() => {
+                          setClientFilter("all");
+                          setShowClientFilter(false);
+                        }}
+                        className={`w-full px-3 py-2 text-left rounded transition cursor-pointer text-sm ${
+                          clientFilter === "all"
+                            ? "bg-green-600/20 text-green-400"
+                            : "text-gray-300 hover:bg-gray-700/50"
+                        }`}
+                      >
+                        All Clients
+                      </button>
+
+                      {/* Client Options */}
+                      {availableClients.map((client) => (
+                        <button
+                          key={client.id}
+                          onClick={() => {
+                            setClientFilter(client.id);
+                            setShowClientFilter(false);
+                          }}
+                          className={`w-full px-3 py-2 text-left rounded transition cursor-pointer text-sm ${
+                            clientFilter === client.id
+                              ? "bg-green-600/20 text-green-400"
+                              : "text-gray-300 hover:bg-gray-700/50"
+                          }`}
+                        >
+                          <span className="truncate">{client.name}</span>
+                          {client.company && (
+                            <span className="text-xs text-gray-500 ml-2">
+                              ({client.company})
+                            </span>
+                          )}
+                        </button>
+                      ))}
+
+                      {availableClients.length === 0 && (
+                        <div className="px-3 py-2 text-gray-500 text-sm">
+                          No clients available
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -532,6 +709,7 @@ export function KanbanView({
               onTaskClick={handleTaskClick}
               currentUserEmail={user?.email}
               availableChannels={availableChannels}
+              availableClients={availableClients}
               updatingTaskId={updatingTaskId}
             />
           ))}
@@ -540,7 +718,13 @@ export function KanbanView({
         <DragOverlay>
           {activeTask ? (
             <div className="rotate-3 opacity-90">
-              <KanbanCard task={activeTask} onClick={() => {}} isDragging />
+              <KanbanCard 
+                task={activeTask} 
+                onClick={() => {}} 
+                isDragging 
+                availableChannels={availableChannels}
+                availableClients={availableClients}
+              />
             </div>
           ) : null}
         </DragOverlay>

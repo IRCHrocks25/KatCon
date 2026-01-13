@@ -28,7 +28,7 @@ interface ReminderFormProps {
     assignedTo: string[];
     priority: "low" | "medium" | "high" | "urgent";
     channelId?: string;
-    clientId?: string;
+    clientId?: string | null; // null means clear client association
   }) => Promise<void>;
   onCancel: () => void;
   isSubmitting: boolean;
@@ -238,7 +238,9 @@ export function ReminderForm({
       assignedTo,
       priority,
       channelId: channelId || undefined,
-      clientId: clientId || undefined,
+      // Convert empty string to null to explicitly clear client association
+      // undefined means "don't update this field" (for updates only)
+      clientId: clientId ? clientId : null,
     });
   };
 

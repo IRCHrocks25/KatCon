@@ -45,18 +45,12 @@ function dbToAppClient(dbClient: DatabaseClient): Client {
 }
 
 /**
- * Get all clients for the current user
+ * Get all clients (all authenticated users can read all clients)
  */
 export async function getClients(): Promise<Client[]> {
-  const userEmail = await getUserEmail();
-  if (!userEmail) {
-    return [];
-  }
-
   const { data: clients, error } = await supabase
     .from("clients")
     .select("*")
-    .eq("created_by", userEmail)
     .order("name");
 
   if (error) {

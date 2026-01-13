@@ -274,6 +274,7 @@ export async function createReminder(
   reminder: Omit<Reminder, "id" | "status" | "createdBy" | "assignedTo"> & {
     assignedTo?: string[];
     channelId?: string;
+    clientId?: string | null; // null means no client association
   }
 ): Promise<Reminder> {
   const headers = await getAuthHeaders();
@@ -288,6 +289,7 @@ export async function createReminder(
       priority: reminder.priority,
       assignedTo: reminder.assignedTo,
       channelId: reminder.channelId,
+      clientId: reminder.clientId,
       isRecurring: reminder.isRecurring,
       rrule: reminder.rrule,
     }),
@@ -307,6 +309,8 @@ export async function updateReminder(
   id: string,
   reminder: Omit<Reminder, "id" | "status" | "createdBy" | "assignedTo"> & {
     assignedTo?: string[];
+    channelId?: string;
+    clientId?: string | null; // null means clear client association, undefined means don't update
   }
 ): Promise<Reminder> {
   const userEmail = await getUserEmail();
@@ -314,14 +318,33 @@ export async function updateReminder(
     throw new Error("User not authenticated");
   }
 
+  // Build update object - only include fields that should be updated
+  const updateData: {
+    title: string;
+    description: string | null;
+    due_date: string | null;
+    channel_id?: string | null;
+    client_id?: string | null;
+  } = {
+    title: reminder.title,
+    description: reminder.description || null,
+    due_date: reminder.dueDate ? reminder.dueDate.toISOString() : null,
+  };
+
+  // Only include channel_id and client_id if they are explicitly provided
+  // null means "clear the association", undefined means "don't update this field"
+  if (reminder.channelId !== undefined) {
+    updateData.channel_id = reminder.channelId || null;
+  }
+  if (reminder.clientId !== undefined) {
+    // Handle both null (explicit clear) and empty string (also means clear)
+    updateData.client_id = reminder.clientId === "" ? null : (reminder.clientId || null);
+  }
+
   // Update the reminder (only creator can do this)
   const { data: reminderData, error: reminderError } = await supabase
     .from("reminders")
-    .update({
-      title: reminder.title,
-      description: reminder.description || null,
-      due_date: reminder.dueDate ? reminder.dueDate.toISOString() : null,
-    })
+    .update(updateData)
     .eq("id", id)
     .eq("user_id", userEmail) // Only creator can update
     .select()

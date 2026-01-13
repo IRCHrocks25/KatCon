@@ -12,9 +12,11 @@ import {
   Users,
   AlertCircle,
   Hash,
+  Building,
 } from "lucide-react";
 import type { Reminder } from "@/lib/supabase/reminders";
 import { getConversations, type Conversation } from "@/lib/supabase/messaging";
+import { useClients } from "@/contexts/ClientsContext";
 
 interface ReminderCardProps {
   reminder: Reminder;
@@ -39,6 +41,7 @@ export function ReminderCard({
   isToggling,
   isDeleting,
 }: ReminderCardProps) {
+  const { clients } = useClients();
   const [showMenu, setShowMenu] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loadingConversations, setLoadingConversations] = useState(false);
@@ -70,6 +73,9 @@ export function ReminderCard({
 
   // Find the channel this reminder belongs to
   const channel = conversations.find((conv) => conv.id === reminder.channelId);
+
+  // Find the client this reminder belongs to
+  const client = clients.find((c) => c.id === reminder.clientId);
 
   // Determine priority based on due date
   const getPriority = (): Priority => {
@@ -282,6 +288,14 @@ export function ReminderCard({
               <div className="flex items-center gap-1 text-xs text-blue-400">
                 <Hash size={12} />
                 <span>{channel.name || "Channel"}</span>
+              </div>
+            )}
+
+            {/* Client indicator */}
+            {client && (
+              <div className="flex items-center gap-1 text-xs text-green-400">
+                <Building size={12} />
+                <span>{client.name}</span>
               </div>
             )}
           </div>

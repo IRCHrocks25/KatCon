@@ -2,10 +2,11 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Calendar, MessageSquare, Clock, Hash } from "lucide-react";
+import { Calendar, MessageSquare, Clock, Hash, Building } from "lucide-react";
 import type { Reminder } from "@/lib/supabase/reminders";
 import { isStaleTask } from "@/lib/supabase/reminders";
 import type { Conversation } from "@/lib/supabase/messaging";
+import type { Client } from "@/lib/supabase/clients";
 
 interface KanbanCardProps {
   task: Reminder;
@@ -13,10 +14,11 @@ interface KanbanCardProps {
   isDragging?: boolean;
   currentUserEmail?: string;
   availableChannels?: Conversation[];
+  availableClients?: Client[];
   isUpdating?: boolean;
 }
 
-export function KanbanCard({ task, onClick, isDragging = false, currentUserEmail, availableChannels, isUpdating = false }: KanbanCardProps) {
+export function KanbanCard({ task, onClick, isDragging = false, currentUserEmail, availableChannels, availableClients, isUpdating = false }: KanbanCardProps) {
   const {
     attributes,
     listeners,
@@ -65,6 +67,9 @@ export function KanbanCard({ task, onClick, isDragging = false, currentUserEmail
   // Get channel information for this task
   const taskChannel = availableChannels?.find(channel => channel.id === task.channelId);
 
+  // Get client information for this task
+  const taskClient = availableClients?.find(client => client.id === task.clientId);
+
 
 
   return (
@@ -110,6 +115,14 @@ export function KanbanCard({ task, onClick, isDragging = false, currentUserEmail
             <div className="flex items-center gap-1 text-[10px] md:text-xs font-medium text-purple-300 bg-purple-600/20 px-1 md:px-1.5 py-0.5 rounded border border-purple-600/30">
               <Hash size={8} className="md:w-2.5 md:h-2.5" />
               <span className="hidden sm:inline">{taskChannel.name || "Channel"}</span>
+            </div>
+          )}
+
+          {/* Client Tag - Only show if task belongs to a client */}
+          {taskClient && (
+            <div className="flex items-center gap-1 text-[10px] md:text-xs font-medium text-green-300 bg-green-600/20 px-1 md:px-1.5 py-0.5 rounded border border-green-600/30">
+              <Building size={8} className="md:w-2.5 md:h-2.5" />
+              <span className="hidden sm:inline">{taskClient.name}</span>
             </div>
           )}
         </div>

@@ -12,10 +12,12 @@ import {
   Edit,
   Trash2,
   Hash,
+  Building,
 } from "lucide-react";
 import type { Reminder } from "@/lib/supabase/reminders";
 import { useAuth } from "@/contexts/AuthContext";
 import { useChannels } from "@/contexts/ChannelsContext";
+import { useClients } from "@/contexts/ClientsContext";
 import { TaskDeleteConfirmationModal } from "@/components/ui/TaskDeleteConfirmationModal";
 
 interface TaskDetailsModalProps {
@@ -41,12 +43,16 @@ export function TaskDetailsModal({
 }: TaskDetailsModalProps) {
   const { user } = useAuth();
   const { channels: availableChannels } = useChannels();
+  const { clients } = useClients();
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
 
   if (!reminder) return null;
 
   // Get channel information for this task
   const taskChannel = availableChannels?.find(channel => channel.id === reminder.channelId);
+
+  // Get client information for this task
+  const taskClient = clients.find(client => client.id === reminder.clientId);
 
   const isCreator = reminder.createdBy === user?.email;
   const displayStatus = isCreator
@@ -195,6 +201,14 @@ export function TaskDetailsModal({
                           <div className="flex items-center gap-1.5 text-sm font-medium text-purple-300 bg-purple-600/20 px-2.5 py-1 rounded-md border border-purple-600/30">
                             <Hash size={14} />
                             <span>{taskChannel.name || "Channel"}</span>
+                          </div>
+                        )}
+
+                        {/* Client Tag - Only show if task belongs to a client */}
+                        {taskClient && (
+                          <div className="flex items-center gap-1.5 text-sm font-medium text-green-300 bg-green-600/20 px-2.5 py-1 rounded-md border border-green-600/30">
+                            <Building size={14} />
+                            <span>{taskClient.name}</span>
                           </div>
                         )}
                       </div>

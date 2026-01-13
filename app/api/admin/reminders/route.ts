@@ -40,15 +40,18 @@ export const GET = moderateRateLimit(async (request: NextRequest) => {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if user is admin
+    // Check if user is admin or manager
     const { data: profile } = await userSupabase
       .from("profiles")
       .select("role")
       .eq("id", user.id)
       .single();
 
-    if (!profile || profile.role !== "admin") {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    if (!profile || (profile.role !== "admin" && profile.role !== "manager")) {
+      return NextResponse.json(
+        { error: "Admin or Manager access required" },
+        { status: 403 }
+      );
     }
 
     // Use service role for admin operations (bypasses RLS)

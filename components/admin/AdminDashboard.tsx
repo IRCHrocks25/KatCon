@@ -110,6 +110,7 @@ export function AdminDashboard() {
   const isManager = user?.role === "admin" || user?.role === "manager";
   const canManageUsers = isAdmin; // Only admins can create/edit/delete users
   const canViewKanban = isManager; // Managers and admins can view kanban
+  const isManagerView = user?.role === "manager";
 
   // Clear cache when user changes or logs out
   useEffect(() => {
@@ -182,9 +183,9 @@ export function AdminDashboard() {
   );
 
   useEffect(() => {
-    // Only fetch if admin, not already fetched, and we have a session
+    // Only fetch if admin or manager, not already fetched, and we have a session
     if (
-      isAdmin &&
+      isManager &&
       !hasFetchedRef.current &&
       !isFetchingRef.current &&
       session?.access_token
@@ -210,7 +211,7 @@ export function AdminDashboard() {
         setLoading(false);
       }
     }
-  }, [isAdmin, session?.access_token, fetchUsers, users.length]);
+  }, [isManager, session?.access_token, fetchUsers, users.length]);
 
   const handleUserAction = async (
     userId: string,
@@ -437,6 +438,7 @@ export function AdminDashboard() {
 
   // Show loading while auth is still loading OR while user data is being fetched
   if (authLoading || (user && !user.role)) {
+    const loadingMessage = user?.role === "manager" ? "Loading management dashboard..." : "Loading admin dashboard...";
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
@@ -444,7 +446,7 @@ export function AdminDashboard() {
             size={48}
             className="mx-auto mb-4 text-purple-500 animate-spin"
           />
-          <p className="text-gray-400">Loading admin dashboard...</p>
+          <p className="text-gray-400">{loadingMessage}</p>
         </div>
       </div>
     );
@@ -475,70 +477,95 @@ export function AdminDashboard() {
             size={48}
             className="mx-auto mb-4 text-purple-500 animate-spin"
           />
-          <p className="text-gray-400">Loading admin dashboard...</p>
+          <p className="text-gray-400">{isManagerView ? "Loading management dashboard..." : "Loading admin dashboard..."}</p>
         </div>
       </div>
     );
   }
 
+  const dashboardTitle = isManagerView ? "Management Dashboard" : "Admin Dashboard";
+  const dashboardDescription = isManagerView
+    ? "View users and system overview"
+    : "Manage users and system settings";
+
   return (
-    <div className="h-full bg-black text-white overflow-auto" role="main" aria-label="Admin dashboard for user management">
+    <div className="h-full bg-black text-white overflow-auto" role="main" aria-label={`${isManagerView ? 'Management' : 'Admin'} dashboard for user management`}>
       {/* Header */}
       <div className="border-b border-gray-800 bg-gray-950/95 backdrop-blur-sm">
         <div className="flex items-center justify-between px-4 sm:px-6 py-4">
           <div>
-            <h1 className="text-lg sm:text-xl font-bold text-white">Admin Dashboard</h1>
+            <h1 className="text-lg sm:text-xl font-bold text-white">{dashboardTitle}</h1>
             <p className="text-xs sm:text-sm text-gray-400">
-              Manage users and system settings
+              {dashboardDescription}
             </p>
           </div>
-          {/* Create User button only on desktop */}
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="hidden sm:flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition cursor-pointer"
-            aria-label="Create new user account"
-          >
-            <Plus size={16} aria-hidden="true" />
-            Create User
-          </button>
+          {/* Create User button only for admins on desktop */}
+          {canManageUsers && (
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="hidden sm:flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition cursor-pointer"
+              aria-label="Create new user account"
+            >
+              <Plus size={16} aria-hidden="true" />
+              Create User
+            </button>
+          )}
         </div>
       </div>
 
       {/* Stats Cards */}
       <div className="p-4 sm:p-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 sm:mb-6">
-          <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <Users className="text-blue-400" size={24} />
-              <div>
-                <p className="text-2xl font-bold text-white">{users.length}</p>
-                <p className="text-sm text-gray-400">Total Users</p>
+        {/* Stats Cards - Only show for admins */}
+        {canManageUsers && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 sm:mb-6">
+            <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <Users className="text-blue-400" size={24} />
+                <div>
+                  <p className="text-2xl font-bold text-white">{users.length}</p>
+                  <p className="text-sm text-gray-400">Total Users</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <UserCheck className="text-green-400" size={24} />
+                <div>
+                  <p className="text-2xl font-bold text-white">
+                    {getApprovedUsers().length}
+                  </p>
+                  <p className="text-sm text-gray-400">Approved Users</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <UserX className="text-yellow-400" size={24} />
+                <div>
+                  <p className="text-2xl font-bold text-white">
+                    {getPendingUsers().length}
+                  </p>
+                  <p className="text-sm text-gray-400">Pending Approval</p>
+                </div>
               </div>
             </div>
           </div>
-          <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <UserCheck className="text-green-400" size={24} />
-              <div>
-                <p className="text-2xl font-bold text-white">
-                  {getApprovedUsers().length}
-                </p>
-                <p className="text-sm text-gray-400">Approved Users</p>
+        )}
+
+        {/* Total Users Card - Only for managers */}
+        {!canManageUsers && (
+          <div className="grid grid-cols-1 gap-4 mb-4 sm:mb-6">
+            <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <Users className="text-blue-400" size={24} />
+                <div>
+                  <p className="text-2xl font-bold text-white">{users.length}</p>
+                  <p className="text-sm text-gray-400">Total Users</p>
+                </div>
               </div>
             </div>
           </div>
-          <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <UserX className="text-yellow-400" size={24} />
-              <div>
-                <p className="text-2xl font-bold text-white">
-                  {getPendingUsers().length}
-                </p>
-                <p className="text-sm text-gray-400">Pending Approval</p>
-              </div>
-            </div>
-          </div>
-        </div>
+        )}
 
         {/* Pending Approvals Section */}
         {getPendingUsers().length > 0 && (
@@ -603,15 +630,17 @@ export function AdminDashboard() {
 
         {/* All Users Section */}
         <div>
-          {/* Mobile Create User Button */}
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition cursor-pointer w-full mb-4 sm:hidden"
-            aria-label="Create new user account"
-          >
-            <Plus size={16} aria-hidden="true" />
-            Create User
-          </button>
+          {/* Mobile Create User Button - only for admins */}
+          {canManageUsers && (
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition cursor-pointer w-full mb-4 sm:hidden"
+              aria-label="Create new user account"
+            >
+              <Plus size={16} aria-hidden="true" />
+              Create User
+            </button>
+          )}
 
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
             <h2 className="text-lg font-semibold text-white">All Users</h2>
@@ -677,40 +706,48 @@ export function AdminDashboard() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <select
-                          value={user.role}
-                          onChange={(e) =>
-                            handleUserAction(user.id, "update_role", {
-                              role: e.target.value,
-                            })
-                          }
-                          disabled={actionLoading === user.id}
-                          className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-purple-500"
-                        >
-                          <option value="user">User</option>
-                          <option value="manager">Manager</option>
-                          <option value="admin">Admin</option>
-                        </select>
+                        {canManageUsers ? (
+                          <select
+                            value={user.role}
+                            onChange={(e) =>
+                              handleUserAction(user.id, "update_role", {
+                                role: e.target.value,
+                              })
+                            }
+                            disabled={actionLoading === user.id}
+                            className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-purple-500"
+                          >
+                            <option value="user">User</option>
+                            <option value="manager">Manager</option>
+                            <option value="admin">Admin</option>
+                          </select>
+                        ) : (
+                          <span className="text-sm text-gray-300 capitalize">{user.role}</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
-                        <select
-                          value={user.account_type}
-                          onChange={(e) =>
-                            handleUserAction(user.id, "update_account_type", {
-                              accountType: e.target.value,
-                            })
-                          }
-                          disabled={actionLoading === user.id}
-                          className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-purple-500"
-                        >
-                          <option value="CRM">CRM</option>
-                          <option value="DEV">DEV</option>
-                          <option value="PM">PM</option>
-                          <option value="AI">AI</option>
-                          <option value="DESIGN">DESIGN</option>
-                          <option value="COPYWRITING">COPYWRITING</option>
-                          <option value="OTHERS">OTHERS</option>
-                        </select>
+                        {canManageUsers ? (
+                          <select
+                            value={user.account_type}
+                            onChange={(e) =>
+                              handleUserAction(user.id, "update_account_type", {
+                                accountType: e.target.value,
+                              })
+                            }
+                            disabled={actionLoading === user.id}
+                            className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-purple-500"
+                          >
+                            <option value="CRM">CRM</option>
+                            <option value="DEV">DEV</option>
+                            <option value="PM">PM</option>
+                            <option value="AI">AI</option>
+                            <option value="DESIGN">DESIGN</option>
+                            <option value="COPYWRITING">COPYWRITING</option>
+                            <option value="OTHERS">OTHERS</option>
+                          </select>
+                        ) : (
+                          <span className="text-sm text-gray-300">{user.account_type}</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <span
@@ -741,52 +778,56 @@ export function AdminDashboard() {
                           >
                             <Eye size={12} />
                           </button>
-                          <button
-                            onClick={() => openEditModal(user)}
-                            disabled={actionLoading === user.id}
-                            className="px-2 py-1 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-xs rounded transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-110 active:scale-95 cursor-pointer"
-                            title="Edit user details"
-                          >
-                            <Edit size={12} />
-                          </button>
-                          <button
-                            onClick={() => openDeleteModal(user)}
-                            disabled={actionLoading === user.id}
-                            className="px-2 py-1 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white text-xs rounded transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-110 active:scale-95 cursor-pointer"
-                            title="Delete this user account"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                          {!user.approved && (
+                          {canManageUsers && (
                             <>
                               <button
-                                onClick={() =>
-                                  handleUserAction(user.id, "approve")
-                                }
+                                onClick={() => openEditModal(user)}
                                 disabled={actionLoading === user.id}
-                                className="px-2 py-1 bg-green-600 hover:bg-green-500 active:bg-green-700 text-white text-xs rounded transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-110 active:scale-95 cursor-pointer"
-                                title="Approve this user account"
+                                className="px-2 py-1 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-xs rounded transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-110 active:scale-95 cursor-pointer"
+                                title="Edit user details"
                               >
-                                {actionLoading === user.id ? (
-                                  <Loader2 size={12} className="animate-spin" />
-                                ) : (
-                                  "✓"
-                                )}
+                                <Edit size={12} />
                               </button>
                               <button
-                                onClick={() =>
-                                  handleUserAction(user.id, "reject")
-                                }
+                                onClick={() => openDeleteModal(user)}
                                 disabled={actionLoading === user.id}
                                 className="px-2 py-1 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white text-xs rounded transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-110 active:scale-95 cursor-pointer"
-                                title="Reject this user account"
+                                title="Delete this user account"
                               >
-                                {actionLoading === user.id ? (
-                                  <Loader2 size={12} className="animate-spin" />
-                                ) : (
-                                  "✗"
-                                )}
+                                <Trash2 size={12} />
                               </button>
+                              {!user.approved && (
+                                <>
+                                  <button
+                                    onClick={() =>
+                                      handleUserAction(user.id, "approve")
+                                    }
+                                    disabled={actionLoading === user.id}
+                                    className="px-2 py-1 bg-green-600 hover:bg-green-500 active:bg-green-700 text-white text-xs rounded transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-110 active:scale-95 cursor-pointer"
+                                    title="Approve this user account"
+                                  >
+                                    {actionLoading === user.id ? (
+                                      <Loader2 size={12} className="animate-spin" />
+                                    ) : (
+                                      "✓"
+                                    )}
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      handleUserAction(user.id, "reject")
+                                    }
+                                    disabled={actionLoading === user.id}
+                                    className="px-2 py-1 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white text-xs rounded transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-110 active:scale-95 cursor-pointer"
+                                    title="Reject this user account"
+                                  >
+                                    {actionLoading === user.id ? (
+                                      <Loader2 size={12} className="animate-spin" />
+                                    ) : (
+                                      "✗"
+                                    )}
+                                  </button>
+                                </>
+                              )}
                             </>
                           )}
                         </div>
@@ -833,41 +874,49 @@ export function AdminDashboard() {
                 <div className="grid grid-cols-2 gap-3 mb-3">
                   <div>
                     <label className="block text-xs text-gray-400 mb-1">Role</label>
-                    <select
-                      value={user.role}
-                      onChange={(e) =>
-                        handleUserAction(user.id, "update_role", {
-                          role: e.target.value,
-                        })
-                      }
-                      disabled={actionLoading === user.id}
-                      className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-purple-500"
-                    >
-                      <option value="user">User</option>
-                      <option value="manager">Manager</option>
-                      <option value="admin">Admin</option>
-                    </select>
+                    {canManageUsers ? (
+                      <select
+                        value={user.role}
+                        onChange={(e) =>
+                          handleUserAction(user.id, "update_role", {
+                            role: e.target.value,
+                          })
+                        }
+                        disabled={actionLoading === user.id}
+                        className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-purple-500"
+                      >
+                        <option value="user">User</option>
+                        <option value="manager">Manager</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    ) : (
+                      <span className="text-sm text-gray-300 capitalize block py-1">{user.role}</span>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs text-gray-400 mb-1">Type</label>
-                    <select
-                      value={user.account_type}
-                      onChange={(e) =>
-                        handleUserAction(user.id, "update_account_type", {
-                          accountType: e.target.value,
-                        })
-                      }
-                      disabled={actionLoading === user.id}
-                      className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-purple-500"
-                    >
-                      <option value="CRM">CRM</option>
-                      <option value="DEV">DEV</option>
-                      <option value="PM">PM</option>
-                      <option value="AI">AI</option>
-                      <option value="DESIGN">DESIGN</option>
-                      <option value="COPYWRITING">COPYWRITING</option>
-                      <option value="OTHERS">OTHERS</option>
-                    </select>
+                    {canManageUsers ? (
+                      <select
+                        value={user.account_type}
+                        onChange={(e) =>
+                          handleUserAction(user.id, "update_account_type", {
+                            accountType: e.target.value,
+                          })
+                        }
+                        disabled={actionLoading === user.id}
+                        className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-purple-500"
+                      >
+                        <option value="CRM">CRM</option>
+                        <option value="DEV">DEV</option>
+                        <option value="PM">PM</option>
+                        <option value="AI">AI</option>
+                        <option value="DESIGN">DESIGN</option>
+                        <option value="COPYWRITING">COPYWRITING</option>
+                        <option value="OTHERS">OTHERS</option>
+                      </select>
+                    ) : (
+                      <span className="text-sm text-gray-300 block py-1">{user.account_type}</span>
+                    )}
                   </div>
                 </div>
 
@@ -886,51 +935,55 @@ export function AdminDashboard() {
                     <Eye size={12} className="inline mr-1" />
                     Kanban
                   </button>
-                  <button
-                    onClick={() => openEditModal(user)}
-                    disabled={actionLoading === user.id}
-                    className="px-3 py-1 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-xs rounded transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95 cursor-pointer"
-                    title="Edit user details"
-                  >
-                    <Edit size={12} className="inline mr-1" />
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => openDeleteModal(user)}
-                    disabled={actionLoading === user.id}
-                    className="px-3 py-1 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white text-xs rounded transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95 cursor-pointer"
-                    title="Delete this user account"
-                  >
-                    <Trash2 size={12} className="inline mr-1" />
-                    Delete
-                  </button>
-                  {!user.approved && (
+                  {canManageUsers && (
                     <>
                       <button
-                        onClick={() =>
-                          handleUserAction(user.id, "approve")
-                        }
+                        onClick={() => openEditModal(user)}
                         disabled={actionLoading === user.id}
-                        className="px-3 py-1 bg-green-600 hover:bg-green-500 active:bg-green-700 text-white text-xs rounded transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95 cursor-pointer"
-                        title="Approve this user account"
+                        className="px-3 py-1 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-xs rounded transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95 cursor-pointer"
+                        title="Edit user details"
                       >
-                        {actionLoading === user.id ? (
-                          <Loader2 size={12} className="animate-spin mr-1" />
-                        ) : (
-                          "✓"
-                        )}
-                        Approve
+                        <Edit size={12} className="inline mr-1" />
+                        Edit
                       </button>
                       <button
-                        onClick={() =>
-                          handleUserAction(user.id, "reject")
-                        }
+                        onClick={() => openDeleteModal(user)}
                         disabled={actionLoading === user.id}
                         className="px-3 py-1 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white text-xs rounded transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95 cursor-pointer"
-                        title="Reject this user account"
+                        title="Delete this user account"
                       >
-                        ✗ Reject
+                        <Trash2 size={12} className="inline mr-1" />
+                        Delete
                       </button>
+                      {!user.approved && (
+                        <>
+                          <button
+                            onClick={() =>
+                              handleUserAction(user.id, "approve")
+                            }
+                            disabled={actionLoading === user.id}
+                            className="px-3 py-1 bg-green-600 hover:bg-green-500 active:bg-green-700 text-white text-xs rounded transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95 cursor-pointer"
+                            title="Approve this user account"
+                          >
+                            {actionLoading === user.id ? (
+                              <Loader2 size={12} className="animate-spin mr-1" />
+                            ) : (
+                              "✓"
+                            )}
+                            Approve
+                          </button>
+                          <button
+                            onClick={() =>
+                              handleUserAction(user.id, "reject")
+                            }
+                            disabled={actionLoading === user.id}
+                            className="px-3 py-1 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white text-xs rounded transition disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95 cursor-pointer"
+                            title="Reject this user account"
+                          >
+                            ✗ Reject
+                          </button>
+                        </>
+                      )}
                     </>
                   )}
                 </div>

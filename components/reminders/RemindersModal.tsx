@@ -49,15 +49,14 @@ export function RemindersModal({
   forceShowCreateForm = false,
   channelId,
 }: RemindersModalProps) {
+  type TabType = "my-tasks" | "assigned-by-me" | "completed";
 
-type TabType = "my-tasks" | "assigned-by-me" | "completed";
-
-interface GroupedReminders {
-  overdue: Reminder[];
-  today: Reminder[];
-  upcoming: Reminder[];
-  noDate: Reminder[];
-}
+  interface GroupedReminders {
+    overdue: Reminder[];
+    today: Reminder[];
+    upcoming: Reminder[];
+    noDate: Reminder[];
+  }
   const { user: currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>("my-tasks");
   const [searchQuery, setSearchQuery] = useState("");
@@ -322,6 +321,8 @@ interface GroupedReminders {
     dueDate: string;
     assignedTo: string[];
     priority: "low" | "medium" | "high" | "urgent";
+    channelId?: string;
+    clientId?: string | null; // null means clear client association
   }) => {
     setIsSubmitting(true);
     try {
@@ -333,6 +334,8 @@ interface GroupedReminders {
           dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
           priority: data.priority,
           assignedTo: data.assignedTo.length > 0 ? data.assignedTo : undefined,
+          channelId: data.channelId,
+          clientId: data.clientId as string | null | undefined, // Explicitly allow null to clear association
         });
 
         setReminders((prev) =>
@@ -347,7 +350,8 @@ interface GroupedReminders {
           dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
           priority: data.priority,
           assignedTo: data.assignedTo.length > 0 ? data.assignedTo : undefined,
-          channelId: channelId || undefined,
+          channelId: data.channelId || channelId || undefined,
+          clientId: data.clientId as string | null | undefined, // Explicitly allow null for no association
         });
 
         setReminders((prev) => [reminder, ...prev]);
@@ -433,10 +437,15 @@ interface GroupedReminders {
           <div className="flex-shrink-0 p-3 sm:p-5 border-b border-gray-800 flex items-center justify-between bg-gray-900/80">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
               <div className="w-8 h-8 sm:w-10 sm:h-10 bg-purple-600/20 rounded-xl flex items-center justify-center flex-shrink-0">
-                <ListTodo size={18} className="sm:w-[22px] sm:h-[22px] text-purple-400" />
+                <ListTodo
+                  size={18}
+                  className="sm:w-[22px] sm:h-[22px] text-purple-400"
+                />
               </div>
               <div className="min-w-0 flex-1">
-                <h2 className="text-base sm:text-lg font-semibold text-white truncate">My Tasks</h2>
+                <h2 className="text-base sm:text-lg font-semibold text-white truncate">
+                  My Tasks
+                </h2>
                 <p className="text-xs text-gray-500">
                   {tabCounts.myTasks + tabCounts.assignedByMe} active tasks
                 </p>
