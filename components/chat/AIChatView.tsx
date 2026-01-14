@@ -414,6 +414,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
             assignees?: string[];
             notes?: string;
             channelId?: string;
+            clientId?: string | null;
             priority?: string;
           } | null = null;
 
@@ -424,6 +425,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
               assignees: data.assignees,
               notes: data.notes,
               channelId: data.channelId || data.channel_id,
+              clientId: data.clientId || data.client_id || null,
               priority: data.priority,
             };
           } else if (
@@ -438,6 +440,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
               assignees: data.output.assignees,
               notes: data.output.notes,
               channelId: data.output.channelId || data.output.channel_id,
+              clientId: data.output.clientId || data.output.client_id || null,
               priority: data.output.priority,
             };
           }
@@ -472,6 +475,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
                 priority: priority,
                 assignedTo: assignedTo,
                 channelId: reminderData.channelId,
+                clientId: reminderData.clientId,
               });
 
               setReminders((prev) => {

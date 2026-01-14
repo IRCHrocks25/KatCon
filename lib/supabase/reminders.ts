@@ -58,7 +58,7 @@ export interface Reminder {
   createdBy: string; // Email of the creator
   assignedTo: string[]; // Array of emails of assigned users
   channelId?: string; // ID of the channel this task belongs to (null for global tasks)
-  clientId?: string; // ID of the client this task is associated with (null for non-client tasks)
+  clientId?: string | null; // ID of the client this task is associated with (null for non-client tasks)
   createdAt?: Date; // When the task was created
   isRecurring?: boolean; // Whether this reminder is recurring
   rrule?: string | null; // RRULE string for recurrence pattern
@@ -1087,6 +1087,7 @@ export interface ChatbotReminderInput {
   assignees: string[];
   notes: string;
   channel_id: string | null;
+  client_id: string | null;
   priority: "low" | "medium" | "high" | "urgent";
   is_recurring: boolean;
   rrule: string | null;
@@ -1115,23 +1116,26 @@ export async function createRemindersFromChatbotPayload(
 
   for (const reminderInput of payload.reminders) {
     try {
-      // Skip reminders without datetime (indefinite/null)
-      if (!reminderInput.datetime || reminderInput.datetime === "indefinite") {
-        skipped++;
-        continue;
-      }
-
       // Map chatbot fields to app fields
       const reminderData = {
         title: reminderInput.task,
         description: reminderInput.notes,
-        dueDate: new Date(reminderInput.datetime),
+        dueDate: reminderInput.datetime && reminderInput.datetime !== "indefinite"
+          ? new Date(reminderInput.datetime)
+          : undefined, // Allow tasks without due dates
         assignedTo: reminderInput.assignees,
         priority: reminderInput.priority,
         channelId: reminderInput.channel_id || undefined,
+        clientId: reminderInput.client_id || null,
         isRecurring: reminderInput.is_recurring,
         rrule: reminderInput.rrule,
       };
+
+      // Skip only if there's no task title (empty/invalid reminders)
+      if (!reminderInput.task || reminderInput.task.trim() === "") {
+        skipped++;
+        continue;
+      }
 
       // Create the reminder using existing function
       const createdReminder = await createReminder(reminderData);
