@@ -160,9 +160,10 @@ let cachedUserId: string | null = null;
             setIsLoading(true);
           }
 
-          // Try to load from cache first
+          // Only load from cache if we don't already have data from shared state
+          // (prevents overriding updates made by other components like KanbanView)
           const cachedReminders = getCachedReminders(currentUser?.id);
-          if (cachedReminders && cachedReminders.length > 0 && !isRefresh) {
+          if (cachedReminders && cachedReminders.length > 0 && !isRefresh && reminders.length === 0) {
             // Small delay to show loading state briefly even with cache
             setTimeout(() => {
               setReminders(cachedReminders);

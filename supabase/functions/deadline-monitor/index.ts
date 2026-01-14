@@ -26,7 +26,8 @@ serve(async (_req: Request) => {
         user_id,
         reminder_assignments!inner(assignedto)
       `)
-      .eq('reminder_assignments.status', 'in_progress') // Only active assignments
+      .neq('reminder_assignments.status', 'done') // Exclude completed assignments
+      .neq('reminder_assignments.status', 'hidden') // Exclude hidden assignments
       .gte('due_date', now.toISOString()) // Not already past due
       .lte('due_date', twentyFourHoursFromNow.toISOString()) // Due within 24 hours
       .neq('status', 'done')
@@ -49,7 +50,8 @@ serve(async (_req: Request) => {
         user_id,
         reminder_assignments!inner(assignedto)
       `)
-      .eq('reminder_assignments.status', 'in_progress') // Only active assignments
+      .neq('reminder_assignments.status', 'done') // Exclude completed assignments
+      .neq('reminder_assignments.status', 'hidden') // Exclude hidden assignments
       .lt('due_date', now.toISOString()) // Past due
       .neq('status', 'done')
       .neq('status', 'hidden')
@@ -75,27 +77,39 @@ serve(async (_req: Request) => {
       processedTasks.add(task.id)
 
       // Get all assignees for this task
-      const assignees = task.reminder_assignments?.map((ra: { assignedto: string }) => ra.assignedto) || []
+      const assignees = task.reminder_assignments?.map((ra: { assignedto: string }) => ra.assignedto).filter(email => email) || []
+
+      console.log(`[DEADLINE MONITOR] Task "${task.title}" has ${assignees.length} assignees:`, assignees)
+
+      // Skip if no valid assignees
+      if (assignees.length === 0) {
+        console.log(`[DEADLINE MONITOR] Skipping task "${task.title}" - no assigned users`)
+        continue
+      }
 
       for (const assigneeEmail of assignees) {
         try {
           // Check if we've already sent a notification for this task recently (within last hour)
-          const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000)
+          // For testing, let's temporarily disable this check
+          // const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000)
 
-          const { data: existingNotification } = await supabase
-            .from('notifications')
-            .select('id')
-            .eq('user_email', assigneeEmail)
-            .eq('reminder_id', task.id)
-            .eq('type', task.urgency === 'overdue' ? 'deadline_overdue' : 'deadline_approaching')
-            .gte('created_at', oneHourAgo.toISOString())
-            .single()
+          // const { data: existingNotification } = await supabase
+          //   .from('notifications')
+          //   .select('id')
+          //   .eq('user_email', assigneeEmail)
+          //   .eq('reminder_id', task.id)
+          //   .eq('type', task.urgency === 'overdue' ? 'deadline_overdue' : 'deadline_approaching')
+          //   .gte('created_at', oneHourAgo.toISOString())
+          //   .single()
 
-          // Skip if notification already exists
-          if (existingNotification) {
-            console.log(`[DEADLINE MONITOR] Skipping duplicate notification for ${assigneeEmail} on task ${task.id}`)
-            continue
-          }
+          // // Skip if notification already exists
+          // if (existingNotification) {
+          //   console.log(`[DEADLINE MONITOR] Skipping duplicate notification for ${assigneeEmail} on task ${task.id}`)
+          //   continue
+          // }
+
+          // TEMPORARILY DISABLE DUPLICATE CHECK FOR TESTING
+          console.log(`[DEADLINE MONITOR] Processing notification for ${assigneeEmail} on task ${task.id} (duplicate check disabled)`)
 
           // Create notification
           const notificationData = {
@@ -119,7 +133,25 @@ serve(async (_req: Request) => {
             .insert(notificationData)
 
           if (notificationError) {
-            console.error(`[DEADLINE MONITOR] Error creating notification for ${assigneeEmail}:`, notificationError)
+            console.error(`[DEADLINE MONITOR] ❌ FAILED to create notification for ${assigneeEmail}:`, {
+              error: notificationError,
+              notificationData: notificationData,
+              code: notificationError.code,
+              message: notificationError.message,
+              details: notificationError.details,
+              hint: notificationError.hint
+            })
+            // Return early with error to surface the issue
+            return new Response(JSON.stringify({
+              success: false,
+              error: `Database error: ${notificationError.message}`,
+              notification_error: notificationError,
+              notification_data: notificationData,
+              timestamp: now.toISOString()
+            }), {
+              status: 500,
+              headers: { 'Content-Type': 'application/json' }
+            })
           } else {
             notificationsSent++
             console.log(`[DEADLINE MONITOR] ✅ Sent ${task.urgency} notification to ${assigneeEmail} for "${task.title}"`)

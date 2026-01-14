@@ -29,6 +29,8 @@ interface ReminderFormProps {
     priority: "low" | "medium" | "high" | "urgent";
     channelId?: string;
     clientId?: string | null; // null means clear client association
+    isRecurring?: boolean;
+    rrule?: string;
   }) => Promise<void>;
   onCancel: () => void;
   isSubmitting: boolean;
@@ -57,21 +59,47 @@ export function ReminderForm({
   );
   const [channelId, setChannelId] = useState<string>(initialData?.channelId || "");
   const [clientId, setClientId] = useState<string>(initialData?.clientId || "");
+  const [isRecurring, setIsRecurring] = useState<boolean>(initialData?.isRecurring || false);
+  const [rrule, setRrule] = useState<string>(initialData?.rrule || "");
+
+  // Helper function to format date for datetime-local input
+  const formatDateForInput = (date: Date | string | undefined): string => {
+    if (!date) return "";
+    try {
+      // Ensure we have a Date object
+      const dateObj = typeof date === 'string' ? new Date(date) : date;
+
+      // Check if it's a valid date
+      if (isNaN(dateObj.getTime())) return "";
+
+      // Convert to local timezone ISO string and slice to YYYY-MM-DDTHH:MM format
+      // Use toLocaleString to get local time, then format
+      const year = dateObj.getFullYear();
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const day = String(dateObj.getDate()).padStart(2, '0');
+      const hours = String(dateObj.getHours()).padStart(2, '0');
+      const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    } catch (error) {
+      console.error("Error formatting date for input:", error);
+      return "";
+    }
+  };
 
   // Sync state with initialData prop changes
   useEffect(() => {
     setTitle(initialData?.title || "");
     setDescription(initialData?.description || "");
-    setDueDate(
-      initialData?.dueDate
-        ? new Date(initialData.dueDate).toISOString().slice(0, 16)
-        : ""
-    );
+    setDueDate(formatDateForInput(initialData?.dueDate));
     setAssignedTo(initialData?.assignedTo || []);
     setPriority(initialData?.priority || "medium");
     // For editing existing tasks, use the task's channelId
     // For new tasks, use the pre-selected channelId if provided
     setChannelId(initialData?.channelId || preSelectedChannelId || "");
+    setClientId(initialData?.clientId || "");
+    setIsRecurring(initialData?.isRecurring || false);
+    setRrule(initialData?.rrule || "");
   }, [initialData, preSelectedChannelId]);
 
   const [allUsers, setAllUsers] = useState<UserWithTeam[]>([]);
@@ -241,6 +269,8 @@ export function ReminderForm({
       // Convert empty string to null to explicitly clear client association
       // undefined means "don't update this field" (for updates only)
       clientId: clientId ? clientId : null,
+      isRecurring,
+      rrule: isRecurring ? rrule : undefined,
     });
   };
 
@@ -315,6 +345,51 @@ export function ReminderForm({
           size={18}
           className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
         />
+      </div>
+
+      {/* Recurring Task */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-3">
+          <input
+            type="checkbox"
+            id="isRecurring"
+            checked={isRecurring}
+            onChange={(e) => setIsRecurring(e.target.checked)}
+            className="w-4 h-4 text-purple-600 bg-gray-700 border-gray-600 rounded focus:ring-purple-500 focus:ring-2"
+          />
+          <label htmlFor="isRecurring" className="text-sm text-gray-300 cursor-pointer">
+            Make this a recurring task
+          </label>
+        </div>
+
+        {/* RRULE Input */}
+        {isRecurring && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="space-y-2"
+          >
+            <label className="text-sm text-gray-400 block">
+              Recurrence Rule (RRULE)
+            </label>
+            <input
+              type="text"
+              placeholder="FREQ=WEEKLY;BYDAY=MO (every Monday)"
+              value={rrule}
+              onChange={(e) => setRrule(e.target.value)}
+              className="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            />
+            <div className="text-xs text-gray-500 space-y-1">
+              <p>Common examples:</p>
+              <ul className="list-disc list-inside space-y-0.5">
+                <li><code className="bg-gray-800 px-1 rounded">FREQ=DAILY</code> - Every day</li>
+                <li><code className="bg-gray-800 px-1 rounded">FREQ=WEEKLY;BYDAY=MO</code> - Every Monday</li>
+                <li><code className="bg-gray-800 px-1 rounded">FREQ=MONTHLY;BYMONTHDAY=1</code> - First day of every month</li>
+              </ul>
+            </div>
+          </motion.div>
+        )}
       </div>
 
       {/* Assignees */}
