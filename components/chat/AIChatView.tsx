@@ -29,6 +29,9 @@ import {
   removeStorageItem,
 } from "@/lib/utils/storage";
 
+// Import skeleton synchronously so it's available immediately for Suspense fallback
+import { TasksSummaryWidgetSkeleton } from "@/components/reminders/TasksSummaryWidgetSkeleton";
+
 // Lazy load the TasksSummaryWidget to improve initial load performance
 const TasksSummaryWidget = lazy(() =>
   import("@/components/reminders/TasksSummaryWidget").then((module) => ({
@@ -71,6 +74,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
     useState(false);
   const [deletingTaskFromWidget, setDeletingTaskFromWidget] =
     useState<Reminder | null>(null);
+  const [isLoadingReminders, setIsLoadingReminders] = useState(false);
 
   // Ref for auto-scrolling to bottom
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -224,6 +228,29 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
 
     return () => clearInterval(interval);
   }, [user?.email]);
+
+  // Effect 6: Load reminders on mount (for task summary widget)
+  useEffect(() => {
+    const loadRemindersIfNeeded = async () => {
+      // Only load if we don't already have reminders and user is available
+      if (reminders.length === 0 && user?.email && !isLoadingReminders) {
+        try {
+          console.log("[AI CHAT] Loading reminders for task widget...");
+          setIsLoadingReminders(true);
+          const { getReminders } = await import("@/lib/supabase/reminders");
+          const fetchedReminders = await getReminders();
+          setReminders(fetchedReminders);
+          console.log(`[AI CHAT] Loaded ${fetchedReminders.length} reminders for task widget`);
+        } catch (error) {
+          console.error("Error loading reminders in AIChatView:", error);
+        } finally {
+          setIsLoadingReminders(false);
+        }
+      }
+    };
+
+    loadRemindersIfNeeded();
+  }, [user?.email, reminders.length, setReminders, isLoadingReminders]);
 
   const handleSendMessage = async (text: string) => {
     if (!text.trim()) {
@@ -630,11 +657,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
       {/* Tasks Summary Widget - Desktop/Tablet: Always visible and expanded */}
       <div className="relative z-10 h-full hidden md:block">
         <Suspense
-          fallback={
-            <div className="w-full h-full flex items-center justify-center">
-              <div className="w-6 h-6 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
-            </div>
-          }
+          fallback={<TasksSummaryWidgetSkeleton />}
         >
           <TasksSummaryWidget
             reminders={reminders}
@@ -655,6 +678,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
               setShowTaskDeleteConfirmation(true);
             }}
             forceExpanded={true}
+            isLoadingReminders={isLoadingReminders}
           />
         </Suspense>
       </div>

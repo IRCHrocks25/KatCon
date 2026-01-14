@@ -47,6 +47,7 @@ interface TasksSummaryWidgetProps {
   onCollapse?: () => void;
   onDeleteTask?: (reminder: Reminder) => void;
   forceExpanded?: boolean;
+  isLoadingReminders?: boolean;
 }
 
 type Priority = "overdue" | "today" | "upcoming" | "no-date";
@@ -70,6 +71,7 @@ export function TasksSummaryWidget({
   onCollapse,
   onDeleteTask,
   forceExpanded = false,
+  isLoadingReminders = false,
 }: TasksSummaryWidgetProps) {
   const { user: currentUser } = useAuth();
   const { clients } = useClients();
@@ -116,6 +118,45 @@ export function TasksSummaryWidget({
 
   // No initial fetch needed - widget uses prop data
 
+  // Real-time subscription for reminder updates
+  useEffect(() => {
+    if (!currentUser?.email) return;
+
+    const remindersChannel = supabase
+      .channel("task-widget-reminders-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "reminders",
+        },
+        async () => {
+          console.log("[TASK_WIDGET] Real-time reminder update detected, refreshing...");
+          const allReminders = await getReminders();
+          setReminders(allReminders);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "reminder_assignments",
+        },
+        async () => {
+          console.log("[TASK_WIDGET] Real-time assignment update detected, refreshing...");
+          const allReminders = await getReminders();
+          setReminders(allReminders);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(remindersChannel);
+    };
+  }, [currentUser?.email, setReminders]);
+
   // Reset display count when reminders change
   useEffect(() => {
     setDisplayCount(5);
@@ -125,35 +166,6 @@ export function TasksSummaryWidget({
   useEffect(() => {
     setStorageItem("tasks_widget_sort", sortBy);
   }, [sortBy]);
-
-  // Real-time subscription
-  useEffect(() => {
-    if (!currentUser?.email) return;
-
-    const channel = supabase
-      .channel("tasks-widget-changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "reminders" },
-        async () => {
-          const allReminders = await getReminders();
-          setReminders(allReminders);
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "reminder_assignments" },
-        async () => {
-          const allReminders = await getReminders();
-          setReminders(allReminders);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [currentUser?.email, setReminders]);
 
   // Get priority score for sorting (higher = more urgent)
   const getPriorityScore = (reminder: Reminder): number => {
@@ -527,7 +539,53 @@ export function TasksSummaryWidget({
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3"
       >
-        {visibleTasks.length === 0 ? (
+        {isLoadingReminders ? (
+          // Skeleton loader with task card layout
+          <>
+            {[...Array(4)].map((_, index) => (
+              <motion.div
+                key={`skeleton-${index}`}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.08 }}
+                className="relative bg-gray-800/60 rounded-lg border-l-4 border-l-gray-600 p-4 animate-pulse"
+              >
+                {/* Status Indicator Skeleton */}
+                <div className="absolute left-4 top-4 w-3 h-3 rounded-full bg-gray-600" />
+
+                {/* Content Skeleton */}
+                <div className="ml-6 space-y-3">
+                  {/* Title and Priority Skeleton */}
+                  <div className="flex items-start gap-2">
+                    <div className="h-4 bg-gray-700 rounded flex-1 max-w-[180px]" />
+                    <div className="h-4 bg-gray-600 rounded w-12" />
+                  </div>
+
+                  {/* Description Skeleton */}
+                  <div className="space-y-1">
+                    <div className="h-3 bg-gray-700 rounded w-full" />
+                    <div className="h-3 bg-gray-700 rounded w-4/5" />
+                  </div>
+
+                  {/* Meta info Skeleton */}
+                  <div className="flex items-center gap-3">
+                    <div className="h-4 bg-gray-500 rounded w-16 px-2" />
+                    <div className="h-4 bg-gray-700 rounded w-20" />
+                  </div>
+
+                  {/* Assignees Skeleton */}
+                  <div className="flex gap-1">
+                    <div className="h-5 bg-gray-700 rounded w-14" />
+                    <div className="h-5 bg-gray-700 rounded w-10" />
+                  </div>
+                </div>
+
+                {/* Menu Button Skeleton */}
+                <div className="absolute right-4 top-4 w-6 h-6 bg-gray-700 rounded" />
+              </motion.div>
+            ))}
+          </>
+        ) : visibleTasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-500 py-8">
             <ListTodo size={40} className="mb-3 opacity-40" />
             <p className="text-base">No pending tasks</p>

@@ -19,6 +19,7 @@ import { Plus, Filter, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import type { Reminder } from "@/lib/supabase/reminders";
 import { updateReminderKanban, getReminders } from "@/lib/supabase/reminders";
+import { supabase } from "@/lib/supabase/client";
 import { KanbanColumn } from "@/components/kanban/KanbanColumn";
 import { KanbanCard } from "@/components/kanban/KanbanCard";
 import { TaskDetailsModal } from "@/components/reminders/TaskDetailsModal";
@@ -95,6 +96,45 @@ export function KanbanView({
     loadRemindersIfNeeded();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, setReminders]); // Intentionally omit isLoading and reminders.length - we only want to run this once on mount
+
+  // Real-time subscription for reminder updates
+  useEffect(() => {
+    if (!user?.email) return;
+
+    const remindersChannel = supabase
+      .channel("kanban-reminders-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "reminders",
+        },
+        async () => {
+          console.log("[KANBAN] Real-time reminder update detected, refreshing...");
+          const allReminders = await getReminders();
+          setReminders(allReminders);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "reminder_assignments",
+        },
+        async () => {
+          console.log("[KANBAN] Real-time assignment update detected, refreshing...");
+          const allReminders = await getReminders();
+          setReminders(allReminders);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(remindersChannel);
+    };
+  }, [user?.email, setReminders]);
 
   // Filter to show tasks where user is creator OR assigned, and by channel filter
   const userTasks = useMemo(() => {

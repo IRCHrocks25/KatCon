@@ -89,27 +89,26 @@ serve(async (_req: Request) => {
 
       for (const assigneeEmail of assignees) {
         try {
-          // Check if we've already sent a notification for this task recently (within last hour)
-          // For testing, let's temporarily disable this check
-          // const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000)
+          // Check if we've already sent a notification for this task recently (within last 4 hours)
+          // This prevents spamming users during work hours
+          const fourHoursAgo = new Date(now.getTime() - 4 * 60 * 60 * 1000)
 
-          // const { data: existingNotification } = await supabase
-          //   .from('notifications')
-          //   .select('id')
-          //   .eq('user_email', assigneeEmail)
-          //   .eq('reminder_id', task.id)
-          //   .eq('type', task.urgency === 'overdue' ? 'deadline_overdue' : 'deadline_approaching')
-          //   .gte('created_at', oneHourAgo.toISOString())
-          //   .single()
+          const { data: existingNotification } = await supabase
+            .from('notifications')
+            .select('id')
+            .eq('user_email', assigneeEmail)
+            .eq('reminder_id', task.id)
+            .eq('type', task.urgency === 'overdue' ? 'deadline_overdue' : 'deadline_approaching')
+            .gte('created_at', fourHoursAgo.toISOString())
+            .single()
 
-          // // Skip if notification already exists
-          // if (existingNotification) {
-          //   console.log(`[DEADLINE MONITOR] Skipping duplicate notification for ${assigneeEmail} on task ${task.id}`)
-          //   continue
-          // }
+          // Skip if notification already exists within the last 4 hours
+          if (existingNotification) {
+            console.log(`[DEADLINE MONITOR] Skipping duplicate notification for ${assigneeEmail} on task ${task.id} (already notified recently)`)
+            continue
+          }
 
-          // TEMPORARILY DISABLE DUPLICATE CHECK FOR TESTING
-          console.log(`[DEADLINE MONITOR] Processing notification for ${assigneeEmail} on task ${task.id} (duplicate check disabled)`)
+          console.log(`[DEADLINE MONITOR] Processing notification for ${assigneeEmail} on task ${task.id}`)
 
           // Create notification
           const notificationData = {

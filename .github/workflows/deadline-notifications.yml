@@ -2,8 +2,13 @@ name: Deadline Notifications
 
 on:
   schedule:
-    # Run every 15 minutes
-    - cron: '*/15 * * * *'
+    # Run 3 times per workday: Morning, Afternoon, Evening
+    # Times in UTC - adjust based on your team's timezone
+    # Current: 9 AM UTC (5 PM Manila), 2 PM UTC (10 PM Manila), 5 PM UTC (1 AM Manila next day)
+    # For Manila timezone (UTC+8), these would be: 5 PM, 10 PM, 1 AM next day
+    - cron: '0 9 * * 1-5'   # Monday-Friday at 9 AM UTC
+    - cron: '0 14 * * 1-5'  # Monday-Friday at 2 PM UTC
+    - cron: '0 17 * * 1-5'  # Monday-Friday at 5 PM UTC
   workflow_dispatch: # Allow manual triggering
 
 jobs:
