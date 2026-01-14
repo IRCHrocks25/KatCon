@@ -325,6 +325,8 @@ export async function updateReminder(
     due_date: string | null;
     channel_id?: string | null;
     client_id?: string | null;
+    is_recurring?: boolean;
+    rrule?: string | null;
   } = {
     title: reminder.title,
     description: reminder.description || null,
@@ -339,6 +341,12 @@ export async function updateReminder(
   if (reminder.clientId !== undefined) {
     // Handle both null (explicit clear) and empty string (also means clear)
     updateData.client_id = reminder.clientId === "" ? null : (reminder.clientId || null);
+  }
+
+  // Include recurring fields if provided
+  if (reminder.isRecurring !== undefined) {
+    updateData.is_recurring = reminder.isRecurring;
+    updateData.rrule = reminder.isRecurring ? (reminder.rrule || null) : null;
   }
 
   // Update the reminder (only creator can do this)

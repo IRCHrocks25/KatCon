@@ -90,169 +90,31 @@ export function TasksSummaryWidget({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [displayCount, setDisplayCount] = useState(5); // Start with 5 tasks
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const hasFetchedRef = useRef(false);
   const taskListRef = useRef<HTMLDivElement>(null);
 
-  // Track user changes to force re-fetch
-  const [userChangeTrigger, setUserChangeTrigger] = useState(0);
-
-// Cache key for reminders
-const CACHE_KEY = "tasks_widget_reminders";
-const CACHE_TIMESTAMP_KEY = "tasks_widget_timestamp";
-const CACHE_USER_KEY = "tasks_widget_user_id";
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
-// Track which user the cache belongs to (module-level)
-let cachedUserId: string | null = null;
-
-  // Get cached reminders
-  const getCachedReminders = useCallback((currentUserId?: string): Reminder[] | null => {
-    try {
-      const cached = getStorageItem(CACHE_KEY);
-      const timestamp = getStorageItem(CACHE_TIMESTAMP_KEY);
-      const cachedUser = getStorageItem(CACHE_USER_KEY);
-
-      if (cached && timestamp && cachedUser) {
-        const cacheTime = parseInt(timestamp, 10);
-        const now = Date.now();
-
-        // Check if cache is still valid and belongs to current user
-        if (now - cacheTime < CACHE_DURATION && cachedUser === currentUserId) {
-          return JSON.parse(cached);
-        } else {
-          // Clean up expired or invalid cache
-          removeStorageItem(CACHE_KEY);
-          removeStorageItem(CACHE_TIMESTAMP_KEY);
-          removeStorageItem(CACHE_USER_KEY);
-        }
-      }
-    } catch (error) {
-      console.error("Error reading cached reminders:", error);
-    }
-    return null;
-  }, []);
-
-  // Cache reminders
-  const setCachedReminders = useCallback((reminders: Reminder[], userId?: string) => {
-    try {
-      setStorageItem(CACHE_KEY, JSON.stringify(reminders));
-      setStorageItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
-      if (userId) {
-        setStorageItem(CACHE_USER_KEY, userId);
-      }
-    } catch (error) {
-      console.error("Error caching reminders:", error);
-    }
-  }, []);
-
-  // Fetch reminders with caching
+  // Fetch reminders for refresh only (widget uses prop data primarily)
   const fetchReminders = useCallback(
     async (isRefresh = false) => {
+      if (!isRefresh) return; // Widget uses prop data, only fetch on explicit refresh
+
       try {
-        if (isRefresh) {
-          setIsRefreshing(true);
-        } else {
-          // Always show loading initially, even when loading from cache
-          if (!hasFetchedRef.current) {
-            setIsLoading(true);
-          }
-
-          // Only load from cache if we don't already have data from shared state
-          // (prevents overriding updates made by other components like KanbanView)
-          const cachedReminders = getCachedReminders(currentUser?.id);
-          if (cachedReminders && cachedReminders.length > 0 && !isRefresh && reminders.length === 0) {
-            // Small delay to show loading state briefly even with cache
-            setTimeout(() => {
-              setReminders(cachedReminders);
-              setIsLoading(false);
-              hasFetchedRef.current = true;
-            }, 300); // 300ms delay
-            return;
-          }
-        }
-
+        setIsRefreshing(true);
         const fetchedReminders = await getReminders();
         setReminders(fetchedReminders);
-
-        // Cache the fetched reminders
-        setCachedReminders(fetchedReminders, currentUser?.id);
-
-        if (isRefresh) {
-          toast.success("Tasks refreshed");
-        }
-        hasFetchedRef.current = true;
+        toast.success("Tasks refreshed");
       } catch (error) {
         console.error("Error fetching reminders:", error);
-        // If fetch fails and we have no cache, show error state
-        if (!hasFetchedRef.current) {
-          setIsLoading(false);
-        }
+        toast.error("Failed to refresh tasks");
       } finally {
         setIsRefreshing(false);
-        setIsLoading(false);
       }
     },
-    [setReminders, getCachedReminders, setCachedReminders]
+    [setReminders]
   );
 
-  // Clear cache on logout OR when user changes
-  useEffect(() => {
-    console.log("[TASKS_WIDGET] CACHE CLEAR useEffect triggered, currentUser:", currentUser?.id || "null");
-    if (!currentUser) {
-      // LOGOUT: Clear ALL user-specific task widget data
-      console.log("[TASKS_WIDGET] Clearing ALL cache on logout");
-      removeStorageItem(CACHE_KEY);
-      removeStorageItem(CACHE_TIMESTAMP_KEY);
-      removeStorageItem(CACHE_USER_KEY);
-      removeStorageItem("tasks_widget_sort"); // Clear sort preference too
-      cachedUserId = null;
-      setReminders([]); // Clear current state
-      hasFetchedRef.current = false; // Allow re-fetch when user logs back in
-      setUserChangeTrigger(0); // Reset trigger
-      console.log("[TASKS_WIDGET] Cache cleared successfully");
-    } else if (currentUser?.id) {
-      // Check if this is a different user
-      if (cachedUserId && cachedUserId !== currentUser.id) {
-        // USER CHANGED: Clear cache immediately for different user
-        console.log("[TASKS_WIDGET] Clearing cache - user changed from", cachedUserId, "to", currentUser.id);
-        removeStorageItem(CACHE_KEY);
-        removeStorageItem(CACHE_TIMESTAMP_KEY);
-        removeStorageItem(CACHE_USER_KEY);
-        cachedUserId = currentUser.id;
-        hasFetchedRef.current = false; // Force re-fetch for new user
-        setUserChangeTrigger(prev => prev + 1); // Trigger re-fetch
-      } else if (!cachedUserId) {
-        // FIRST USER: Set the cached user ID
-        cachedUserId = currentUser.id;
-        setStorageItem(CACHE_USER_KEY, currentUser.id);
-      }
-
-      // Also check cache staleness as backup
-      const cachedUser = getStorageItem(CACHE_USER_KEY);
-      const cachedTimestamp = getStorageItem(CACHE_TIMESTAMP_KEY);
-      if (cachedTimestamp && cachedUser !== currentUser.id) {
-        // Cache belongs to different user - clear it
-        console.log("[TASKS_WIDGET] Clearing cache - user mismatch in storage");
-        removeStorageItem(CACHE_KEY);
-        removeStorageItem(CACHE_TIMESTAMP_KEY);
-        removeStorageItem(CACHE_USER_KEY);
-        cachedUserId = currentUser.id;
-        setStorageItem(CACHE_USER_KEY, currentUser.id);
-        hasFetchedRef.current = false; // Force re-fetch
-        setUserChangeTrigger(prev => prev + 1); // Trigger re-fetch
-      }
-    }
-  }, [currentUser]);
-
-  // Initial fetch - only once per component lifecycle, or when user changes
-  useEffect(() => {
-    if (!hasFetchedRef.current) {
-      fetchReminders();
-    }
-  }, [fetchReminders, userChangeTrigger]);
+  // No initial fetch needed - widget uses prop data
 
   // Reset display count when reminders change
   useEffect(() => {
@@ -665,47 +527,7 @@ let cachedUserId: string | null = null;
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3"
       >
-        {isLoading ? (
-          // Loading skeleton
-          <div className="space-y-3">
-            {[...Array(3)].map((_, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-                className="relative bg-gray-800/60 rounded-lg border-l-4 border-l-gray-600 p-4 flex gap-3"
-              >
-                {/* Status Indicator Skeleton */}
-                <div className="mt-0.5 w-3 h-3 rounded-full bg-gray-600 animate-pulse flex-shrink-0" />
-
-                {/* Content Skeleton */}
-                <div className="flex-1 min-w-0 space-y-2">
-                  {/* Title Skeleton */}
-                  <div className="flex items-start gap-2">
-                    <div className="h-4 bg-gray-600 rounded animate-pulse flex-1 max-w-[200px]" />
-                    <div className="h-4 bg-gray-600 rounded animate-pulse w-12" />
-                  </div>
-
-                  {/* Description Skeleton */}
-                  <div className="space-y-1">
-                    <div className="h-3 bg-gray-700 rounded animate-pulse w-full max-w-[250px]" />
-                    <div className="h-3 bg-gray-700 rounded animate-pulse w-3/4 max-w-[180px]" />
-                  </div>
-
-                  {/* Meta info Skeleton */}
-                  <div className="flex items-center gap-3">
-                    <div className="h-5 bg-gray-600 rounded animate-pulse w-16" />
-                    <div className="h-3 bg-gray-700 rounded animate-pulse w-20" />
-                  </div>
-                </div>
-
-                {/* Menu Button Skeleton */}
-                <div className="w-6 h-6 bg-gray-700 rounded animate-pulse flex-shrink-0" />
-              </motion.div>
-            ))}
-          </div>
-        ) : visibleTasks.length === 0 ? (
+        {visibleTasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-500 py-8">
             <ListTodo size={40} className="mb-3 opacity-40" />
             <p className="text-base">No pending tasks</p>

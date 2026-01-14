@@ -323,6 +323,8 @@ export function RemindersModal({
     priority: "low" | "medium" | "high" | "urgent";
     channelId?: string;
     clientId?: string | null; // null means clear client association
+    isRecurring?: boolean;
+    rrule?: string;
   }) => {
     setIsSubmitting(true);
     try {
@@ -337,6 +339,8 @@ export function RemindersModal({
           assignedTo: data.assignedTo.length > 0 ? data.assignedTo : undefined,
           channelId: data.channelId,
           clientId: data.clientId === null ? null : data.clientId || undefined,
+          isRecurring: data.isRecurring,
+          rrule: data.rrule,
         } as Parameters<typeof updateReminder>[1]);
 
         setReminders((prev) =>
