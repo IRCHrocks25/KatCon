@@ -18,16 +18,24 @@ export function clearUserCache(): void {
   if (!storage) return;
 
   try {
+    console.log("[CACHE] clearUserCache called");
     // List of known user-specific keys to remove
     const keysToRemove = [
       "chatSessionId",
       "activeTab",
+      "tasks_widget_reminders",
+      "tasks_widget_timestamp",
+      "tasks_widget_user_id",
+      "tasks_widget_sort",
       // Add any other user-specific keys here
     ];
 
     // Remove known keys
     keysToRemove.forEach((key) => {
-      removeStorageItem(key);
+      if (storage.getItem(key)) {
+        console.log(`[CACHE] Removing key: ${key}`);
+        removeStorageItem(key);
+      }
     });
 
     // Remove all user-scoped chat storage keys

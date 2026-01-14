@@ -96,28 +96,37 @@ export function TasksSummaryWidget({
   const hasFetchedRef = useRef(false);
   const taskListRef = useRef<HTMLDivElement>(null);
 
-  // Cache key for reminders
-  const CACHE_KEY = "tasks_widget_reminders";
-  const CACHE_TIMESTAMP_KEY = "tasks_widget_timestamp";
-  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+  // Track user changes to force re-fetch
+  const [userChangeTrigger, setUserChangeTrigger] = useState(0);
+
+// Cache key for reminders
+const CACHE_KEY = "tasks_widget_reminders";
+const CACHE_TIMESTAMP_KEY = "tasks_widget_timestamp";
+const CACHE_USER_KEY = "tasks_widget_user_id";
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// Track which user the cache belongs to (module-level)
+let cachedUserId: string | null = null;
 
   // Get cached reminders
-  const getCachedReminders = useCallback((): Reminder[] | null => {
+  const getCachedReminders = useCallback((currentUserId?: string): Reminder[] | null => {
     try {
       const cached = getStorageItem(CACHE_KEY);
       const timestamp = getStorageItem(CACHE_TIMESTAMP_KEY);
+      const cachedUser = getStorageItem(CACHE_USER_KEY);
 
-      if (cached && timestamp) {
+      if (cached && timestamp && cachedUser) {
         const cacheTime = parseInt(timestamp, 10);
         const now = Date.now();
 
-        // Check if cache is still valid
-        if (now - cacheTime < CACHE_DURATION) {
+        // Check if cache is still valid and belongs to current user
+        if (now - cacheTime < CACHE_DURATION && cachedUser === currentUserId) {
           return JSON.parse(cached);
         } else {
-          // Clean up expired cache
+          // Clean up expired or invalid cache
           removeStorageItem(CACHE_KEY);
           removeStorageItem(CACHE_TIMESTAMP_KEY);
+          removeStorageItem(CACHE_USER_KEY);
         }
       }
     } catch (error) {
@@ -127,10 +136,13 @@ export function TasksSummaryWidget({
   }, []);
 
   // Cache reminders
-  const setCachedReminders = useCallback((reminders: Reminder[]) => {
+  const setCachedReminders = useCallback((reminders: Reminder[], userId?: string) => {
     try {
       setStorageItem(CACHE_KEY, JSON.stringify(reminders));
       setStorageItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+      if (userId) {
+        setStorageItem(CACHE_USER_KEY, userId);
+      }
     } catch (error) {
       console.error("Error caching reminders:", error);
     }
@@ -149,7 +161,7 @@ export function TasksSummaryWidget({
           }
 
           // Try to load from cache first
-          const cachedReminders = getCachedReminders();
+          const cachedReminders = getCachedReminders(currentUser?.id);
           if (cachedReminders && cachedReminders.length > 0 && !isRefresh) {
             // Small delay to show loading state briefly even with cache
             setTimeout(() => {
@@ -165,7 +177,7 @@ export function TasksSummaryWidget({
         setReminders(fetchedReminders);
 
         // Cache the fetched reminders
-        setCachedReminders(fetchedReminders);
+        setCachedReminders(fetchedReminders, currentUser?.id);
 
         if (isRefresh) {
           toast.success("Tasks refreshed");
@@ -185,12 +197,61 @@ export function TasksSummaryWidget({
     [setReminders, getCachedReminders, setCachedReminders]
   );
 
-  // Initial fetch - only once per component lifecycle
+  // Clear cache on logout OR when user changes
+  useEffect(() => {
+    console.log("[TASKS_WIDGET] CACHE CLEAR useEffect triggered, currentUser:", currentUser?.id || "null");
+    if (!currentUser) {
+      // LOGOUT: Clear ALL user-specific task widget data
+      console.log("[TASKS_WIDGET] Clearing ALL cache on logout");
+      removeStorageItem(CACHE_KEY);
+      removeStorageItem(CACHE_TIMESTAMP_KEY);
+      removeStorageItem(CACHE_USER_KEY);
+      removeStorageItem("tasks_widget_sort"); // Clear sort preference too
+      cachedUserId = null;
+      setReminders([]); // Clear current state
+      hasFetchedRef.current = false; // Allow re-fetch when user logs back in
+      setUserChangeTrigger(0); // Reset trigger
+      console.log("[TASKS_WIDGET] Cache cleared successfully");
+    } else if (currentUser?.id) {
+      // Check if this is a different user
+      if (cachedUserId && cachedUserId !== currentUser.id) {
+        // USER CHANGED: Clear cache immediately for different user
+        console.log("[TASKS_WIDGET] Clearing cache - user changed from", cachedUserId, "to", currentUser.id);
+        removeStorageItem(CACHE_KEY);
+        removeStorageItem(CACHE_TIMESTAMP_KEY);
+        removeStorageItem(CACHE_USER_KEY);
+        cachedUserId = currentUser.id;
+        hasFetchedRef.current = false; // Force re-fetch for new user
+        setUserChangeTrigger(prev => prev + 1); // Trigger re-fetch
+      } else if (!cachedUserId) {
+        // FIRST USER: Set the cached user ID
+        cachedUserId = currentUser.id;
+        setStorageItem(CACHE_USER_KEY, currentUser.id);
+      }
+
+      // Also check cache staleness as backup
+      const cachedUser = getStorageItem(CACHE_USER_KEY);
+      const cachedTimestamp = getStorageItem(CACHE_TIMESTAMP_KEY);
+      if (cachedTimestamp && cachedUser !== currentUser.id) {
+        // Cache belongs to different user - clear it
+        console.log("[TASKS_WIDGET] Clearing cache - user mismatch in storage");
+        removeStorageItem(CACHE_KEY);
+        removeStorageItem(CACHE_TIMESTAMP_KEY);
+        removeStorageItem(CACHE_USER_KEY);
+        cachedUserId = currentUser.id;
+        setStorageItem(CACHE_USER_KEY, currentUser.id);
+        hasFetchedRef.current = false; // Force re-fetch
+        setUserChangeTrigger(prev => prev + 1); // Trigger re-fetch
+      }
+    }
+  }, [currentUser]);
+
+  // Initial fetch - only once per component lifecycle, or when user changes
   useEffect(() => {
     if (!hasFetchedRef.current) {
       fetchReminders();
     }
-  }, [fetchReminders]);
+  }, [fetchReminders, userChangeTrigger]);
 
   // Reset display count when reminders change
   useEffect(() => {

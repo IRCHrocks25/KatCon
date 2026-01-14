@@ -304,19 +304,42 @@ export function AuthProvider({
       setUser(null);
       setSession(null);
 
-      // Clear all user-specific cache
+      // Clear all user-specific cache - do this AFTER setting user to null
+      // so components detect the logout first
+      console.log("[AUTH] Clearing user cache...");
       clearUserCache();
       removeStorageItem("chatSessionId");
+
+      // Double-check TasksSummaryWidget keys are cleared
+      try {
+        const storage = typeof window !== 'undefined' ? window.localStorage : null;
+        if (storage) {
+          ['tasks_widget_reminders', 'tasks_widget_timestamp', 'tasks_widget_user_id', 'tasks_widget_sort'].forEach(key => {
+            if (storage.getItem(key)) {
+              console.log(`[AUTH] Force removing ${key}`);
+              storage.removeItem(key);
+            }
+          });
+        }
+      } catch (e) {
+        console.error("[AUTH] Error force clearing cache:", e);
+      }
 
       // Then call signOut in background (this clears Supabase session keys)
       await signOut();
 
       console.log("[AUTH] Logout complete - all cache cleared");
+
+      // Trigger page refresh to ensure complete cleanup
+      console.log("[AUTH] Triggering page refresh for complete cleanup");
+      window.location.reload();
     } catch (error) {
       console.error("[AUTH] Logout error (ignored):", error);
       // Even if signOut fails, state is already cleared
       // Ensure cache is still cleared even on error
       clearUserCache();
+      // Still trigger refresh even on error
+      window.location.reload();
     }
   }, []);
 
