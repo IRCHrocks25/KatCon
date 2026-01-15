@@ -23,6 +23,7 @@ import { TaskDeleteConfirmationModal } from "@/components/ui/TaskDeleteConfirmat
 import type { Reminder } from "@/lib/supabase/reminders";
 import { createReminder, createRemindersFromChatbotPayload } from "@/lib/supabase/reminders";
 import { robustFetch } from "@/lib/utils/fetch";
+import { supabase } from "@/lib/supabase/client";
 import {
   getStorageItem,
   setStorageItem,
@@ -254,6 +255,47 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
 
     loadRemindersIfNeeded();
   }, [user?.email, setReminders, isLoadingReminders]);
+
+  // Effect 7: Real-time subscription for reminder updates (for task widget synchronization)
+  useEffect(() => {
+    if (!user?.email) return;
+
+    const remindersChannel = supabase
+      .channel("ai-chat-reminders-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "reminders",
+        },
+        async () => {
+          console.log("[AI CHAT] Real-time reminder update detected, refreshing...");
+          const { getReminders } = await import("@/lib/supabase/reminders");
+          const allReminders = await getReminders();
+          setReminders(allReminders);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "reminder_assignments",
+        },
+        async () => {
+          console.log("[AI CHAT] Real-time assignment update detected, refreshing...");
+          const { getReminders } = await import("@/lib/supabase/reminders");
+          const allReminders = await getReminders();
+          setReminders(allReminders);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(remindersChannel);
+    };
+  }, [user?.email, setReminders]);
 
   const handleSendMessage = async (text: string) => {
     if (!text.trim()) {
