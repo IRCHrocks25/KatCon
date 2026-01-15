@@ -230,16 +230,19 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
   }, [user?.email]);
 
   // Effect 6: Load reminders on mount (for task summary widget)
+  const hasLoadedReminders = useRef(false);
+
   useEffect(() => {
     const loadRemindersIfNeeded = async () => {
-      // Only load if we don't already have reminders and user is available
-      if (reminders.length === 0 && user?.email && !isLoadingReminders) {
+      // Only load if we haven't loaded before and user is available
+      if (!hasLoadedReminders.current && user?.email && !isLoadingReminders) {
         try {
           console.log("[AI CHAT] Loading reminders for task widget...");
           setIsLoadingReminders(true);
           const { getReminders } = await import("@/lib/supabase/reminders");
           const fetchedReminders = await getReminders();
           setReminders(fetchedReminders);
+          hasLoadedReminders.current = true; // Mark as loaded
           console.log(`[AI CHAT] Loaded ${fetchedReminders.length} reminders for task widget`);
         } catch (error) {
           console.error("Error loading reminders in AIChatView:", error);
@@ -250,7 +253,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
     };
 
     loadRemindersIfNeeded();
-  }, [user?.email, reminders.length, setReminders, isLoadingReminders]);
+  }, [user?.email, setReminders, isLoadingReminders]);
 
   const handleSendMessage = async (text: string) => {
     if (!text.trim()) {
