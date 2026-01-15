@@ -413,14 +413,14 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
 
               const botMessage: Message = {
                 id: `bot-${Date.now()}`,
-                text: `Created ${created.length} reminder${created.length !== 1 ? 's' : ''}!${skipped > 0 ? ` (${skipped} skipped due to missing dates)` : ''}`,
+                text: `Created ${created.length} task${created.length !== 1 ? 's' : ''}!${skipped > 0 ? ` (${skipped} skipped due to missing dates)` : ''}`,
                 timestamp: new Date(),
                 type: "bot",
               };
               setMessages((prev) => [...prev, botMessage]);
 
-              toast.success(`${created.length} reminder${created.length !== 1 ? 's' : ''} created`, {
-                description: skipped > 0 ? `${skipped} reminder${skipped !== 1 ? 's' : ''} skipped (no date)` : "All reminders added successfully",
+              toast.success(`${created.length} task${created.length !== 1 ? 's' : ''} created`, {
+                description: skipped > 0 ? `${skipped} task${skipped !== 1 ? 's' : ''} skipped (no date)` : "All tasks added successfully",
               });
             } else {
               const botMessage: Message = {
