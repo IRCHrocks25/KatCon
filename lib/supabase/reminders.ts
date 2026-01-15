@@ -323,6 +323,7 @@ export async function updateReminder(
     title: string;
     description: string | null;
     due_date: string | null;
+    priority?: "low" | "medium" | "high" | "urgent";
     channel_id?: string | null;
     client_id?: string | null;
     is_recurring?: boolean;
@@ -332,6 +333,11 @@ export async function updateReminder(
     description: reminder.description || null,
     due_date: reminder.dueDate ? reminder.dueDate.toISOString() : null,
   };
+
+  // Include priority if provided
+  if (reminder.priority) {
+    updateData.priority = reminder.priority;
+  }
 
   // Only include channel_id and client_id if they are explicitly provided
   // null means "clear the association", undefined means "don't update this field"

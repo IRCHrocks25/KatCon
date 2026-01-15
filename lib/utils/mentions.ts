@@ -26,10 +26,7 @@ export function parseMentions(content: string): string[] {
  * Get user objects for mentioned users
  * Matches by email prefix (before @) or fullname
  */
-export function getMentionedUsers(
-  content: string,
-  allUsers: User[]
-): User[] {
+export function getMentionedUsers(content: string, allUsers: User[]): User[] {
   const mentions = parseMentions(content);
   const mentionedUsers: User[] = [];
 
@@ -50,7 +47,9 @@ export function getMentionedUsers(
       if (!user.fullname) return false;
       const nameParts = user.fullname.toLowerCase().split(" ");
       return nameParts.some(
-        (part) => part === mention.toLowerCase() || part.startsWith(mention.toLowerCase())
+        (part) =>
+          part === mention.toLowerCase() ||
+          part.startsWith(mention.toLowerCase())
       );
     });
 
@@ -89,36 +88,52 @@ export function formatMentions(
 
     // Find mentioned user
     const mentionText = match[1];
-    const mentionedUser = users.find((user) => {
-      const emailPrefix = user.email.split("@")[0].toLowerCase();
-      if (emailPrefix === mentionText.toLowerCase()) return true;
 
-      if (user.fullname) {
-        const nameParts = user.fullname.toLowerCase().split(" ");
-        return nameParts.some(
-          (part) =>
-            part === mentionText.toLowerCase() ||
-            part.startsWith(mentionText.toLowerCase())
-        );
-      }
-      return false;
-    });
-
-    // Add mention with styling
-    if (mentionedUser) {
+    // Special handling for @everyone
+    if (mentionText.toLowerCase() === "everyone") {
       parts.push(
         React.createElement(
           "span",
           {
             key: `mention-${keyCounter++}`,
-            className: "font-semibold text-purple-400 hover:text-purple-300",
+            className:
+              "font-bold text-orange-400 hover:text-orange-300 bg-orange-900/20 px-1 py-0.5 rounded",
           },
-          `@${mentionedUser.fullname || mentionedUser.email.split("@")[0]}`
+          "@everyone"
         )
       );
     } else {
-      // Mention not found, show as plain text
-      parts.push(`@${mentionText}`);
+      const mentionedUser = users.find((user) => {
+        const emailPrefix = user.email.split("@")[0].toLowerCase();
+        if (emailPrefix === mentionText.toLowerCase()) return true;
+
+        if (user.fullname) {
+          const nameParts = user.fullname.toLowerCase().split(" ");
+          return nameParts.some(
+            (part) =>
+              part === mentionText.toLowerCase() ||
+              part.startsWith(mentionText.toLowerCase())
+          );
+        }
+        return false;
+      });
+
+      // Add mention with styling
+      if (mentionedUser) {
+        parts.push(
+          React.createElement(
+            "span",
+            {
+              key: `mention-${keyCounter++}`,
+              className: "font-semibold text-purple-400 hover:text-purple-300",
+            },
+            `@${mentionedUser.fullname || mentionedUser.email.split("@")[0]}`
+          )
+        );
+      } else {
+        // Mention not found, show as plain text
+        parts.push(`@${mentionText}`);
+      }
     }
 
     lastIndex = match.index + match[0].length;
@@ -134,4 +149,3 @@ export function formatMentions(
 
   return parts.length > 0 ? parts : [content];
 }
-

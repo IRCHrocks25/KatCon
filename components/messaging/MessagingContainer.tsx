@@ -114,6 +114,7 @@ export function MessagingContainer({
   const [showActionMenu, setShowActionMenu] = useState(false);
   const [conversationSearchQuery, setConversationSearchQuery] = useState("");
 
+
   // Refresh pinned message IDs
   const refreshPinnedMessageIds = useCallback(
     async (conversationId: string) => {
@@ -2259,6 +2260,8 @@ export function MessagingContainer({
         onJoin={handleJoinChannel}
         isJoining={isJoiningChannel}
       />
+
+
     </div>
   );
 }

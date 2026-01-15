@@ -25,6 +25,7 @@ interface MessageInputProps {
   onSend: (content: string, files?: File[]) => void;
   isLoading: boolean;
   participants: ConversationParticipant[];
+  onEveryoneMention?: () => void;
 }
 
 interface FileWithPreview {
@@ -37,6 +38,7 @@ export function MessageInput({
   onSend,
   isLoading,
   participants,
+  onEveryoneMention,
 }: MessageInputProps) {
   const [content, setContent] = useState("");
   const [showMentionSuggestions, setShowMentionSuggestions] = useState(false);
@@ -118,6 +120,9 @@ export function MessageInput({
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [showEmojiPicker]);
+
+  // Check if @everyone should be shown
+  const showEveryoneOption = mentionQuery.toLowerCase().includes("everyone") || mentionQuery === "";
 
   const filteredParticipants = participants.filter((p) => {
     if (!mentionQuery) return false;
@@ -338,8 +343,47 @@ export function MessageInput({
       )}
 
       {/* Mention Suggestions */}
-      {showMentionSuggestions && filteredParticipants.length > 0 && (
+      {showMentionSuggestions && (filteredParticipants.length > 0 || showEveryoneOption) && (
         <div className="absolute bottom-full left-4 right-4 mb-2 bg-gray-800 border border-gray-700 rounded-lg shadow-lg max-h-48 overflow-y-auto z-10">
+          {/* @everyone option */}
+          {showEveryoneOption && (
+            <button
+              onClick={() => {
+                const textarea = textareaRef.current;
+                if (!textarea) return;
+
+                const cursorPos = textarea.selectionStart;
+                const textBeforeCursor = content.substring(0, cursorPos);
+                const lastAtIndex = textBeforeCursor.lastIndexOf("@");
+                const textAfterCursor = content.substring(cursorPos);
+
+                const newContent =
+                  content.substring(0, lastAtIndex) + "@everyone " + textAfterCursor;
+
+                setContent(newContent);
+                setShowMentionSuggestions(false);
+                setMentionQuery("");
+
+                // Focus back on textarea
+                setTimeout(() => {
+                  textarea.focus();
+                  const newCursorPos = lastAtIndex + 10; // "@everyone " is 10 characters
+                  textarea.setSelectionRange(newCursorPos, newCursorPos);
+                }, 0);
+              }}
+              className="w-full px-4 py-2 text-left hover:bg-gray-700 transition cursor-pointer flex items-center gap-2"
+            >
+              <div className="w-8 h-8 rounded-full bg-orange-600 flex items-center justify-center">
+                <span className="text-white text-lg font-bold">@</span>
+              </div>
+              <div>
+                <div className="text-white text-sm font-medium">everyone</div>
+                <div className="text-orange-400 text-xs">Mention all channel members</div>
+              </div>
+            </button>
+          )}
+
+          {/* Regular user mentions */}
           {filteredParticipants.map((participant) => (
             <button
               key={participant.userId}

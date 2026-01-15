@@ -406,13 +406,15 @@ export async function sendMessage(
 ): Promise<Message | null> {
   try {
     const headers = await getAuthHeaders();
+    const trimmedContent = content.trim();
+
     const response = await robustFetch(
       `/api/messaging/messages/${conversationId}`,
       {
         method: "POST",
         headers,
         body: JSON.stringify({
-          content: content.trim(),
+          content: trimmedContent,
           parent_message_id: parentMessageId || null,
           file_url: fileAttachment?.url || null,
           file_name: fileAttachment?.name || null,
@@ -432,7 +434,7 @@ export async function sendMessage(
     const data = await response.json();
     if (!data.message) return null;
 
-    return {
+    const sentMessage = {
       id: data.message.id,
       conversationId: data.message.conversation_id,
       authorId: data.message.author_id,
@@ -450,6 +452,70 @@ export async function sendMessage(
       fileType: data.message.file_type || null,
       fileSize: data.message.file_size || null,
     };
+
+    // Process @everyone mentions after message is sent
+    const hasEveryoneMention = trimmedContent.toLowerCase().includes("@everyone");
+
+    if (hasEveryoneMention) {
+      // Get conversation details to check if it's a channel
+      const conversations = await getConversations();
+      const conversation = conversations.find(c => c.id === conversationId);
+
+      // Only process @everyone for channels (not DMs)
+      if (conversation && conversation.type === "channel") {
+        console.log("[MENTIONS] @everyone mention detected in channel:", conversationId);
+
+        try {
+          // Get current user info
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) throw new Error("User not authenticated");
+
+          // Get all participants in the channel
+          const participants = conversation.participants.filter(p => p.userId !== user.id);
+
+          if (participants.length > 0) {
+            console.log(`[MENTIONS] Creating notifications for ${participants.length} participants`);
+
+            // Create notifications for all participants
+            const notificationPromises = participants.map(async (participant) => {
+              try {
+                const notificationHeaders = await getAuthHeaders();
+                return await robustFetch("/api/notifications/everyone", {
+                  method: "POST",
+                  headers: notificationHeaders,
+                  body: JSON.stringify({
+                    conversationId,
+                    messageId: sentMessage.id, // Now we have the actual message ID
+                    mentionedBy: user.email,
+                    channelName: conversation.name || "Unnamed Channel",
+                  }),
+                  retries: 0,
+                  timeout: 5000,
+                });
+              } catch (error) {
+                console.error(`[MENTIONS] Failed to create notification for ${participant.email}:`, error);
+                return null;
+              }
+            });
+
+            // Send notifications in background (don't await)
+            Promise.all(notificationPromises)
+              .then((results) => {
+                const successCount = results.filter(r => r && r.ok).length;
+                console.log(`[MENTIONS] Successfully created ${successCount}/${participants.length} @everyone notifications`);
+              })
+              .catch((error) => {
+                console.error("[MENTIONS] Error creating @everyone notifications:", error);
+              });
+          }
+        } catch (error) {
+          console.error("[MENTIONS] Error processing @everyone mentions:", error);
+          // Continue - message was sent successfully, notifications are secondary
+        }
+      }
+    }
+
+    return sentMessage;
   } catch (error) {
     if (isDev) console.error("Error in sendMessage:", error);
     throw error;

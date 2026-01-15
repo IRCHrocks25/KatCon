@@ -13,6 +13,7 @@ Authorization: Bearer <jwt_token>
 ```
 
 ### Authentication Middleware
+
 - **JWT Validation**: Tokens are validated using Supabase Auth
 - **User Approval Check**: Only approved users can access protected endpoints
 - **Rate Limiting**: All endpoints are protected by configurable rate limits
@@ -21,15 +22,16 @@ Authorization: Bearer <jwt_token>
 
 All API endpoints implement rate limiting:
 
-| Limiter Type | Window | Max Requests | Description |
-|-------------|--------|--------------|-------------|
-| `strictRateLimit` | 1 minute | 10 requests | Critical operations |
-| `moderateRateLimit` | 1 minute | 60 requests | Standard API calls |
-| `lenientRateLimit` | 1 minute | 120 requests | High-frequency operations |
-| `fileUploadRateLimit` | 1 minute | 20 requests | File upload operations |
-| `realtimeRateLimit` | 1 minute | 300 requests | Real-time operations |
+| Limiter Type          | Window   | Max Requests | Description               |
+| --------------------- | -------- | ------------ | ------------------------- |
+| `strictRateLimit`     | 1 minute | 10 requests  | Critical operations       |
+| `moderateRateLimit`   | 1 minute | 60 requests  | Standard API calls        |
+| `lenientRateLimit`    | 1 minute | 120 requests | High-frequency operations |
+| `fileUploadRateLimit` | 1 minute | 20 requests  | File upload operations    |
+| `realtimeRateLimit`   | 1 minute | 300 requests | Real-time operations      |
 
 Rate limit headers are included in responses:
+
 - `X-RateLimit-Limit`: Maximum requests per window
 - `X-RateLimit-Remaining`: Remaining requests in current window
 - `X-RateLimit-Reset`: Timestamp when limit resets
@@ -46,6 +48,7 @@ All endpoints return standardized error responses:
 ```
 
 Common HTTP status codes:
+
 - `200`: Success
 - `400`: Bad Request (validation errors)
 - `401`: Unauthorized (invalid/missing token)
@@ -58,9 +61,11 @@ Common HTTP status codes:
 ### Health Check
 
 #### GET /api/health
+
 Basic health check endpoint for monitoring.
 
 **Response:**
+
 ```json
 {
   "status": "healthy",
@@ -75,9 +80,11 @@ Basic health check endpoint for monitoring.
 ## User Management
 
 ### GET /api/users/list
+
 List all users (authenticated users only).
 
 **Response:**
+
 ```json
 {
   "users": [
@@ -96,9 +103,11 @@ List all users (authenticated users only).
 ```
 
 ### GET /api/check-user
+
 Check current user information.
 
 **Response:**
+
 ```json
 {
   "user": {
@@ -113,6 +122,7 @@ Check current user information.
 ```
 
 ### POST /api/user/update-expired-statuses
+
 Update expired user statuses (internal/background).
 
 ---
@@ -120,9 +130,11 @@ Update expired user statuses (internal/background).
 ## Profile Management
 
 ### PUT /api/profile/update
+
 Update user profile information.
 
 **Request:**
+
 ```json
 {
   "fullname": "John Doe",
@@ -132,6 +144,7 @@ Update user profile information.
 ```
 
 **Response:**
+
 ```json
 {
   "user": {
@@ -145,12 +158,14 @@ Update user profile information.
 ```
 
 ### POST /api/profile/upload-avatar
+
 Upload user avatar image.
 
 **Content-Type:** `multipart/form-data`
 **Form Field:** `avatar` (file)
 
 **Response:**
+
 ```json
 {
   "avatarUrl": "https://supabase-url/avatar-uuid.jpg"
@@ -161,12 +176,14 @@ Upload user avatar image.
 
 ## Admin Endpoints
 
-*Requires admin or manager role*
+_Requires admin or manager role_
 
 ### GET /api/admin/users
+
 List all users with admin controls.
 
 **Response:**
+
 ```json
 {
   "users": [
@@ -184,9 +201,11 @@ List all users with admin controls.
 ```
 
 ### POST /api/admin/users
+
 Update user status/role (approve, reject, change role).
 
 **Request:**
+
 ```json
 {
   "userId": "uuid",
@@ -196,6 +215,7 @@ Update user status/role (approve, reject, change role).
 ```
 
 ### GET /api/admin/reminders
+
 Admin view of all reminders (for moderation).
 
 ---
@@ -203,9 +223,11 @@ Admin view of all reminders (for moderation).
 ## Task/Reminder Management
 
 ### POST /api/reminders/create
+
 Create a new reminder/task.
 
 **Request:**
+
 ```json
 {
   "title": "Complete project proposal",
@@ -221,6 +243,7 @@ Create a new reminder/task.
 ```
 
 **Response:**
+
 ```json
 {
   "id": "reminder-uuid",
@@ -239,9 +262,11 @@ Create a new reminder/task.
 ```
 
 ### POST /api/reminders/update-status
+
 Update reminder status.
 
 **Request:**
+
 ```json
 {
   "id": "reminder-uuid",
@@ -250,9 +275,11 @@ Update reminder status.
 ```
 
 ### DELETE /api/reminders/delete
+
 Soft delete a reminder (set status to 'hidden').
 
 **Request:**
+
 ```json
 {
   "id": "reminder-uuid"
@@ -260,9 +287,11 @@ Soft delete a reminder (set status to 'hidden').
 ```
 
 ### POST /api/reminders/process-recurring
+
 Process recurring reminders (internal/background).
 
 ### POST /api/reminders/notify-stale
+
 Send notifications for stale reminders (internal/background).
 
 ---
@@ -270,9 +299,11 @@ Send notifications for stale reminders (internal/background).
 ## Messaging System
 
 ### GET /api/messaging/conversations
+
 List user conversations/channels.
 
 **Response:**
+
 ```json
 {
   "conversations": [
@@ -293,9 +324,11 @@ List user conversations/channels.
 ```
 
 ### POST /api/messaging/conversations
+
 Create a new conversation/channel.
 
 **Request:**
+
 ```json
 {
   "name": "project-alpha",
@@ -305,12 +338,15 @@ Create a new conversation/channel.
 ```
 
 ### GET /api/messaging/conversations/[id]
+
 Get conversation details and participants.
 
 ### POST /api/messaging/conversations/[id]/participants
+
 Add participants to a conversation.
 
 **Request:**
+
 ```json
 {
   "participants": ["user@example.com"]
@@ -318,13 +354,16 @@ Add participants to a conversation.
 ```
 
 ### GET /api/messaging/messages/[conversationId]
+
 Get messages for a conversation.
 
 **Query Parameters:**
+
 - `limit`: Number of messages to return (default: 50)
 - `before`: Message ID to paginate backwards from
 
 **Response:**
+
 ```json
 {
   "messages": [
@@ -350,9 +389,11 @@ Get messages for a conversation.
 ```
 
 ### POST /api/messaging/messages/[conversationId]
+
 Send a message to a conversation.
 
 **Request:**
+
 ```json
 {
   "content": "Hello team!",
@@ -361,15 +402,19 @@ Send a message to a conversation.
 ```
 
 ### PUT /api/messaging/messages/[messageId]/read
+
 Mark a message as read.
 
 ### GET /api/messaging/read/[conversationId]
+
 Mark all messages in a conversation as read.
 
 ### POST /api/messaging/reactions
+
 Add/remove reaction to a message.
 
 **Request:**
+
 ```json
 {
   "messageId": "message-uuid",
@@ -379,12 +424,15 @@ Add/remove reaction to a message.
 ```
 
 ### GET /api/messaging/pinned
+
 Get pinned messages.
 
 ### POST /api/messaging/pinned
+
 Pin/unpin a message.
 
 **Request:**
+
 ```json
 {
   "messageId": "message-uuid",
@@ -393,17 +441,21 @@ Pin/unpin a message.
 ```
 
 ### POST /api/messaging/files/[conversationId]
+
 Upload a file to a conversation.
 
 **Content-Type:** `multipart/form-data`
 **Form Fields:**
+
 - `file`: The file to upload
 - `message`: Optional message text
 
 ### GET /api/messaging/search
+
 Search messages across conversations.
 
 **Query Parameters:**
+
 - `query`: Search term
 - `channelId`: Optional channel to search in
 
@@ -412,13 +464,16 @@ Search messages across conversations.
 ## Notification System
 
 ### GET /api/notifications/list
+
 Get user notifications.
 
 **Query Parameters:**
+
 - `limit`: Number of notifications (default: 50)
 - `unreadOnly`: Only return unread notifications
 
 **Response:**
+
 ```json
 {
   "notifications": [
@@ -440,9 +495,11 @@ Get user notifications.
 ```
 
 ### PUT /api/notifications/mark-read
+
 Mark notifications as read.
 
 **Request:**
+
 ```json
 {
   "notificationIds": ["notification-uuid-1", "notification-uuid-2"]
@@ -450,18 +507,47 @@ Mark notifications as read.
 ```
 
 ### POST /api/notifications/update-unread-messages
+
 Update unread message counts (internal).
+
+### POST /api/notifications/everyone
+
+Send @everyone notifications to all channel participants.
+
+**Request:**
+
+```json
+{
+  "conversationId": "channel-uuid",
+  "messageId": "message-uuid",
+  "mentionedBy": "user@example.com",
+  "channelName": "general"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "notifications_created": 5,
+  "conversation_id": "channel-uuid",
+  "channel_name": "general"
+}
+```
 
 ---
 
 ## Client Management
 
-*Requires admin or manager role*
+_Requires admin or manager role_
 
 ### GET /api/clients
+
 List all clients.
 
 **Response:**
+
 ```json
 {
   "clients": [
@@ -479,9 +565,11 @@ List all clients.
 ```
 
 ### POST /api/clients
+
 Create a new client.
 
 **Request:**
+
 ```json
 {
   "name": "Acme Corp",
@@ -493,12 +581,15 @@ Create a new client.
 ```
 
 ### GET /api/clients/[id]
+
 Get client details.
 
 ### PUT /api/clients/[id]
+
 Update client information.
 
 **Request:**
+
 ```json
 {
   "name": "Updated Corp Name",
@@ -510,27 +601,34 @@ Update client information.
 
 ## Legacy Messaging Endpoints
 
-*These endpoints are maintained for backward compatibility*
+_These endpoints are maintained for backward compatibility_
 
 ### GET /api/conversations/[id]
+
 Get conversation details.
 
 ### GET /api/conversations/create
+
 Create conversation.
 
 ### GET /api/conversations/list
+
 List conversations.
 
 ### GET /api/messages/[conversationId]
+
 Get conversation messages.
 
 ### GET /api/messages/[messageId]
+
 Get specific message.
 
 ### PUT /api/messages/[messageId]/read
+
 Mark message as read.
 
 ### GET /api/messages/read/[messageId]
+
 Mark message as read.
 
 ---
@@ -538,6 +636,7 @@ Mark message as read.
 ## Data Models
 
 ### User Profile
+
 ```typescript
 interface UserProfile {
   id: string;
@@ -554,6 +653,7 @@ interface UserProfile {
 ```
 
 ### Reminder/Task
+
 ```typescript
 interface Reminder {
   id: string;
@@ -573,6 +673,7 @@ interface Reminder {
 ```
 
 ### Message
+
 ```typescript
 interface Message {
   id: string;
@@ -597,10 +698,15 @@ interface Message {
 ```
 
 ### Notification
+
 ```typescript
 interface Notification {
   id: string;
-  type: "reminder_assigned" | "reminder_overdue" | "message_mention" | "deadline_approaching";
+  type:
+    | "reminder_assigned"
+    | "reminder_overdue"
+    | "message_mention"
+    | "deadline_approaching";
   title: string;
   message: string;
   read: boolean;
@@ -611,6 +717,7 @@ interface Notification {
 ```
 
 ### Client
+
 ```typescript
 interface Client {
   id: string;
@@ -632,21 +739,25 @@ interface Client {
 KatCon uses Supabase Realtime for live updates:
 
 ### Task Updates
+
 - **Channel:** `reminders`
 - **Events:** `INSERT`, `UPDATE`, `DELETE`
 - **Triggers:** Automatic UI updates for task changes
 
 ### Message Updates
+
 - **Channel:** `messages`
 - **Events:** `INSERT`, `UPDATE`
 - **Triggers:** Live message delivery, typing indicators
 
 ### User Status Updates
+
 - **Channel:** `user_status`
 - **Events:** `UPDATE`
 - **Triggers:** Online/offline status changes
 
 ### Notification Updates
+
 - **Channel:** `notifications`
 - **Events:** `INSERT`
 - **Triggers:** Live notification delivery
@@ -656,15 +767,18 @@ KatCon uses Supabase Realtime for live updates:
 ## File Upload Specifications
 
 ### Supported Formats
+
 - **Images:** JPEG, PNG, GIF, WebP, SVG
 - **Documents:** PDF, TXT, MD, DOC, DOCX, XLS, XLSX
 - **Archives:** ZIP
 
 ### Size Limits
+
 - **Maximum file size:** 10MB
 - **Rate limit:** 20 uploads per minute per user
 
 ### Upload Process
+
 1. POST file to `/api/messaging/files/[conversationId]`
 2. File is uploaded to Supabase Storage
 3. File metadata is stored in database
@@ -675,22 +789,26 @@ KatCon uses Supabase Realtime for live updates:
 ## Security Features
 
 ### Authentication
+
 - JWT-based authentication via Supabase Auth
 - Automatic token refresh
 - Session validation on each request
 
 ### Authorization
+
 - Role-based access control (User/Admin/Manager)
 - Row-level security (RLS) policies in database
 - User approval workflow for new registrations
 
 ### Data Protection
+
 - All data scoped to authenticated users
 - Encrypted data transmission (HTTPS)
 - Input validation and sanitization
 - SQL injection prevention
 
 ### Rate Limiting
+
 - Per-endpoint rate limiting
 - IP-based tracking
 - Configurable limits per operation type
@@ -699,23 +817,24 @@ KatCon uses Supabase Realtime for live updates:
 
 ## Error Codes Reference
 
-| Error Code | Description |
-|------------|-------------|
-| `INVALID_TOKEN` | JWT token is invalid or expired |
-| `USER_NOT_APPROVED` | User account is pending approval |
+| Error Code                 | Description                          |
+| -------------------------- | ------------------------------------ |
+| `INVALID_TOKEN`            | JWT token is invalid or expired      |
+| `USER_NOT_APPROVED`        | User account is pending approval     |
 | `INSUFFICIENT_PERMISSIONS` | User lacks required role/permissions |
-| `RATE_LIMIT_EXCEEDED` | Too many requests in time window |
-| `VALIDATION_ERROR` | Request data failed validation |
-| `RESOURCE_NOT_FOUND` | Requested resource doesn't exist |
-| `DUPLICATE_RESOURCE` | Resource already exists |
-| `FILE_TOO_LARGE` | Uploaded file exceeds size limit |
-| `UNSUPPORTED_FILE_TYPE` | File type not allowed |
+| `RATE_LIMIT_EXCEEDED`      | Too many requests in time window     |
+| `VALIDATION_ERROR`         | Request data failed validation       |
+| `RESOURCE_NOT_FOUND`       | Requested resource doesn't exist     |
+| `DUPLICATE_RESOURCE`       | Resource already exists              |
+| `FILE_TOO_LARGE`           | Uploaded file exceeds size limit     |
+| `UNSUPPORTED_FILE_TYPE`    | File type not allowed                |
 
 ---
 
 ## Development Notes
 
 ### Environment Variables
+
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
@@ -723,11 +842,13 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 ```
 
 ### Testing
+
 - Use `npm run test` for unit tests
 - Use `npm run test:security` for security testing
 - Health check available at `/api/health`
 
 ### Deployment
+
 - Automatic deployments via GitHub Actions
 - Environment-specific configurations
 - Database migrations run automatically
@@ -737,6 +858,7 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 ## Changelog
 
 ### Version 1.0.0
+
 - Initial API documentation
 - Core messaging, task management, and user management endpoints
 - Authentication and authorization system
