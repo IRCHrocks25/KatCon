@@ -798,7 +798,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
 
       {/* Chat Section - Flex grow (Right) */}
       <div className="relative z-10 flex-1 flex flex-col px-3 md:px-6 py-3 overflow-hidden">
-        <div className="flex flex-col min-h-screen w-full max-w-[700px] md:max-w-[900px] lg:max-w-[1200px] mx-auto">
+        <div className="flex flex-col h-full w-full max-w-[700px] md:max-w-[900px] lg:max-w-[1200px] mx-auto">
           {messages.length === 0 ? (
             /* Centered layout when no messages */
             <div className="flex-1 flex flex-col justify-center pb-20">

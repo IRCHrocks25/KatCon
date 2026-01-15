@@ -10,20 +10,10 @@ import { AnimatePresence, motion, Variants } from "motion/react";
 
 const PLACEHOLDERS = [
   "Make me a reminder at 9pm",
-  "Create a new contact for John Smith",
-  "Update the deal status to closed-won",
-  "Schedule a meeting with the sales team",
-  "Show me all open opportunities this month",
-  "Add a note to the Acme Corp account",
-  "Create a task to follow up with leads",
-  "Generate a sales report for Q4",
-  "Update contact email for Jane Doe",
-  "Find all contacts in the tech industry",
   "Set a reminder to call the client tomorrow",
-  "Create a new opportunity for $50k",
   "Show me overdue tasks",
-  "Update the account owner to Sarah Johnson",
-  "Add a new lead from the website",
+  "Create a task to follow up with leads",
+  "Schedule a meeting with the sales team",
 ];
 
 interface AIChatInputProps {
