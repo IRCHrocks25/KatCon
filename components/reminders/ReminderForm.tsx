@@ -18,6 +18,7 @@ import { getAllUsers, type UserWithTeam } from "@/lib/supabase/users";
 import type { AccountType } from "@/lib/supabase/auth";
 import { getConversations, type Conversation } from "@/lib/supabase/messaging";
 import { useClients } from "@/contexts/ClientsContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface ReminderFormProps {
   initialData?: Reminder;
@@ -44,6 +45,7 @@ export function ReminderForm({
   isSubmitting,
   channelId: preSelectedChannelId,
 }: ReminderFormProps) {
+  const { user: currentUser } = useAuth();
   const [title, setTitle] = useState(initialData?.title || "");
   const [description, setDescription] = useState(initialData?.description || "");
   const [dueDate, setDueDate] = useState(
@@ -223,9 +225,10 @@ export function ReminderForm({
     return { display: assignment, isTeam: false };
   };
 
-  // Filter channels based on search (only show channels, not DMs)
+  // Filter channels based on search and membership (only show channels user has joined, not DMs)
   const filteredChannels = conversations
     .filter((channel) => channel.type === "channel") // Only show channels, exclude DMs
+    .filter((channel) => channel.participants.some((p) => p.userId === currentUser?.id)) // Only show channels user has joined
     .filter((channel) =>
       channel.name?.toLowerCase().includes(channelSearchQuery.toLowerCase()) ||
       channel.type.toLowerCase().includes(channelSearchQuery.toLowerCase())

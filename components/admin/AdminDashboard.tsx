@@ -21,6 +21,7 @@ import {
   setStorageItem,
   removeStorageItem,
 } from "@/lib/utils/storage";
+import { supabase } from "@/lib/supabase/client";
 import { AdminKanbanView } from "./AdminKanbanView";
 
 interface UserProfile {
@@ -30,6 +31,7 @@ interface UserProfile {
   username?: string;
   account_type: AccountType;
   approved: boolean;
+  rejected?: boolean;
   role: UserRole;
   avatar_url?: string;
   created_at: string;
@@ -213,6 +215,115 @@ export function AdminDashboard() {
     }
   }, [isManager, session?.access_token, fetchUsers, users.length]);
 
+  // Real-time subscription for new user creation
+  useEffect(() => {
+    if (!isManager || !user?.id) return;
+
+    console.log("[ADMIN] Setting up realtime subscription for new users");
+
+    const usersChannel = supabase
+      .channel("admin-users-updates")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "profiles",
+        },
+        async (payload) => {
+          console.log("[ADMIN] New user profile created:", payload);
+
+          const newProfile = payload.new as UserProfile;
+
+          // Add the new user to the local state
+          setUsers((prev) => {
+            const userExists = prev.some((u) => u.id === newProfile.id);
+            if (userExists) {
+              return prev; // Already exists, skip
+            }
+
+            const updated = [newProfile, ...prev];
+
+            // Update cache
+            try {
+              setStorageItem(CACHE_KEY, JSON.stringify(updated));
+              setStorageItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+            } catch (error) {
+              console.error("Error updating users cache:", error);
+            }
+
+            return updated;
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "profiles",
+        },
+        async (payload) => {
+          console.log("[ADMIN] User profile updated:", payload);
+
+          const updatedProfile = payload.new as UserProfile;
+
+          // Update the user in local state
+          setUsers((prev) => {
+            const updated = prev.map((u) =>
+              u.id === updatedProfile.id ? updatedProfile : u
+            );
+
+            // Update cache
+            try {
+              setStorageItem(CACHE_KEY, JSON.stringify(updated));
+              setStorageItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+            } catch (error) {
+              console.error("Error updating users cache:", error);
+            }
+
+            return updated;
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "profiles",
+        },
+        async (payload) => {
+          console.log("[ADMIN] User profile deleted:", payload);
+
+          const deletedProfile = payload.old as { id: string };
+
+          // Remove the user from local state
+          setUsers((prev) => {
+            const updated = prev.filter((u) => u.id !== deletedProfile.id);
+
+            // Update cache
+            try {
+              setStorageItem(CACHE_KEY, JSON.stringify(updated));
+              setStorageItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+            } catch (error) {
+              console.error("Error updating users cache:", error);
+            }
+
+            return updated;
+          });
+        }
+      )
+      .subscribe((status) => {
+        console.log("[ADMIN] Users realtime subscription status:", status);
+      });
+
+    return () => {
+      console.log("[ADMIN] Cleaning up realtime subscriptions");
+      supabase.removeChannel(usersChannel);
+    };
+  }, [isManager, user?.id]);
+
   const handleUserAction = async (
     userId: string,
     action: string,
@@ -260,7 +371,7 @@ export function AdminDashboard() {
     }
   };
 
-  const getPendingUsers = () => users.filter((u) => !u.approved);
+  const getPendingUsers = () => users.filter((u) => !u.approved && !u.rejected);
   const getApprovedUsers = () => users.filter((u) => u.approved);
 
   // Filter users based on search query
@@ -567,8 +678,8 @@ export function AdminDashboard() {
           </div>
         )}
 
-        {/* Pending Approvals Section */}
-        {getPendingUsers().length > 0 && (
+        {/* Pending Approvals Section - Only for admins */}
+        {canManageUsers && getPendingUsers().length > 0 && (
           <div className="mb-6">
             <h2 className="text-lg font-semibold mb-4 text-yellow-400">
               Pending Approvals
@@ -754,10 +865,12 @@ export function AdminDashboard() {
                           className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
                             user.approved
                               ? "bg-green-900/50 text-green-400"
+                              : user.rejected
+                              ? "bg-red-900/50 text-red-400"
                               : "bg-yellow-900/50 text-yellow-400"
                           }`}
                         >
-                          {user.approved ? "Approved" : "Pending"}
+                          {user.approved ? "Approved" : user.rejected ? "Rejected" : "Pending"}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-400">
@@ -796,7 +909,7 @@ export function AdminDashboard() {
                               >
                                 <Trash2 size={12} />
                               </button>
-                              {!user.approved && (
+                              {!user.approved && !user.rejected && (
                                 <>
                                   <button
                                     onClick={() =>
@@ -864,10 +977,12 @@ export function AdminDashboard() {
                     className={`inline-flex px-2 py-1 text-xs font-medium rounded-full flex-shrink-0 ml-2 ${
                       user.approved
                         ? "bg-green-900/50 text-green-400"
+                        : user.rejected
+                        ? "bg-red-900/50 text-red-400"
                         : "bg-yellow-900/50 text-yellow-400"
                     }`}
                   >
-                    {user.approved ? "Approved" : "Pending"}
+                    {user.approved ? "Approved" : user.rejected ? "Rejected" : "Pending"}
                   </span>
                 </div>
 
@@ -955,7 +1070,7 @@ export function AdminDashboard() {
                         <Trash2 size={12} className="inline mr-1" />
                         Delete
                       </button>
-                      {!user.approved && (
+                      {!user.approved && !user.rejected && (
                         <>
                           <button
                             onClick={() =>

@@ -632,7 +632,8 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
     }
   };
 
-  const quickActions = [
+  // Define all quick actions
+  const allQuickActions = [
     {
       icon: Bell,
       label: "Reminder",
@@ -656,6 +657,7 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
       label: "Team Status",
       color: "from-pink-500/20 to-purple-500/20",
       message: "Show me team status",
+      requiresManager: true, // Only for managers and admins
     },
     {
       icon: Clock,
@@ -674,8 +676,15 @@ export function AIChatView({ reminders, setReminders }: AIChatViewProps) {
       label: "Team Updates",
       color: "from-purple-500/20 to-blue-500/20",
       message: "Show me team updates",
+      requiresManager: true, // Only for managers and admins
     },
   ];
+
+  // Filter quick actions based on user role
+  const isManagerOrAdmin = user?.role === "manager" || user?.role === "admin";
+  const quickActions = allQuickActions.filter(action =>
+    !action.requiresManager || isManagerOrAdmin
+  );
 
   const handleViewTaskDetails = (reminder: Reminder) => {
     console.log("Task card clicked:", reminder.id);

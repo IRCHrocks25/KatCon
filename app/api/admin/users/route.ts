@@ -5,6 +5,7 @@ import type { AccountType, UserRole } from "@/lib/supabase/auth";
 
 interface ProfileUpdate {
   approved?: boolean;
+  rejected?: boolean;
   role?: UserRole;
   account_type?: AccountType;
 }
@@ -67,6 +68,7 @@ export const GET = moderateRateLimit(async (request: NextRequest) => {
         username,
         account_type,
         approved,
+        rejected,
         role,
         avatar_url,
         created_at,
@@ -196,6 +198,7 @@ export const POST = moderateRateLimit(async (request: NextRequest) => {
           updates.approved = true;
         } else if (action === "reject") {
           updates.approved = false;
+          updates.rejected = true;
         } else if (action === "update_role") {
           if (!role || !["user", "manager", "admin"].includes(role)) {
             return NextResponse.json(
