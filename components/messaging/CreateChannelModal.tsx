@@ -41,6 +41,7 @@ export function CreateChannelModal({
   >([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
 
   // Reset search when mode changes
   useEffect(() => {
@@ -115,14 +116,24 @@ export function CreateChannelModal({
     );
   }, [availableUsers, searchQuery]);
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
+    if (isCreating) return; // Prevent spam clicks
+
     if (mode === "dm") {
       if (selectedUserIds.length !== 1) {
         toast.error("Please select exactly one person to message");
         return;
       }
       if (onCreateDM) {
-        onCreateDM(selectedUserIds[0]);
+        setIsCreating(true);
+        try {
+          await onCreateDM(selectedUserIds[0]);
+          onClose(); // Close modal on success
+        } catch (error) {
+          console.error("Error creating DM:", error);
+        } finally {
+          setIsCreating(false);
+        }
       }
     } else {
       // Channel mode
@@ -130,12 +141,20 @@ export function CreateChannelModal({
         toast.error("Channel name is required");
         return;
       }
-      onCreate(
-        name.trim(),
-        description.trim() || null,
-        isPrivate,
-        selectedUserIds
-      );
+      setIsCreating(true);
+      try {
+        await onCreate(
+          name.trim(),
+          description.trim() || null,
+          isPrivate,
+          selectedUserIds
+        );
+        onClose(); // Close modal on success
+      } catch (error) {
+        console.error("Error creating channel:", error);
+      } finally {
+        setIsCreating(false);
+      }
     }
   };
 
@@ -384,18 +403,25 @@ export function CreateChannelModal({
         <div className="p-4 border-t border-gray-800 flex items-center justify-end gap-2">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-300 hover:text-white transition"
+            disabled={isCreating}
+            className="px-4 py-2 text-gray-300 hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancel
           </button>
           <button
             onClick={handleCreate}
             disabled={
-              mode === "dm" ? selectedUserIds.length !== 1 : !name.trim()
+              isCreating || (mode === "dm" ? selectedUserIds.length !== 1 : !name.trim())
             }
-            className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            {mode === "dm" ? "Start Chat" : "Create Channel"}
+            {isCreating && (
+              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            )}
+            {isCreating
+              ? (mode === "dm" ? "Starting Chat..." : "Creating Channel...")
+              : (mode === "dm" ? "Start Chat" : "Create Channel")
+            }
           </button>
         </div>
       </motion.div>
