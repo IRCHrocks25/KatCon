@@ -225,9 +225,31 @@ export const POST = moderateRateLimit(async (request: NextRequest) => {
 
     // Create assignments for all assigned users
     if (finalAssignedTo.length > 0) {
+      // Get profile IDs for all assigned emails
+      const { data: profiles, error: profileError } = await supabase
+        .from("profiles")
+        .select("id, email")
+        .in("email", finalAssignedTo)
+        .eq("approved", true);
+
+      if (profileError) {
+        console.error("Error fetching profiles for assignments:", profileError);
+        return NextResponse.json(
+          { error: "Failed to fetch user profiles", details: profileError.message },
+          { status: 500 }
+        );
+      }
+
+      // Create a map of email to profile ID
+      const profileMap = new Map<string, string>();
+      (profiles || []).forEach((profile) => {
+        profileMap.set(profile.email.toLowerCase(), profile.id);
+      });
+
       const assignments = finalAssignedTo.map((email: string) => ({
         reminder_id: reminderData.id,
         assignedto: email.trim().toLowerCase(),
+        assigned_to_profile_id: profileMap.get(email.trim().toLowerCase()) || null,
         status: "backlog" as const,
       }));
 

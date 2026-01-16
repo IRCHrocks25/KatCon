@@ -11,10 +11,15 @@ async function getAuthHeaders(): Promise<HeadersInit> {
   } = await supabase.auth.getSession();
 
   // If no session or it's expired, try to refresh it
-  if (!session?.access_token || (session.expires_at && session.expires_at * 1000 < Date.now())) {
-    if (isDev) console.log("[AUTH] Session expired or missing, attempting refresh");
+  if (
+    !session?.access_token ||
+    (session.expires_at && session.expires_at * 1000 < Date.now())
+  ) {
+    if (isDev)
+      console.log("[AUTH] Session expired or missing, attempting refresh");
 
-    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+    const { data: refreshData, error: refreshError } =
+      await supabase.auth.refreshSession();
 
     if (refreshError) {
       if (isDev) console.error("[AUTH] Session refresh failed:", refreshError);
@@ -154,7 +159,9 @@ async function dbToAppReminder(
 
   // Debug logging for reminder conversion (only in development)
   if (isDev && assignments.length > 0) {
-    console.log(`[REMINDER] Converting reminder ${dbReminder.id}: ${assignments.length} assignments`);
+    console.log(
+      `[REMINDER] Converting reminder ${dbReminder.id}: ${assignments.length} assignments`
+    );
   }
 
   return {
@@ -166,7 +173,9 @@ async function dbToAppReminder(
     myStatus: myAssignment?.status, // Current user's assignment status
     position: dbReminder.position, // Position for Kanban ordering
     lastStatusChangeAt: new Date(dbReminder.last_status_change_at),
-    snoozedUntil: dbReminder.snoozed_until ? new Date(dbReminder.snoozed_until) : undefined,
+    snoozedUntil: dbReminder.snoozed_until
+      ? new Date(dbReminder.snoozed_until)
+      : undefined,
     priority: dbReminder.priority || "medium", // Priority level
     createdBy: dbReminder.user_id,
     assignedTo: assignments.map((a) => a.assignedto),
@@ -296,7 +305,9 @@ export async function createReminder(
   });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+    const errorData = await response
+      .json()
+      .catch(() => ({ error: "Unknown error" }));
     throw new Error(errorData.error || "Failed to create reminder");
   }
 
@@ -346,13 +357,14 @@ export async function updateReminder(
   }
   if (reminder.clientId !== undefined) {
     // Handle both null (explicit clear) and empty string (also means clear)
-    updateData.client_id = reminder.clientId === "" ? null : (reminder.clientId || null);
+    updateData.client_id =
+      reminder.clientId === "" ? null : reminder.clientId || null;
   }
 
   // Include recurring fields if provided
   if (reminder.isRecurring !== undefined) {
     updateData.is_recurring = reminder.isRecurring;
-    updateData.rrule = reminder.isRecurring ? (reminder.rrule || null) : null;
+    updateData.rrule = reminder.isRecurring ? reminder.rrule || null : null;
   }
 
   // Update the reminder (only creator can do this)
@@ -372,28 +384,48 @@ export async function updateReminder(
   if (reminder.assignedTo !== undefined) {
     // Expand team assignments to individual emails
     const expandedEmails = await expandTeamAssignments(reminder.assignedTo);
-    const normalizedNewEmails = expandedEmails.map(email => email.trim().toLowerCase());
+    const normalizedNewEmails = expandedEmails.map((email) =>
+      email.trim().toLowerCase()
+    );
 
     // Fetch existing assignments to preserve statuses
-    const { data: existingAssignments, error: fetchExistingError } = await supabase
-      .from("reminder_assignments")
-      .select("*")
-      .eq("reminder_id", id);
+    const { data: existingAssignments, error: fetchExistingError } =
+      await supabase
+        .from("reminder_assignments")
+        .select("*")
+        .eq("reminder_id", id);
 
     if (fetchExistingError) {
-      if (isDev) console.error("Error fetching existing assignments:", fetchExistingError);
-      throw new Error(`Failed to fetch existing assignments: ${fetchExistingError.message}`);
+      if (isDev)
+        console.error(
+          "Error fetching existing assignments:",
+          fetchExistingError
+        );
+      throw new Error(
+        `Failed to fetch existing assignments: ${fetchExistingError.message}`
+      );
     }
 
-    const existingEmails = (existingAssignments || []).map(a => a.assignedto?.toLowerCase() || '');
+    const existingEmails = (existingAssignments || []).map(
+      (a) => a.assignedto?.toLowerCase() || ""
+    );
     const existingStatuses = new Map(
-      (existingAssignments || []).map(a => [a.assignedto?.toLowerCase() || '', a.status])
+      (existingAssignments || []).map((a) => [
+        a.assignedto?.toLowerCase() || "",
+        a.status,
+      ])
     );
 
     // Determine which assignments to add, keep, and remove
-    const emailsToAdd = normalizedNewEmails.filter(email => !existingEmails.includes(email));
-    const emailsToKeep = normalizedNewEmails.filter(email => existingEmails.includes(email));
-    const emailsToRemove = existingEmails.filter(email => !normalizedNewEmails.includes(email));
+    const emailsToAdd = normalizedNewEmails.filter(
+      (email) => !existingEmails.includes(email)
+    );
+    const emailsToKeep = normalizedNewEmails.filter((email) =>
+      existingEmails.includes(email)
+    );
+    const emailsToRemove = existingEmails.filter(
+      (email) => !normalizedNewEmails.includes(email)
+    );
 
     // Remove assignments that are no longer in the list
     if (emailsToRemove.length > 0) {
@@ -411,9 +443,28 @@ export async function updateReminder(
 
     // Add new assignments (with backlog status)
     if (emailsToAdd.length > 0) {
+      // Get profile IDs for new assignees
+      const { data: profiles, error: profileError } = await supabase
+        .from("profiles")
+        .select("id, email")
+        .in("email", emailsToAdd)
+        .eq("approved", true);
+
+      if (profileError) {
+        if (isDev) console.error("Error fetching profiles for new assignments:", profileError);
+        throw new Error(`Failed to fetch user profiles: ${profileError.message}`);
+      }
+
+      // Create a map of email to profile ID
+      const profileMap = new Map<string, string>();
+      (profiles || []).forEach((profile) => {
+        profileMap.set(profile.email.toLowerCase(), profile.id);
+      });
+
       const newAssignments = emailsToAdd.map((email) => ({
         reminder_id: id,
         assignedto: email,
+        assigned_to_profile_id: profileMap.get(email.toLowerCase()) || null,
         status: "backlog" as const,
       }));
 
@@ -435,10 +486,13 @@ export async function updateReminder(
     // Existing assignments that remain in the list are preserved with their current statuses
     // No update needed - they stay as-is, preserving "done" status if it was set
     if (isDev && emailsToKeep.length > 0) {
-      console.log("Preserved existing assignments:", emailsToKeep.map(email => ({
-        email,
-        status: existingStatuses.get(email)
-      })));
+      console.log(
+        "Preserved existing assignments:",
+        emailsToKeep.map((email) => ({
+          email,
+          status: existingStatuses.get(email),
+        }))
+      );
     }
   }
 
@@ -579,7 +633,7 @@ export async function updateReminderStatus(
       .from("reminders")
       .update({
         status,
-        last_status_change_at: new Date().toISOString()
+        last_status_change_at: new Date().toISOString(),
       })
       .eq("id", id)
       .eq("user_id", userEmail)
@@ -746,7 +800,7 @@ export async function updateReminderKanban(
     .update({
       status,
       position,
-      last_status_change_at: new Date().toISOString()
+      last_status_change_at: new Date().toISOString(),
     })
     .eq("id", id)
     .select()
@@ -763,7 +817,10 @@ export async function updateReminderKanban(
     .eq("reminder_id", id);
 
   if (assignmentsUpdateError) {
-    console.error("Failed to update assignment statuses:", assignmentsUpdateError);
+    console.error(
+      "Failed to update assignment statuses:",
+      assignmentsUpdateError
+    );
     // Don't throw - reminder update succeeded, assignment update is secondary
   }
 
@@ -897,13 +954,21 @@ export async function getStaleTasks(): Promise<Reminder[]> {
     .in("reminder_id", reminderIds);
 
   if (assignmentsError) {
-    if (isDev) console.error("Error fetching assignments for stale tasks:", assignmentsError);
+    if (isDev)
+      console.error(
+        "Error fetching assignments for stale tasks:",
+        assignmentsError
+      );
   }
 
   // Convert to app format
   return Promise.all(
     staleReminders.map((reminder) =>
-      dbToAppReminder(reminder, assignmentsData?.filter(a => a.reminder_id === reminder.id) || [], userEmail)
+      dbToAppReminder(
+        reminder,
+        assignmentsData?.filter((a) => a.reminder_id === reminder.id) || [],
+        userEmail
+      )
     )
   );
 }
@@ -938,7 +1003,7 @@ export async function snoozeTask(id: string): Promise<Reminder | null> {
   const { data: reminderData, error: reminderError } = await supabase
     .from("reminders")
     .update({
-      snoozed_until: snoozedUntil.toISOString()
+      snoozed_until: snoozedUntil.toISOString(),
     })
     .eq("id", id)
     .select()
@@ -955,7 +1020,11 @@ export async function snoozeTask(id: string): Promise<Reminder | null> {
     .eq("reminder_id", id);
 
   if (assignmentsFetchError) {
-    if (isDev) console.error("Error fetching assignments after snoozing:", assignmentsFetchError);
+    if (isDev)
+      console.error(
+        "Error fetching assignments after snoozing:",
+        assignmentsFetchError
+      );
   }
 
   return dbToAppReminder(reminderData, assignmentsData || [], userEmail);
@@ -976,7 +1045,10 @@ export async function notifyStaleTasks(): Promise<void> {
       .eq("approved", true);
 
     if (usersError || !users) {
-      console.error("Error fetching users for stale task notifications:", usersError);
+      console.error(
+        "Error fetching users for stale task notifications:",
+        usersError
+      );
       return;
     }
 
@@ -993,7 +1065,10 @@ export async function notifyStaleTasks(): Promise<void> {
           await sendStaleTaskNotification(user.email, task);
         }
       } catch (error) {
-        console.error(`Error processing stale tasks for user ${user.email}:`, error);
+        console.error(
+          `Error processing stale tasks for user ${user.email}:`,
+          error
+        );
       }
     }
   } catch (error) {
@@ -1051,13 +1126,21 @@ async function getStaleTasksForUser(userEmail: string): Promise<Reminder[]> {
     .in("reminder_id", reminderIds);
 
   if (assignmentsError) {
-    if (isDev) console.error("Error fetching assignments for stale tasks:", assignmentsError);
+    if (isDev)
+      console.error(
+        "Error fetching assignments for stale tasks:",
+        assignmentsError
+      );
   }
 
   // Convert to app format
   return Promise.all(
     staleReminders.map((reminder) =>
-      dbToAppReminder(reminder, assignmentsData?.filter(a => a.reminder_id === reminder.id) || [], userEmail)
+      dbToAppReminder(
+        reminder,
+        assignmentsData?.filter((a) => a.reminder_id === reminder.id) || [],
+        userEmail
+      )
     )
   );
 }
@@ -1065,7 +1148,10 @@ async function getStaleTasksForUser(userEmail: string): Promise<Reminder[]> {
 /**
  * Send a notification for a stale task
  */
-async function sendStaleTaskNotification(userEmail: string, task: Reminder): Promise<void> {
+async function sendStaleTaskNotification(
+  userEmail: string,
+  task: Reminder
+): Promise<void> {
   // For now, we'll use the existing notification system
   // In a real implementation, you'd create a specific notification type for stale tasks
   try {
@@ -1073,12 +1159,17 @@ async function sendStaleTaskNotification(userEmail: string, task: Reminder): Pro
 
     // You could use the existing notification system here
     // For now, we'll just log it
-    console.log(`[STALE TASK] Would send notification to ${userEmail}: ${notificationMessage}`);
+    console.log(
+      `[STALE TASK] Would send notification to ${userEmail}: ${notificationMessage}`
+    );
 
     // TODO: Implement actual notification sending using the app's notification system
     // This would involve creating a notification record in the database
   } catch (error) {
-    console.error(`Error sending stale task notification to ${userEmail}:`, error);
+    console.error(
+      `Error sending stale task notification to ${userEmail}:`,
+      error
+    );
   }
 }
 
@@ -1126,9 +1217,10 @@ export async function createRemindersFromChatbotPayload(
       const reminderData = {
         title: reminderInput.task,
         description: reminderInput.notes,
-        dueDate: reminderInput.datetime && reminderInput.datetime !== "indefinite"
-          ? new Date(reminderInput.datetime)
-          : undefined, // Allow tasks without due dates
+        dueDate:
+          reminderInput.datetime && reminderInput.datetime !== "indefinite"
+            ? new Date(reminderInput.datetime)
+            : undefined, // Allow tasks without due dates
         assignedTo: reminderInput.assignees,
         priority: reminderInput.priority,
         channelId: reminderInput.channel_id || undefined,
