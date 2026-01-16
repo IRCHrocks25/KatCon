@@ -93,7 +93,6 @@ export const PUT = moderateRateLimit(async (
         updated_at: new Date().toISOString(),
       })
       .eq("id", clientId)
-      .eq("created_by", user.email) // Only creator can update
       .select()
       .single();
 
@@ -194,19 +193,18 @@ export const DELETE = moderateRateLimit(async (
       );
     }
 
-    // Delete client directly in the database since we already have user authentication
+    // Delete client - admins and managers can delete any client
     const adminSupabase = createClient(supabaseUrl, supabaseServiceKey);
     const { error: deleteError } = await adminSupabase
       .from("clients")
       .delete()
-      .eq("id", clientId)
-      .eq("created_by", user.email); // Only creator can delete
+      .eq("id", clientId);
 
     if (deleteError) {
       console.error("Error deleting client:", deleteError);
       return NextResponse.json(
-        { error: "Client not found or access denied" },
-        { status: 404 }
+        { error: "Failed to delete client" },
+        { status: 500 }
       );
     }
 
