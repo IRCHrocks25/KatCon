@@ -380,7 +380,7 @@ export async function updateReminder(
     throw reminderError;
   }
 
-  // If assignedTo is provided, update assignments
+  // If assignedTo is provided, update assignments (creators have full control)
   if (reminder.assignedTo !== undefined) {
     // Expand team assignments to individual emails
     const expandedEmails = await expandTeamAssignments(reminder.assignedTo);
@@ -528,179 +528,22 @@ export async function updateReminderStatus(
     userEmail,
   });
 
-  // Check if user is creator or assigned to this reminder
-  const { data: reminder, error: reminderError } = await supabase
-    .from("reminders")
-    .select("id, user_id")
-    .eq("id", id)
-    .single();
-
-  if (reminderError || !reminder) {
-    console.error("[REMINDER] Reminder not found:", reminderError);
-    throw new Error("Reminder not found");
-  }
-
-  const isCreator = reminder.user_id === userEmail;
-  console.log(`[REMINDER] User role check:`, {
-    isCreator,
-    creatorEmail: reminder.user_id,
+  // Use the API endpoint for status updates (handles all authorization and logic)
+  const headers = await getAuthHeaders();
+  const response = await fetch("/api/reminders/update-status", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ id, status }),
   });
 
-  // Check if user is assigned to this reminder
-  const { data: assignment } = await supabase
-    .from("reminder_assignments")
-    .select("id, status")
-    .eq("reminder_id", id)
-    .eq("assignedto", userEmail)
-    .single();
-
-  const isAssigned = !!assignment;
-  console.log(`[REMINDER] Assignment check:`, {
-    isAssigned,
-    currentStatus: assignment?.status,
-  });
-
-  if (!isCreator && !isAssigned) {
-    console.error("[REMINDER] Unauthorized update attempt");
-    throw new Error("You are not authorized to update this reminder");
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+    console.error("[REMINDER] API error:", errorData);
+    throw new Error(errorData.error || "Failed to update reminder status");
   }
 
-  // If user is assigned (not creator), update their assignment status AND overall reminder status
-  if (isAssigned && !isCreator) {
-    console.log(
-      `[REMINDER] Assignee updating status: ${userEmail} -> ${status}`
-    );
-    console.log(
-      `[REMINDER] Assignment ID: ${assignment.id}, Reminder ID: ${id}`
-    );
-
-    // Step 1: Update the assignee's individual status
-    const { data: assignmentData, error: assignmentUpdateError } =
-      await supabase
-        .from("reminder_assignments")
-        .update({ status })
-        .eq("id", assignment.id)
-        .select() // Return data to avoid 406 error
-        .single();
-
-    if (assignmentUpdateError) {
-      console.error(
-        "[REMINDER] Assignment update error:",
-        assignmentUpdateError
-      );
-      throw new Error(
-        `Failed to update assignment status: ${assignmentUpdateError.message}`
-      );
-    }
-    console.log("[REMINDER] ✅ Assignment status updated:", assignmentData);
-
-    // Step 2: Update the overall reminder status (so creator sees the change too)
-    console.log("[REMINDER] Updating overall reminder status...");
-    const { data: reminderUpdateData, error: reminderUpdateError } =
-      await supabase
-        .from("reminders")
-        .update({ status })
-        .eq("id", id)
-        .select()
-        .single();
-
-    if (reminderUpdateError) {
-      console.error(
-        "[REMINDER] ❌ Failed to update overall reminder status:",
-        reminderUpdateError
-      );
-      console.error("[REMINDER] Reminder update error details:", {
-        message: reminderUpdateError.message,
-        code: reminderUpdateError.code,
-        details: reminderUpdateError.details,
-        hint: reminderUpdateError.hint,
-      });
-      // Don't throw - allow the assignment update to succeed even if reminder update fails
-    } else {
-      console.log(
-        "[REMINDER] ✅ Overall reminder status updated:",
-        reminderUpdateData
-      );
-    }
-  } else if (isCreator) {
-    // If user is creator, update the reminder status AND all assignees' statuses
-    console.log(
-      `[REMINDER] Creator updating status: ${userEmail} -> ${status}`
-    );
-
-    // Step 1: Update the overall reminder status and last status change timestamp
-    const { data: reminderData, error: reminderUpdateError } = await supabase
-      .from("reminders")
-      .update({
-        status,
-        last_status_change_at: new Date().toISOString(),
-      })
-      .eq("id", id)
-      .eq("user_id", userEmail)
-      .select() // Return data to avoid 406 error
-      .single();
-
-    if (reminderUpdateError) {
-      console.error("[REMINDER] Creator update error:", reminderUpdateError);
-      throw new Error(
-        `Failed to update reminder status: ${reminderUpdateError.message}`
-      );
-    }
-    console.log(
-      "[REMINDER] ✅ Reminder status updated by creator:",
-      reminderData
-    );
-
-    // Step 2: Update all assignees' individual statuses to match
-    console.log(
-      "[REMINDER] Updating all assignees' statuses to match reminder status..."
-    );
-    const { data: allAssignments, error: assignmentsFetchError } =
-      await supabase
-        .from("reminder_assignments")
-        .select("id")
-        .eq("reminder_id", id);
-
-    if (assignmentsFetchError) {
-      console.error(
-        "[REMINDER] Failed to fetch assignments:",
-        assignmentsFetchError
-      );
-      // Don't throw - reminder update succeeded, assignment update is secondary
-    } else if (allAssignments && allAssignments.length > 0) {
-      console.log(
-        `[REMINDER] Found ${allAssignments.length} assignments to update`
-      );
-
-      const { error: assignmentsUpdateError } = await supabase
-        .from("reminder_assignments")
-        .update({ status })
-        .eq("reminder_id", id);
-
-      if (assignmentsUpdateError) {
-        console.error(
-          "[REMINDER] ❌ Failed to update assignees' statuses:",
-          assignmentsUpdateError
-        );
-        console.error("[REMINDER] Assignments update error details:", {
-          message: assignmentsUpdateError.message,
-          code: assignmentsUpdateError.code,
-          details: assignmentsUpdateError.details,
-          hint: assignmentsUpdateError.hint,
-        });
-        // Don't throw - reminder update succeeded, assignment update is secondary
-      } else {
-        console.log(
-          `[REMINDER] ✅ Updated ${allAssignments.length} assignees' statuses to ${status}`
-        );
-      }
-    } else {
-      console.log("[REMINDER] No assignments found to update");
-    }
-  }
-
-  // Always fetch and return the updated reminder with assignments
-  console.log("[REMINDER] Fetching updated reminder data...");
+  // Fetch and return the updated reminder data
+  console.log("[REMINDER] Status updated successfully, fetching updated data...");
   const { data: reminderData, error: fetchError } = await supabase
     .from("reminders")
     .select("*")
@@ -725,21 +568,12 @@ export async function updateReminderStatus(
     );
   }
 
-  console.log(
-    "[REMINDER] Fetched assignments:",
-    assignmentsData?.map((a) => ({
-      id: a.id,
-      assignedto: a.assignedto,
-      status: a.status,
-      isCurrentUser: a.assignedto === userEmail,
-    }))
-  );
-
   const updatedReminder = await dbToAppReminder(
     reminderData,
     assignmentsData || [],
     userEmail
   );
+
   console.log("[REMINDER] ✅ Returning updated reminder:", {
     id: updatedReminder.id,
     status: updatedReminder.status,
@@ -752,7 +586,7 @@ export async function updateReminderStatus(
 }
 
 // Update reminder Kanban status and position for drag and drop
-// Only users assigned to the task can move it
+// Creators have full control over their tasks, assignees can move assigned tasks
 export async function updateReminderKanban(
   id: string,
   status: "backlog" | "in_progress" | "review" | "done",
@@ -770,32 +604,50 @@ export async function updateReminderKanban(
     userEmail,
   });
 
+  // Check if user is creator or assigned to this reminder
+  const { data: reminder, error: reminderError } = await supabase
+    .from("reminders")
+    .select("id, user_id")
+    .eq("id", id)
+    .single();
+
+  if (reminderError || !reminder) {
+    console.error("[KANBAN] Reminder not found:", reminderError);
+    throw new Error("Task not found");
+  }
+
+  const isCreator = reminder.user_id === userEmail;
+
   // Check if user is assigned to this reminder
-  const { data: assignment, error: assignmentError } = await supabase
+  const { data: assignment } = await supabase
     .from("reminder_assignments")
     .select("id, assignedto")
     .eq("reminder_id", id)
     .eq("assignedto", userEmail.toLowerCase())
     .single();
 
-  console.log(`[KANBAN] Assignment check result:`, {
-    assignment,
-    assignmentError,
+  const isAssigned = !!assignment;
+
+  console.log(`[KANBAN] Permission check:`, {
+    isCreator,
+    isAssigned,
+    creatorEmail: reminder.user_id,
     userEmail: userEmail.toLowerCase(),
   });
 
-  const isAssigned = !!assignment;
-  if (!isAssigned) {
-    console.error(`[KANBAN] User not assigned to task:`, {
+  if (!isCreator && !isAssigned) {
+    console.error(`[KANBAN] User not authorized to move task:`, {
       taskId: id,
       userEmail: userEmail.toLowerCase(),
-      assignmentError,
+      isCreator,
+      isAssigned,
     });
     throw new Error("You are not authorized to move this task");
   }
 
   // Update the reminder status and position
-  const { data: reminderData, error: reminderError } = await supabase
+  // Creators can update any task they created, assignees can update their assigned tasks
+  const { data: reminderData, error: reminderUpdateError } = await supabase
     .from("reminders")
     .update({
       status,
@@ -806,8 +658,9 @@ export async function updateReminderKanban(
     .select()
     .single();
 
-  if (reminderError) {
-    throw new Error(`Failed to update task: ${reminderError.message}`);
+  if (reminderUpdateError) {
+    console.error("[KANBAN] Failed to update reminder:", reminderUpdateError);
+    throw new Error(`Failed to update task: ${reminderUpdateError.message}`);
   }
 
   // Update all assignees' statuses to match the new status
@@ -833,6 +686,14 @@ export async function updateReminderKanban(
   if (assignmentsFetchError) {
     console.error("Failed to fetch assignments:", assignmentsFetchError);
   }
+
+  console.log("[KANBAN] Successfully moved task:", {
+    taskId: id,
+    newStatus: status,
+    newPosition: position,
+    movedBy: userEmail,
+    isCreator,
+  });
 
   return dbToAppReminder(reminderData, assignmentsData || [], userEmail);
 }

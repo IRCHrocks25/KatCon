@@ -18,11 +18,11 @@ export const POST = moderateRateLimit(async (request: NextRequest) => {
     }
 
     // Validate status
-    if (!["pending", "done", "hidden"].includes(status)) {
+    if (!["backlog", "in_progress", "review", "done", "hidden"].includes(status)) {
       return NextResponse.json(
         {
           error: "Invalid status",
-          details: "Status must be 'pending', 'done', or 'hidden'",
+          details: "Status must be 'backlog', 'in_progress', 'review', 'done', or 'hidden'",
         },
         { status: 400 }
       );
@@ -93,7 +93,7 @@ export const POST = moderateRateLimit(async (request: NextRequest) => {
       .from("reminder_assignments")
       .select("id, status")
       .eq("reminder_id", id)
-      .eq("user_email", user.email)
+      .eq("assignedto", user.email.toLowerCase())
       .single();
 
     const isAssigned = !!assignment;
@@ -108,8 +108,38 @@ export const POST = moderateRateLimit(async (request: NextRequest) => {
       );
     }
 
-    // If user is assigned (not creator), update their assignment status
-    if (isAssigned && !isCreator) {
+    // Creators have full control over their tasks
+    if (isCreator) {
+      // If user is creator, update the reminder status directly and sync all assignments
+      const { error: reminderUpdateError } = await supabase
+        .from("reminders")
+        .update({ status, last_status_change_at: new Date().toISOString() })
+        .eq("id", id)
+        .eq("user_id", user.email);
+
+      if (reminderUpdateError) {
+        console.error("Error updating reminder status:", reminderUpdateError);
+        return NextResponse.json(
+          {
+            error: "Failed to update reminder status",
+            details: reminderUpdateError.message,
+          },
+          { status: 500 }
+        );
+      }
+
+      // Sync all assignment statuses to match the overall status
+      const { error: assignmentsUpdateError } = await supabase
+        .from("reminder_assignments")
+        .update({ status })
+        .eq("reminder_id", id);
+
+      if (assignmentsUpdateError) {
+        console.error("Error syncing assignment statuses:", assignmentsUpdateError);
+        // Don't fail the request - reminder update succeeded
+      }
+    } else if (isAssigned) {
+      // If user is assigned (but not creator), update their individual assignment status
       const { error: assignmentUpdateError } = await supabase
         .from("reminder_assignments")
         .update({ status })
@@ -125,23 +155,16 @@ export const POST = moderateRateLimit(async (request: NextRequest) => {
           { status: 500 }
         );
       }
-    } else if (isCreator) {
-      // If user is creator, update the reminder status directly
+
+      // Also update the overall reminder status when an assignee updates
       const { error: reminderUpdateError } = await supabase
         .from("reminders")
-        .update({ status })
-        .eq("id", id)
-        .eq("user_id", user.email);
+        .update({ status, last_status_change_at: new Date().toISOString() })
+        .eq("id", id);
 
       if (reminderUpdateError) {
         console.error("Error updating reminder status:", reminderUpdateError);
-        return NextResponse.json(
-          {
-            error: "Failed to update reminder status",
-            details: reminderUpdateError.message,
-          },
-          { status: 500 }
-        );
+        // Don't fail - assignment update succeeded
       }
     }
 
