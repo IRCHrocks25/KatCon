@@ -25,8 +25,26 @@ export function MessageActionsMenu({
   onAddReaction,
 }: MessageActionsMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<'top' | 'bottom'>('top');
   const menuRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const [isPinning, setIsPinning] = useState(false);
+
+  // Calculate optimal menu position
+  const calculateMenuPosition = () => {
+    if (!buttonRef.current) return 'top';
+
+    const buttonRect = buttonRef.current.getBoundingClientRect();
+    const menuHeight = 160; // Approximate menu height
+    const viewportHeight = window.innerHeight;
+
+    // If there's not enough space above, position below
+    if (buttonRect.top < menuHeight + 20) {
+      return 'bottom';
+    }
+
+    return 'top';
+  };
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -37,6 +55,8 @@ export function MessageActionsMenu({
     };
 
     if (isOpen) {
+      // Calculate position when opening
+      setMenuPosition(calculateMenuPosition());
       document.addEventListener("mousedown", handleClickOutside);
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }
@@ -50,9 +70,13 @@ export function MessageActionsMenu({
       if (isPinned) {
         await unpinMessage(messageId);
         toast.success("Message unpinned");
+        // Trigger refresh of pinned messages in the panel
+        window.dispatchEvent(new CustomEvent("refreshPinnedMessages"));
       } else {
         await pinMessage(messageId);
         toast.success("Message pinned");
+        // Trigger refresh of pinned messages in the panel
+        window.dispatchEvent(new CustomEvent("refreshPinnedMessages"));
       }
       onPinChange?.();
       setIsOpen(false);
@@ -77,6 +101,7 @@ export function MessageActionsMenu({
   return (
     <div className="relative" ref={menuRef}>
       <button
+        ref={buttonRef}
         onClick={() => setIsOpen(!isOpen)}
         className="p-1.5 hover:bg-gray-800 rounded transition"
         title="More options"
@@ -89,16 +114,26 @@ export function MessageActionsMenu({
           <>
             {/* Backdrop */}
             <div
-              className="fixed inset-0 z-40"
+              className="fixed inset-0 z-[60]"
               onClick={() => setIsOpen(false)}
             />
-            {/* Menu - Positioned on top, aligned based on message side */}
+            {/* Menu - Dynamic positioning based on available space */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              initial={{
+                opacity: 0,
+                scale: 0.95,
+                y: menuPosition === 'top' ? 10 : -10
+              }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className={`absolute bottom-full mb-1 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-xl min-w-[180px] ${
-                isOwnMessage ? "right-0" : "left-0"
+              exit={{
+                opacity: 0,
+                scale: 0.95,
+                y: menuPosition === 'top' ? 10 : -10
+              }}
+              className={`absolute z-[70] bg-gray-900 border border-gray-700 rounded-lg shadow-xl min-w-[180px] ${
+                menuPosition === 'top'
+                  ? `bottom-full mb-1 ${isOwnMessage ? "right-0" : "left-0"}`
+                  : `top-full mt-1 ${isOwnMessage ? "right-0" : "left-0"}`
               }`}
             >
               <div className="py-1">
@@ -163,4 +198,3 @@ export function MessageActionsMenu({
     </div>
   );
 }
-

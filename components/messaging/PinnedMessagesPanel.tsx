@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Pin, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { supabase } from "@/lib/supabase/client";
 import type { PinnedMessage } from "@/lib/supabase/messaging";
 import { getPinnedMessages, unpinMessage } from "@/lib/supabase/messaging";
 import { toast } from "sonner";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 interface PinnedMessagesPanelProps {
   conversationId: string;
@@ -25,13 +27,17 @@ export function PinnedMessagesPanel({
   const [loadedConversationId, setLoadedConversationId] = useState<string | null>(null);
   const [loadingMessageId, setLoadingMessageId] = useState<string | null>(null);
 
+  // Real-time subscription ref
+  const realtimeChannelRef = useRef<RealtimeChannel | null>(null);
+
   useEffect(() => {
     if (isOpen && conversationId && loadedConversationId !== conversationId) {
       loadPinnedMessages();
+      setupRealtimeSubscription();
     }
   }, [isOpen, conversationId, loadedConversationId]);
 
-  // Listen for refresh events
+  // Listen for refresh events (fallback)
   useEffect(() => {
     const handleRefresh = () => {
       if (isOpen && conversationId) {
@@ -44,6 +50,46 @@ export function PinnedMessagesPanel({
       window.removeEventListener("refreshPinnedMessages", handleRefresh);
     };
   }, [isOpen, conversationId]);
+
+  // Set up real-time subscription for pinned messages
+  const setupRealtimeSubscription = () => {
+    // Clean up existing subscription
+    if (realtimeChannelRef.current) {
+      supabase.removeChannel(realtimeChannelRef.current);
+    }
+
+    // Create new subscription for this conversation
+    const channel = supabase
+      .channel(`pinned_messages_${conversationId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'pinned_messages',
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload) => {
+          console.log('[REALTIME] Pinned messages change:', payload);
+          // Refresh pinned messages when any change occurs
+          loadPinnedMessages();
+        }
+      )
+      .subscribe((status) => {
+        console.log(`[REALTIME] Pinned messages subscription status: ${status}`);
+      });
+
+    realtimeChannelRef.current = channel;
+  };
+
+  // Clean up subscription when component unmounts
+  useEffect(() => {
+    return () => {
+      if (realtimeChannelRef.current) {
+        supabase.removeChannel(realtimeChannelRef.current);
+      }
+    };
+  }, []);
 
   const loadPinnedMessages = async () => {
     try {
