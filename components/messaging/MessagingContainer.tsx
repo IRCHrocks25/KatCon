@@ -467,17 +467,8 @@ export function MessagingContainer({
     await fetchConversations(true);
   }, [fetchConversations]);
 
-  // Update notification when conversations change
-  useEffect(() => {
-    if (currentUser?.email && conversations.length > 0) {
-      updateUnreadNotification(conversations).catch((error) => {
-        console.error(
-          "[MESSAGING] Error updating unread messages notification:",
-          error
-        );
-      });
-    }
-  }, [conversations, currentUser?.email, updateUnreadNotification]);
+  // Note: Unread notifications are updated in fetchConversations() and realtime subscriptions
+  // to avoid showing notifications when users send messages (which doesn't change their unread count)
 
   // Handle manual refresh of messages and conversations
   const handleManualRefresh = useCallback(async () => {
