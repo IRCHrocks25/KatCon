@@ -61,21 +61,81 @@ export const GET = moderateRateLimit(async (request: NextRequest) => {
     const { searchParams } = new URL(request.url);
     const userEmail = searchParams.get("userEmail");
 
-    // Fetch all reminders (or filtered by user email)
-    let remindersQuery = adminSupabase
-      .from("reminders")
-      .select("*")
-      .neq("status", "hidden");
+    let reminders: Array<{
+      id: string;
+      user_id: string;
+      title: string;
+      description: string | null;
+      due_date: string | null;
+      status: string;
+      position: number;
+      last_status_change_at: string | null;
+      snoozed_until: string | null;
+      created_at: string;
+      updated_at: string;
+    }> = [];
 
     if (userEmail) {
-      remindersQuery = remindersQuery.eq("user_id", userEmail);
-    }
+      // For specific user: get reminders they created OR are assigned to (like regular user view)
+      // Get reminder IDs where user is assigned
+      const { data: assignedReminders } = await adminSupabase
+        .from("reminder_assignments")
+        .select("reminder_id")
+        .eq("assignedto", userEmail)
+        .neq("status", "hidden");
 
-    const { data: reminders, error: remindersError } = await remindersQuery.order("created_at", { ascending: false });
+      const assignedReminderIds = assignedReminders?.map((a) => a.reminder_id) || [];
 
-    if (remindersError) {
-      console.error("Error fetching reminders:", remindersError);
-      return NextResponse.json({ error: "Failed to fetch reminders" }, { status: 500 });
+      // Get reminders where user is creator
+      const { data: createdReminders, error: createdError } = await adminSupabase
+        .from("reminders")
+        .select("*")
+        .eq("user_id", userEmail)
+        .neq("status", "hidden");
+
+      if (createdError) {
+        console.error("Error fetching created reminders:", createdError);
+      }
+
+      // Combine and deduplicate reminders
+      const allReminders = [...(createdReminders || []), ...(assignedReminders ? [] : [])];
+      const uniqueReminders = Array.from(
+        new Map(allReminders.map((r) => [r.id, r])).values()
+      );
+
+      // If user has assigned reminders, fetch those too
+      if (assignedReminderIds.length > 0) {
+        const { data: assignedRemindersData, error: assignedError } = await adminSupabase
+          .from("reminders")
+          .select("*")
+          .in("id", assignedReminderIds)
+          .neq("status", "hidden");
+
+        if (!assignedError && assignedRemindersData) {
+          // Add assigned reminders, avoiding duplicates
+          for (const assignedReminder of assignedRemindersData) {
+            if (!uniqueReminders.some((r) => r.id === assignedReminder.id)) {
+              uniqueReminders.push(assignedReminder);
+            }
+          }
+        }
+      }
+
+      reminders = uniqueReminders;
+    } else {
+      // No user filter: fetch all reminders for admin overview
+      const { data: allReminders, error: remindersError } = await adminSupabase
+        .from("reminders")
+        .select("*")
+        .neq("status", "hidden")
+        .order("created_at", { ascending: false });
+
+      if (remindersError) {
+        console.error("Error fetching all reminders:", remindersError);
+        return NextResponse.json({ error: "Failed to fetch reminders" }, { status: 500 });
+      }
+
+      reminders = allReminders || [];
     }
 
     if (!reminders || reminders.length === 0) {
@@ -124,4 +184,3 @@ export const GET = moderateRateLimit(async (request: NextRequest) => {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 });
-
