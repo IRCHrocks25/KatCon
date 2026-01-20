@@ -13,6 +13,12 @@ import {
   CheckCircle2,
   RefreshCw,
   ListTodo,
+  MoreVertical,
+  Edit,
+  Trash2,
+  ChevronDown,
+  ExternalLink,
+  User,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -66,6 +72,7 @@ export function RemindersModal({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
 
   // Show form immediately when modal opens with initialShowForm, initialEditingReminder, or forceShowCreateForm
   useEffect(() => {
@@ -383,7 +390,26 @@ export function RemindersModal({
     setEditingReminder(null);
   };
 
-  // Render reminder group
+  // Handle status update
+  const handleStatusUpdate = async (id: string, newStatus: string) => {
+    setUpdatingStatusId(id);
+    try {
+      const updatedReminder = await updateReminderStatus(id, newStatus as "backlog" | "in_progress" | "review" | "done" | "hidden");
+      if (updatedReminder) {
+        setReminders((prev) =>
+          prev.map((r) => (r.id === id ? updatedReminder : r))
+        );
+        toast.success(`Task status updated`);
+      }
+    } catch (error) {
+      console.error("Error updating task status:", error);
+      toast.error("Failed to update task status");
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  };
+
+  // Render reminder group with quick actions
   const renderGroup = (
     label: string,
     icon: React.ReactNode,
@@ -401,20 +427,211 @@ export function RemindersModal({
           <span>{label}</span>
           <span className="text-gray-500 text-xs">({items.length})</span>
         </div>
-        <div className="space-y-2">
-          {items.map((reminder) => (
-            <ReminderCard
-              key={reminder.id}
-              reminder={reminder}
-              currentUserEmail={currentUser?.email || ""}
-              onToggleComplete={handleToggleComplete}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              onViewDetails={undefined} // Disable view details modal in list view
-              isToggling={togglingId === reminder.id}
-              isDeleting={deletingId === reminder.id}
-            />
-          ))}
+        <div className="space-y-3">
+          {items.map((reminder) => {
+            const isCreator = reminder.createdBy === currentUser?.email;
+            const displayStatus = isCreator
+              ? reminder.status
+              : reminder.myStatus || reminder.status;
+            const isCompleted = displayStatus === "done";
+            const isUpdating = updatingStatusId === reminder.id;
+
+            return (
+              <motion.div
+                key={reminder.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="relative bg-gray-800/60 rounded-lg hover:bg-gray-800/80 transition-colors group p-4"
+              >
+                <div className="flex gap-3">
+                  {/* Checkbox */}
+                  <button
+                    onClick={() => handleToggleComplete(reminder.id)}
+                    disabled={togglingId === reminder.id}
+                    className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center transition ${
+                      togglingId === reminder.id ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+                    } ${
+                      isCompleted
+                        ? "bg-purple-600 border-purple-600"
+                        : "border-gray-500 hover:border-purple-500"
+                    }`}
+                  >
+                    {togglingId === reminder.id ? (
+                      <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : isCompleted ? (
+                      <CheckCircle2 size={12} className="text-white" />
+                    ) : null}
+                  </button>
+
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    {/* Title with Priority */}
+                    <div className="flex items-start gap-2">
+                      <h3
+                        className={`text-sm font-medium leading-tight flex-1 ${
+                          isCompleted ? "text-gray-500 line-through" : "text-white"
+                        }`}
+                      >
+                        {reminder.title}
+                      </h3>
+                      {/* Priority Badge */}
+                      <div
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                          reminder.priority === "urgent"
+                            ? "bg-red-600 text-white"
+                            : reminder.priority === "high"
+                            ? "bg-orange-600 text-white"
+                            : reminder.priority === "low"
+                            ? "bg-green-600 text-white"
+                            : "bg-gray-500 text-gray-300"
+                        }`}
+                      >
+                        {reminder.priority.toUpperCase()}
+                      </div>
+                    </div>
+
+                    {reminder.description && (
+                      <p
+                        className={`text-xs mt-1 line-clamp-2 ${
+                          isCompleted ? "text-gray-600 line-through" : "text-gray-400"
+                        }`}
+                      >
+                        {reminder.description}
+                      </p>
+                    )}
+
+                    {/* Meta info */}
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2">
+                      {/* Status Badge */}
+                      <div
+                        className={`px-2 py-1 rounded text-xs font-medium text-white ${
+                          displayStatus === "backlog"
+                            ? "bg-gray-500"
+                            : displayStatus === "in_progress"
+                            ? "bg-blue-500"
+                            : displayStatus === "review"
+                            ? "bg-yellow-500"
+                            : "bg-green-500"
+                        }`}
+                      >
+                        {displayStatus === "backlog"
+                          ? "Backlog"
+                          : displayStatus === "in_progress"
+                          ? "In Progress"
+                          : displayStatus === "review"
+                          ? "Review"
+                          : "Done"}
+                      </div>
+
+                      {/* Due date */}
+                      {reminder.dueDate && (
+                        <div
+                          className={`flex items-center gap-1 text-xs ${colorClass.replace(
+                            "text-",
+                            ""
+                          )}`}
+                        >
+                          {label === "OVERDUE" ? (
+                            <AlertCircle size={12} />
+                          ) : (
+                            <Clock size={12} />
+                          )}
+                          <span>
+                            {new Date(reminder.dueDate).toLocaleDateString([], {
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Created by (if not creator) */}
+                      {!isCreator && reminder.createdBy && (
+                        <div className="flex items-center gap-1 text-xs text-gray-500">
+                          <span>by {reminder.createdBy.split("@")[0]}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Assignees */}
+                    {reminder.assignedTo && reminder.assignedTo.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {reminder.assignedTo.slice(0, 3).map((assignment) => {
+                          const display =
+                            assignment === currentUser?.email
+                              ? "You"
+                              : assignment.split("@")[0];
+                          return (
+                            <span
+                              key={assignment}
+                              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] ${
+                                assignment === currentUser?.email
+                                  ? "bg-purple-600/30 text-purple-300"
+                                  : "bg-gray-700/50 text-gray-400"
+                              }`}
+                            >
+                              <User size={10} />
+                              {display}
+                            </span>
+                          );
+                        })}
+                        {reminder.assignedTo.length > 3 && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-gray-700/50 text-gray-400">
+                            +{reminder.assignedTo.length - 3} more
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Quick Actions */}
+                  <div className="flex items-center gap-1">
+                    {/* Status Update Dropdown */}
+                    <div className="relative">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // For now, just show a simple status toggle
+                          const currentStatus = displayStatus;
+                          const nextStatus =
+                            currentStatus === "backlog"
+                              ? "in_progress"
+                              : currentStatus === "in_progress"
+                              ? "review"
+                              : currentStatus === "review"
+                              ? "done"
+                              : "backlog";
+                          handleStatusUpdate(reminder.id, nextStatus);
+                        }}
+                        disabled={isUpdating}
+                        className="p-1.5 rounded-lg opacity-50 group-hover:opacity-100 hover:bg-gray-700 transition-all cursor-pointer text-gray-400 hover:text-white"
+                        title="Quick status update"
+                      >
+                        {isUpdating ? (
+                          <div className="w-4 h-4 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+                        ) : (
+                          <ChevronDown size={16} />
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Menu Button */}
+                    <div className="relative">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Could add a menu here with more options
+                        }}
+                        className="p-1.5 rounded-lg opacity-50 group-hover:opacity-100 hover:bg-gray-700 transition-all cursor-pointer"
+                      >
+                        <MoreVertical size={16} className="text-gray-400" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })}
         </div>
       </div>
     );
@@ -615,37 +832,122 @@ export function RemindersModal({
                       onEdit={handleEdit}
                       onDelete={handleDelete}
                       onViewDetails={undefined} // Disable view details modal in list view
+                      onStatusUpdate={handleStatusUpdate}
                       isToggling={togglingId === reminder.id}
                       isDeleting={deletingId === reminder.id}
+                      isUpdatingStatus={updatingStatusId === reminder.id}
                     />
                   ))}
                 </div>
               ) : (
                 // Active tasks - grouped by due date
                 <>
-                  {renderGroup(
-                    "OVERDUE",
-                    <AlertCircle size={16} />,
-                    groupedReminders.overdue,
-                    "text-red-400"
+                  {groupedReminders.overdue.length > 0 && (
+                    <div className="mb-6">
+                      <div className="flex items-center gap-2 mb-3 text-sm font-medium text-red-400">
+                        <AlertCircle size={16} />
+                        <span>OVERDUE</span>
+                        <span className="text-gray-500 text-xs">({groupedReminders.overdue.length})</span>
+                      </div>
+                      <div className="space-y-2">
+                        {groupedReminders.overdue.map((reminder) => (
+                          <ReminderCard
+                            key={reminder.id}
+                            reminder={reminder}
+                            currentUserEmail={currentUser?.email || ""}
+                            onToggleComplete={handleToggleComplete}
+                            onEdit={handleEdit}
+                            onDelete={handleDelete}
+                            onViewDetails={undefined}
+                            onStatusUpdate={handleStatusUpdate}
+                            isToggling={togglingId === reminder.id}
+                            isDeleting={deletingId === reminder.id}
+                            isUpdatingStatus={updatingStatusId === reminder.id}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   )}
-                  {renderGroup(
-                    "TODAY",
-                    <Clock size={16} />,
-                    groupedReminders.today,
-                    "text-amber-400"
+
+                  {groupedReminders.today.length > 0 && (
+                    <div className="mb-6">
+                      <div className="flex items-center gap-2 mb-3 text-sm font-medium text-amber-400">
+                        <Clock size={16} />
+                        <span>TODAY</span>
+                        <span className="text-gray-500 text-xs">({groupedReminders.today.length})</span>
+                      </div>
+                      <div className="space-y-2">
+                        {groupedReminders.today.map((reminder) => (
+                          <ReminderCard
+                            key={reminder.id}
+                            reminder={reminder}
+                            currentUserEmail={currentUser?.email || ""}
+                            onToggleComplete={handleToggleComplete}
+                            onEdit={handleEdit}
+                            onDelete={handleDelete}
+                            onViewDetails={undefined}
+                            onStatusUpdate={handleStatusUpdate}
+                            isToggling={togglingId === reminder.id}
+                            isDeleting={deletingId === reminder.id}
+                            isUpdatingStatus={updatingStatusId === reminder.id}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   )}
-                  {renderGroup(
-                    "UPCOMING",
-                    <Calendar size={16} />,
-                    groupedReminders.upcoming,
-                    "text-green-400"
+
+                  {groupedReminders.upcoming.length > 0 && (
+                    <div className="mb-6">
+                      <div className="flex items-center gap-2 mb-3 text-sm font-medium text-green-400">
+                        <Calendar size={16} />
+                        <span>UPCOMING</span>
+                        <span className="text-gray-500 text-xs">({groupedReminders.upcoming.length})</span>
+                      </div>
+                      <div className="space-y-2">
+                        {groupedReminders.upcoming.map((reminder) => (
+                          <ReminderCard
+                            key={reminder.id}
+                            reminder={reminder}
+                            currentUserEmail={currentUser?.email || ""}
+                            onToggleComplete={handleToggleComplete}
+                            onEdit={handleEdit}
+                            onDelete={handleDelete}
+                            onViewDetails={undefined}
+                            onStatusUpdate={handleStatusUpdate}
+                            isToggling={togglingId === reminder.id}
+                            isDeleting={deletingId === reminder.id}
+                            isUpdatingStatus={updatingStatusId === reminder.id}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   )}
-                  {renderGroup(
-                    "NO DUE DATE",
-                    <CheckCircle2 size={16} />,
-                    groupedReminders.noDate,
-                    "text-gray-500"
+
+                  {groupedReminders.noDate.length > 0 && (
+                    <div className="mb-6">
+                      <div className="flex items-center gap-2 mb-3 text-sm font-medium text-gray-500">
+                        <CheckCircle2 size={16} />
+                        <span>NO DUE DATE</span>
+                        <span className="text-gray-500 text-xs">({groupedReminders.noDate.length})</span>
+                      </div>
+                      <div className="space-y-2">
+                        {groupedReminders.noDate.map((reminder) => (
+                          <ReminderCard
+                            key={reminder.id}
+                            reminder={reminder}
+                            currentUserEmail={currentUser?.email || ""}
+                            onToggleComplete={handleToggleComplete}
+                            onEdit={handleEdit}
+                            onDelete={handleDelete}
+                            onViewDetails={undefined}
+                            onStatusUpdate={handleStatusUpdate}
+                            isToggling={togglingId === reminder.id}
+                            isDeleting={deletingId === reminder.id}
+                            isUpdatingStatus={updatingStatusId === reminder.id}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </>
               )}

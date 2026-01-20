@@ -13,6 +13,8 @@ import {
   AlertCircle,
   Hash,
   Building,
+  ExternalLink,
+  ChevronDown,
 } from "lucide-react";
 import type { Reminder } from "@/lib/supabase/reminders";
 import { getConversations, type Conversation } from "@/lib/supabase/messaging";
@@ -25,8 +27,10 @@ interface ReminderCardProps {
   onEdit: (reminder: Reminder) => void;
   onDelete: (id: string) => void;
   onViewDetails?: (reminder: Reminder) => void;
+  onStatusUpdate?: (id: string, status: string) => void;
   isToggling: boolean;
   isDeleting: boolean;
+  isUpdatingStatus?: boolean;
 }
 
 type Priority = "overdue" | "today" | "upcoming" | "no-date";
@@ -38,8 +42,10 @@ export function ReminderCard({
   onEdit,
   onDelete,
   onViewDetails,
+  onStatusUpdate,
   isToggling,
   isDeleting,
+  isUpdatingStatus = false,
 }: ReminderCardProps) {
   const { clients } = useClients();
   const [showMenu, setShowMenu] = useState(false);
@@ -334,58 +340,134 @@ export function ReminderCard({
           )}
         </div>
 
-        {/* Actions Menu */}
-        {isCreator && (
-          <div className="relative flex-shrink-0 self-start">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowMenu(!showMenu);
-              }}
-              className="p-1.5 rounded-lg opacity-50 group-hover:opacity-100 hover:bg-gray-700 transition-all cursor-pointer"
-            >
-              <MoreVertical size={16} className="text-gray-400" />
-            </button>
+        {/* Actions Menu - Show to all users but with different options based on permissions */}
+        <div className="relative flex-shrink-0 self-start">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowMenu(!showMenu);
+            }}
+            className="p-1.5 rounded-lg opacity-50 group-hover:opacity-100 hover:bg-gray-700 transition-all cursor-pointer"
+          >
+            <MoreVertical size={16} className="text-gray-400" />
+          </button>
 
-            {showMenu && (
-              <>
-                {/* Backdrop */}
-                <div
-                  className="fixed inset-0 z-[100]"
-                  onClick={() => setShowMenu(false)}
-                />
-                {/* Menu */}
-                <div className="absolute right-0 top-8 z-[101] bg-gray-800 border border-gray-700 rounded-lg shadow-2xl py-1 min-w-[120px]">
-                  <button
-                    onClick={() => {
-                      setShowMenu(false);
-                      onEdit(reminder);
-                    }}
-                    className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2 cursor-pointer"
-                  >
-                    <Edit size={14} />
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowMenu(false);
-                      onDelete(reminder.id);
-                    }}
-                    disabled={isDeleting}
-                    className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-gray-700 flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                  >
-                    {isDeleting ? (
-                      <div className="w-3.5 h-3.5 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
-                    ) : (
-                      <Trash2 size={14} />
+          {showMenu && (
+            <>
+              {/* Backdrop */}
+              <div
+                className="fixed inset-0 z-[100]"
+                onClick={() => setShowMenu(false)}
+              />
+              {/* Menu */}
+              <div className="absolute right-0 top-8 z-[101] bg-gray-800 border border-gray-700 rounded-lg shadow-2xl py-1 min-w-[160px]">
+                {/* Status Updates */}
+                <div className="px-3 py-2 border-b border-gray-700">
+                  <p className="text-xs text-gray-500 font-medium mb-2">
+                    Update Status
+                  </p>
+                  <div className="space-y-1">
+                    {reminder.status !== "backlog" && (
+                      <button
+                        onClick={() => {
+                          setShowMenu(false);
+                          onStatusUpdate?.(reminder.id, "backlog");
+                        }}
+                        disabled={isUpdatingStatus}
+                        className="w-full px-2 py-1 text-left text-xs text-gray-300 hover:bg-gray-700 rounded flex items-center gap-2 cursor-pointer"
+                      >
+                        <div className="w-2 h-2 rounded-full bg-gray-500" />
+                        Backlog
+                      </button>
                     )}
-                    Delete
-                  </button>
+                    {reminder.status !== "in_progress" && (
+                      <button
+                        onClick={() => {
+                          setShowMenu(false);
+                          onStatusUpdate?.(reminder.id, "in_progress");
+                        }}
+                        disabled={isUpdatingStatus}
+                        className="w-full px-2 py-1 text-left text-xs text-gray-300 hover:bg-gray-700 rounded flex items-center gap-2 cursor-pointer"
+                      >
+                        <div className="w-2 h-2 rounded-full bg-blue-500" />
+                        In Progress
+                      </button>
+                    )}
+                    {reminder.status !== "review" && (
+                      <button
+                        onClick={() => {
+                          setShowMenu(false);
+                          onStatusUpdate?.(reminder.id, "review");
+                        }}
+                        disabled={isUpdatingStatus}
+                        className="w-full px-2 py-1 text-left text-xs text-gray-300 hover:bg-gray-700 rounded flex items-center gap-2 cursor-pointer"
+                      >
+                        <div className="w-2 h-2 rounded-full bg-yellow-500" />
+                        Review
+                      </button>
+                    )}
+                    {reminder.status !== "done" && (
+                      <button
+                        onClick={() => {
+                          setShowMenu(false);
+                          onStatusUpdate?.(reminder.id, "done");
+                        }}
+                        disabled={isUpdatingStatus}
+                        className="w-full px-2 py-1 text-left text-xs text-gray-300 hover:bg-gray-700 rounded flex items-center gap-2 cursor-pointer"
+                      >
+                        <div className="w-2 h-2 rounded-full bg-green-500" />
+                        Done
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </>
-            )}
-          </div>
-        )}
+
+                {/* Actions */}
+                <button
+                  onClick={() => {
+                    setShowMenu(false);
+                    onViewDetails?.(reminder);
+                  }}
+                  className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2 cursor-pointer"
+                >
+                  <ExternalLink size={14} />
+                  View Details
+                </button>
+
+                {/* Edit and Delete - Only for creators */}
+                {isCreator && (
+                  <>
+                    <button
+                      onClick={() => {
+                        setShowMenu(false);
+                        onEdit(reminder);
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2 cursor-pointer"
+                    >
+                      <Edit size={14} />
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowMenu(false);
+                        onDelete(reminder.id);
+                      }}
+                      disabled={isDeleting}
+                      className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-gray-700 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      {isDeleting ? (
+                        <div className="w-3.5 h-3.5 border-2 border-red-400/30 border-t-red-400 rounded-full animate-spin" />
+                      ) : (
+                        <Trash2 size={14} />
+                      )}
+                      Delete
+                    </button>
+                  </>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </motion.div>
   );

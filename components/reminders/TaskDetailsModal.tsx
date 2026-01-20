@@ -13,6 +13,7 @@ import {
   Trash2,
   Hash,
   Building,
+  ChevronDown,
 } from "lucide-react";
 import type { Reminder } from "@/lib/supabase/reminders";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,8 +28,10 @@ interface TaskDetailsModalProps {
   onEdit?: (reminder: Reminder) => void;
   onDelete?: (id: string) => void;
   onToggleComplete?: (id: string) => void;
+  onStatusUpdate?: (id: string, status: string) => void;
   isToggling?: boolean;
   isDeleting?: boolean;
+  isUpdatingStatus?: boolean;
 }
 
 export function TaskDetailsModal({
@@ -38,13 +41,16 @@ export function TaskDetailsModal({
   onEdit,
   onDelete,
   onToggleComplete,
+  onStatusUpdate,
   isToggling = false,
   isDeleting = false,
+  isUpdatingStatus = false,
 }: TaskDetailsModalProps) {
   const { user } = useAuth();
   const { channels: availableChannels } = useChannels();
   const { clients } = useClients();
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
 
   if (!reminder) return null;
 
@@ -234,6 +240,90 @@ export function TaskDetailsModal({
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {/* Status Update Dropdown - Available to all users */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+                      disabled={isUpdatingStatus}
+                      className="hidden sm:flex items-center gap-1 px-2 py-1 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition text-sm disabled:opacity-50"
+                      title="Update status"
+                    >
+                      <span>Status</span>
+                      <ChevronDown size={14} />
+                    </button>
+
+                    {showStatusDropdown && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-[100]"
+                          onClick={() => setShowStatusDropdown(false)}
+                        />
+                        <div className="absolute right-0 top-8 z-[101] bg-gray-800 border border-gray-700 rounded-lg shadow-2xl py-1 min-w-[140px]">
+                          {/* Status Update Options */}
+                          <div className="px-3 py-2 border-b border-gray-700">
+                            <p className="text-xs text-gray-500 font-medium mb-2">
+                              Update Status
+                            </p>
+                            <div className="space-y-1">
+                              {reminder.status !== "backlog" && (
+                                <button
+                                  onClick={() => {
+                                    setShowStatusDropdown(false);
+                                    onStatusUpdate?.(reminder.id, "backlog");
+                                  }}
+                                  disabled={isUpdatingStatus}
+                                  className="w-full px-2 py-1 text-left text-xs text-gray-300 hover:bg-gray-700 rounded flex items-center gap-2 cursor-pointer"
+                                >
+                                  <div className="w-2 h-2 rounded-full bg-gray-500" />
+                                  Backlog
+                                </button>
+                              )}
+                              {reminder.status !== "in_progress" && (
+                                <button
+                                  onClick={() => {
+                                    setShowStatusDropdown(false);
+                                    onStatusUpdate?.(reminder.id, "in_progress");
+                                  }}
+                                  disabled={isUpdatingStatus}
+                                  className="w-full px-2 py-1 text-left text-xs text-gray-300 hover:bg-gray-700 rounded flex items-center gap-2 cursor-pointer"
+                                >
+                                  <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                  In Progress
+                                </button>
+                              )}
+                              {reminder.status !== "review" && (
+                                <button
+                                  onClick={() => {
+                                    setShowStatusDropdown(false);
+                                    onStatusUpdate?.(reminder.id, "review");
+                                  }}
+                                  disabled={isUpdatingStatus}
+                                  className="w-full px-2 py-1 text-left text-xs text-gray-300 hover:bg-gray-700 rounded flex items-center gap-2 cursor-pointer"
+                                >
+                                  <div className="w-2 h-2 rounded-full bg-yellow-500" />
+                                  Review
+                                </button>
+                              )}
+                              {reminder.status !== "done" && (
+                                <button
+                                  onClick={() => {
+                                    setShowStatusDropdown(false);
+                                    onStatusUpdate?.(reminder.id, "done");
+                                  }}
+                                  disabled={isUpdatingStatus}
+                                  className="w-full px-2 py-1 text-left text-xs text-gray-300 hover:bg-gray-700 rounded flex items-center gap-2 cursor-pointer"
+                                >
+                                  <div className="w-2 h-2 rounded-full bg-green-500" />
+                                  Done
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
                   {isCreator && (
                     <>
                       <button
