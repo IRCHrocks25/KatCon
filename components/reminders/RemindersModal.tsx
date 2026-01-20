@@ -33,6 +33,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase/client";
 import { ReminderCard } from "./ReminderCard";
 import { ReminderForm } from "./ReminderForm";
+import { TaskDetailsModal } from "./TaskDetailsModal";
 
 interface RemindersModalProps {
   isOpen: boolean;
@@ -73,6 +74,8 @@ export function RemindersModal({
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+  const [selectedTaskForDetails, setSelectedTaskForDetails] = useState<Reminder | null>(null);
+  const [showTaskDetailsModal, setShowTaskDetailsModal] = useState(false);
 
   // Show form immediately when modal opens with initialShowForm, initialEditingReminder, or forceShowCreateForm
   useEffect(() => {
@@ -407,6 +410,18 @@ export function RemindersModal({
     } finally {
       setUpdatingStatusId(null);
     }
+  };
+
+  // Handle view task details
+  const handleViewTaskDetails = (reminder: Reminder) => {
+    setSelectedTaskForDetails(reminder);
+    setShowTaskDetailsModal(true);
+  };
+
+  // Handle close task details modal
+  const handleCloseTaskDetailsModal = () => {
+    setSelectedTaskForDetails(null);
+    setShowTaskDetailsModal(false);
   };
 
   // Render reminder group with quick actions
@@ -831,7 +846,7 @@ export function RemindersModal({
                       onToggleComplete={handleToggleComplete}
                       onEdit={handleEdit}
                       onDelete={handleDelete}
-                      onViewDetails={undefined} // Disable view details modal in list view
+                      onViewDetails={handleViewTaskDetails}
                       onStatusUpdate={handleStatusUpdate}
                       isToggling={togglingId === reminder.id}
                       isDeleting={deletingId === reminder.id}
@@ -858,7 +873,7 @@ export function RemindersModal({
                             onToggleComplete={handleToggleComplete}
                             onEdit={handleEdit}
                             onDelete={handleDelete}
-                            onViewDetails={undefined}
+                      onViewDetails={handleViewTaskDetails}
                             onStatusUpdate={handleStatusUpdate}
                             isToggling={togglingId === reminder.id}
                             isDeleting={deletingId === reminder.id}
@@ -885,8 +900,8 @@ export function RemindersModal({
                             onToggleComplete={handleToggleComplete}
                             onEdit={handleEdit}
                             onDelete={handleDelete}
-                            onViewDetails={undefined}
-                            onStatusUpdate={handleStatusUpdate}
+                      onViewDetails={handleViewTaskDetails}
+                      onStatusUpdate={handleStatusUpdate}
                             isToggling={togglingId === reminder.id}
                             isDeleting={deletingId === reminder.id}
                             isUpdatingStatus={updatingStatusId === reminder.id}
@@ -912,8 +927,8 @@ export function RemindersModal({
                             onToggleComplete={handleToggleComplete}
                             onEdit={handleEdit}
                             onDelete={handleDelete}
-                            onViewDetails={undefined}
-                            onStatusUpdate={handleStatusUpdate}
+                      onViewDetails={handleViewTaskDetails}
+                      onStatusUpdate={handleStatusUpdate}
                             isToggling={togglingId === reminder.id}
                             isDeleting={deletingId === reminder.id}
                             isUpdatingStatus={updatingStatusId === reminder.id}
@@ -939,7 +954,7 @@ export function RemindersModal({
                             onToggleComplete={handleToggleComplete}
                             onEdit={handleEdit}
                             onDelete={handleDelete}
-                            onViewDetails={undefined}
+                            onViewDetails={handleViewTaskDetails}
                             onStatusUpdate={handleStatusUpdate}
                             isToggling={togglingId === reminder.id}
                             isDeleting={deletingId === reminder.id}
@@ -955,6 +970,20 @@ export function RemindersModal({
           </div>
         </motion.div>
       </motion.div>
+
+      {/* Task Details Modal */}
+      <TaskDetailsModal
+        reminder={selectedTaskForDetails}
+        isOpen={showTaskDetailsModal}
+        onClose={handleCloseTaskDetailsModal}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        onToggleComplete={handleToggleComplete}
+        onStatusUpdate={handleStatusUpdate}
+        isToggling={togglingId === selectedTaskForDetails?.id}
+        isDeleting={deletingId === selectedTaskForDetails?.id}
+        isUpdatingStatus={updatingStatusId === selectedTaskForDetails?.id}
+      />
     </AnimatePresence>
   );
 }

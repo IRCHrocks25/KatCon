@@ -424,7 +424,8 @@ export function ReminderCard({
 
                 {/* Actions */}
                 <button
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation();
                     setShowMenu(false);
                     onViewDetails?.(reminder);
                   }}

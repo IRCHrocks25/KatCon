@@ -146,7 +146,7 @@ export function TaskDetailsModal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70]"
             onClick={onClose}
           />
 
@@ -155,7 +155,7 @@ export function TaskDetailsModal({
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="fixed inset-2 sm:inset-4 md:inset-8 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col max-w-4xl mx-auto"
+            className="fixed inset-2 sm:inset-4 md:inset-8 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-[70] overflow-hidden flex flex-col max-w-4xl mx-auto"
           >
             {/* Header */}
             <div className={`border-l-4 ${getPriorityColor()} bg-gray-800/50`}>
